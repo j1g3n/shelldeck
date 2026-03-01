@@ -493,7 +493,7 @@ func Start() {
 
 	app.Static("/", "./web/home") // Se hai risolto il Cannot GET /, lascio invariato
 	app.Static("/host", "./web/host")
-
+	app.Static("/lib", "./web/lib")
 	// --- MIDDLEWARE AUTH ---
 	authReq := func(c *fiber.Ctx) error {
 		cookie := c.Cookies("session_id")
@@ -658,7 +658,8 @@ func Start() {
 			},
 			"workspaces": workspaces,
 			// Per retrocompatibilità col bridge attuale che si aspetta campi piatti:
-			"encryption_key": string(MasterKey),
+			"encryption_key":       string(MasterKey),
+			"current_workspace_id": currentWorkspaceID,
 		})
 	})
 
@@ -1186,7 +1187,7 @@ func Start() {
 			}
 			hosts = append(hosts, hostMap)
 		}
-		return c.JSON(fiber.Map{"groups": groups, "hosts": hosts})
+		return c.JSON(fiber.Map{"groups": groups, "hosts": hosts, "workspace_id": targetID})
 	})
 
 	// --- API CREDENTIALS ---

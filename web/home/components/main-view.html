@@ -261,6 +261,41 @@
         }, 100);
     })();
 
+    // --- WORKSPACE ACTIONS ---
+    window.openWorkspaceTab = function(wsId) {
+        const id = parseInt(wsId);
+        if (isNaN(id)) return;
+        
+        if (!window.AppState) window.AppState = {};
+        window.AppState.currentWorkspaceId = id;
+        
+        // Ricarica i dati per il workspace selezionato
+        if (window.API && window.API.loadData) {
+            window.API.loadData();
+        }
+        
+        const btn = document.getElementById('ws-fav-btn');
+        if(btn) btn.classList.remove('active');
+    }
+
+    window.toggleWorkspaceFavorite = async function() {
+        const wsId = window.AppState.currentWorkspaceId || 0;
+        const btn = document.getElementById('ws-fav-btn');
+        
+        try {
+            const res = await fetch('/api/workspace/switch', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ id: parseInt(wsId), save: true })
+            });
+            
+            if(res.ok) {
+                if(btn) btn.classList.add('active');
+                alert("Dashboard impostata come preferita!");
+            }
+        } catch(e) { console.error(e); }
+    }
+
     // --- CREDENTIALS HELPER ---
     window.getEffectiveUser = function(host) {
         if (host.user) return host.user;
@@ -1494,4 +1529,23 @@
         };
         // Reconnect logic could be added here
     }
+
+    // --- SYNC WORKSPACE STATE ON LOAD ---
+    (async function() {
+        try {
+            const res = await fetch('/api/tree');
+            if(res.ok) {
+                const data = await res.json();
+                if(data.workspace_id) {
+                    if(!window.AppState) window.AppState = {};
+                    window.AppState.currentWorkspaceId = data.workspace_id;
+                    
+                    // Sync Dropdowns UI
+                    document.querySelectorAll('.workspace-selector').forEach(s => {
+                        s.value = data.workspace_id;
+                    });
+                }
+            }
+        } catch(e) {}
+    })();
 </script>
