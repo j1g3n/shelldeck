@@ -62,6 +62,25 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Multi-Tenant Workspaces:** Logical separation of servers and credentials into different encrypted SQLite databases, with Global Admin and Group Admin Role-Based Access Control (RBAC).
 * **Zero-Touch Provisioning:** If the configuration or DB is missing, the server auto-generates them, falling back to a safe port (`9112`) and generating the necessary schema automatically.
 
+
+## 📥 Download (Ready-to-use Binaries)
+
+You don't need to build from source! Download the latest compiled binaries for your operating system directly:
+
+### 🐧 Linux (amd64)
+* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/server-linux)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/bridge-linux)
+* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/standalone-Linux)
+
+### 🪟 Windows (amd64)
+* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-server-windows.exe)
+* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-bridge-windows.exe)
+* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-standalone-windows.exe)
+
+*(🍎 Mac OS builds coming very soon!)*
+
+> 📦 **[View all Releases and Changelogs here](https://github.com/j1g3n/shelldeck/releases)**
+
 ## 🚀 Quick Start (Installation)
 
 Shelldeck is a single compiled Go binary. No external dependencies required.
