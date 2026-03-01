@@ -1,0 +1,38 @@
+# ==========================================
+# Shelldeck - .gitignore
+# ==========================================
+
+# 1. Eseguibili e Binari (Non si salva mai il codice compilato)
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+shelldeck-server*
+shelldeck-bridge*
+shelldeck-client*
+
+# 2. Database generati dinamicamente (Contengono dati sensibili)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# 3. File di Configurazione (Specifici della singola installazione)
+config.json
+.env
+
+# 4. File di log
+*.log
+/logs/
+
+# 5. File di sistema operativo e roba temporanea
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.vscode/
+
+# 6. File temporanei di Go
+*.test
+/vendor/

@@ -1,0 +1,727 @@
+<div class="nginx-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .nginx-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --info: #2f81f7; --success: #238636;
+        }
+
+        .nginx-module-wrapper * { box-sizing: border-box; }
+        
+        .ng-sidebar { width: 220px; min-width: 220px; flex-shrink: 0; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; }
+        .ng-sidebar h3 { color: #fff; font-size: 1.1em; margin-bottom: 20px; display:flex; align-items:center; gap:10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: var(--accent); color: white; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-width: 0; }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 25px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; flex-shrink: 0; }
+        
+        /* Status & Logs */
+        .status-bar { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; flex-shrink: 0; }
+        .card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; }
+        .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2em; margin-bottom: 5px; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
+        .dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .dot.offline { background: var(--danger); }
+        
+        .log-preview-container { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; flex: 1; overflow: hidden; min-height: 200px; }
+        .log-col { display: flex; flex-direction: column; background: #000; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .log-header { padding: 5px 10px; background: #21262d; font-size: 0.8em; font-weight: bold; border-bottom: 1px solid var(--border); display:flex; justify-content: space-between; }
+        .log-body { flex: 1; padding: 10px; overflow-y: auto; font-size: 0.75em; white-space: pre-wrap; color: #ccc; }
+        .log-line-err { color: #ff5555; }
+        .log-line-acc { color: #8b949e; }
+
+        /* Sites */
+        .sites-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 15px; }
+        .site-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 15px; position: relative; transition: 0.2s; }
+        .site-card:hover { border-color: var(--accent); }
+        .site-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid #333; padding-bottom: 5px; }
+        .site-domain { font-weight: bold; color: white; font-size: 1.1em; }
+        .site-port { font-size: 0.8em; background: #333; padding: 2px 6px; border-radius: 4px; }
+        .site-details { font-size: 0.85em; color: var(--text-dim); margin-bottom: 10px; }
+        .site-row { display: flex; justify-content: space-between; margin-bottom: 4px; }
+        .site-actions { display: flex; gap: 10px; margin-top: 10px; align-items:center; }
+        
+        .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: var(--accent); }
+        input:checked + .slider:before { transform: translateX(14px); }
+
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; font-size:0.9em; }
+        .btn:hover { filter: brightness(1.1); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-sec:hover { background: #21262d; }
+        .btn-warn { background: var(--warning); color: #000; }
+        .btn-danger { background: var(--danger); }
+        
+        input, select { background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; width: 100%; box-sizing: border-box; font-family: inherit; margin-bottom: 10px; }
+        label { font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; display: block; }
+        optgroup { color: var(--text-dim); font-style: italic; }
+        option { color: white; font-style: normal; }
+
+        .editor-wrapper { flex: 1; border: 1px solid var(--border); position: relative; min-height: 500px; }
+        .ace-div { position: absolute; top: 0; right: 0; bottom: 0; left: 0; }
+
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 500px; }
+        
+        /* Log Viewer Styles */
+        .ng-log-container { display: flex; height: 100%; gap: 15px; }
+        .ng-log-list { width: 250px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow-y: auto; padding: 10px; }
+        .ng-log-viewer { flex: 1; display: flex; flex-direction: column; background: #000; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        
+        /* Log Tabs */
+        .ng-log-tabs { display: flex; background: #161b22; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+        .ng-log-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 0.85em; white-space: nowrap; user-select: none; }
+        .ng-log-tab:hover { background: #21262d; color: white; }
+        .ng-log-tab.active { background: #0d1117; color: var(--accent); font-weight: bold; border-top: 2px solid var(--accent); }
+        .ng-tab-close { margin-left: 5px; opacity: 0.6; border-radius: 50%; padding: 2px; }
+        .ng-tab-close:hover { opacity: 1; color: var(--danger); background: rgba(255,255,255,0.1); }
+
+        .ng-log-controls { padding: 10px; background: var(--bg-panel); border-bottom: 1px solid var(--border); display: flex; gap: 10px; }
+        
+        .ng-log-content-wrapper { flex: 1; position: relative; overflow: hidden; background: #000; }
+        .ng-log-content { position: absolute; top: 0; left: 0; width: 100%; height: 100%; padding: 10px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; white-space: pre-wrap; color: #ccc; display: none; background: #000; }
+        .ng-log-content.active { display: block; }
+        
+        .ng-log-item { padding: 8px; cursor: pointer; border-radius: 4px; color: var(--text-dim); font-size: 0.9em; margin-bottom: 2px; }
+        .ng-log-item:hover { background: #21262d; color: white; }
+        .ng-log-item.active { background: var(--accent); color: white; }
+        .log-line { border-bottom: 1px solid #111; padding: 2px 0; }
+        
+        /* Highlighting */
+        .hl-date { color: #2f81f7; }
+        .hl-ip { color: #d2a8ff; }
+        .hl-method { color: #e3b341; font-weight: bold; }
+        .hl-status-2 { color: #238636; font-weight: bold; } /* 2xx */
+        .hl-status-3 { color: #a5d6ff; font-weight: bold; } /* 3xx */
+        .hl-status-4 { color: #d29922; font-weight: bold; } /* 4xx */
+        .hl-status-5 { color: #da3633; font-weight: bold; } /* 5xx */
+        .hl-error { color: #ff5555; font-weight: bold; }
+        .hl-warn { color: #e3b341; font-weight: bold; }
+        .hl-info { color: #238636; }
+
+        /* Sub-tabs */
+        .sub-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; background: #161b22; }
+        .sub-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); font-size: 0.9em; }
+        .sub-tab:hover { background: #21262d; color: white; }
+        .sub-tab.active { background: var(--bg-body); color: var(--accent); border-top: 2px solid var(--accent); font-weight: bold; }
+        .sub-content { display: none; flex-direction: column; height: 100%; }
+        .sub-content.active { display: flex; }
+    </style>
+
+    <div class="ng-sidebar">
+        <h3><i class="fas fa-leaf"></i> Nginx Manager</h3>
+        <div class="nav-item active" data-view="overview"><i class="fas fa-tachometer-alt"></i> Panoramica</div>
+        <div class="nav-item" data-view="sites"><i class="fas fa-globe"></i> Gestione Siti</div>
+        <div class="nav-item" data-view="editor"><i class="fas fa-file-code"></i> Editor Config</div>
+        <div class="nav-item" data-view="logs"><i class="fas fa-list"></i> Full Logs</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <div id="view-overview" class="view-panel active-view">
+            <div class="panel-header">
+                <h3>Stato del Servizio</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-warn btn-test-config"><i class="fas fa-check-circle"></i> Test Config</button>
+                    <button class="btn btn-sec btn-reload"><i class="fas fa-sync"></i> Reload</button>
+                    <button class="btn btn-restart btn-restart-nginx"><i class="fas fa-power-off"></i> Restart</button>
+                </div>
+            </div>
+
+            <div class="status-bar">
+                <div class="card">
+                    <div class="status-indicator">
+                        <div class="dot status-dot"></div>
+                        <span class="status-text">LOADING...</span>
+                    </div>
+                    <div style="font-size:0.9em; color:var(--text-dim)">
+                        Versione: <span class="ng-ver" style="color:white">-</span><br>
+                        PID: <span class="ng-pid" style="color:white">-</span><br>
+                        Uptime: <span class="ng-up" style="color:white">-</span>
+                    </div>
+                </div>
+                <div class="card" style="justify-content:center">
+                     <div style="display:flex; justify-content:space-around; text-align:center">
+                        <div>
+                            <div style="font-size:1.5em; font-weight:bold; color:var(--info)" class="count-sites">-</div>
+                            <div style="font-size:0.8em; color:var(--text-dim)">Siti Attivi</div>
+                        </div>
+                        <div>
+                            <div style="font-size:1.5em; font-weight:bold; color:var(--warning)" class="count-conns">-</div>
+                            <div style="font-size:0.8em; color:var(--text-dim)">Connessioni</div>
+                        </div>
+                     </div>
+                </div>
+            </div>
+
+            <h4 style="margin-bottom:10px">Live Logs Preview</h4>
+            <div class="log-preview-container">
+                <div class="log-col">
+                    <div class="log-header"><span>access.log</span></div>
+                    <div class="log-body log-access">In attesa di dati...</div>
+                </div>
+                <div class="log-col">
+                    <div class="log-header"><span style="color:var(--danger)">error.log</span></div>
+                    <div class="log-body log-error">In attesa di dati...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-sites" class="view-panel">
+            <div class="panel-header">
+                <h3>Virtual Hosts (sites-available & enabled)</h3>
+                <button class="btn btn-new-site"><i class="fas fa-plus"></i> Nuovo Sito</button>
+            </div>
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-sub="sites-avail">Sites Available</div>
+                <div class="sub-tab" data-sub="sites-en">Sites Enabled</div>
+            </div>
+            <div id="sub-sites-avail" class="sub-content active">
+                <div class="sites-grid sites-container-avail"></div>
+            </div>
+            <div id="sub-sites-en" class="sub-content">
+                <div class="sites-grid sites-container-en"></div>
+            </div>
+        </div>
+
+        <div id="view-editor" class="view-panel">
+            <div class="panel-header">
+                <h3>Configurazione Raw</h3>
+                <div style="display:flex; gap:10px; width: 60%">
+                    <select class="file-select" style="width:100%"><option value="">Caricamento files...</option></select>
+                    <button class="btn btn-save-config"><i class="fas fa-save"></i> Salva</button>
+                </div>
+            </div>
+            <div class="editor-wrapper">
+                <div class="ace-div" id="config-editor-div"></div>
+            </div>
+        </div>
+        
+        <div id="view-logs" class="view-panel">
+            <div class="panel-header">
+                <h3>Nginx Logs (/var/log/nginx)</h3>
+                <button class="btn btn-sec btn-refresh-ng-logs"><i class="fas fa-sync"></i> Refresh List</button>
+            </div>
+            <div class="ng-log-container">
+                <div class="ng-log-list" id="ng-log-files">Loading...</div>
+                <div class="ng-log-viewer">
+                    <div class="ng-log-tabs" id="ng-log-tabs-container"></div>
+                    <div class="ng-log-controls">
+                        <input type="text" id="ng-log-filter" placeholder="Filtra logs..." style="margin:0; flex:1">
+                        <input type="number" id="ng-log-lines" value="500" style="width: 80px; margin:0">
+                        <button class="btn btn-sm btn-load-log">Reload</button>
+                    </div>
+                    <div class="ng-log-content-wrapper" id="ng-log-contents">
+                        <div id="ng-log-placeholder" style="padding:20px; color:var(--text-dim); text-align:center; margin-top:50px;">Seleziona un file di log dalla lista per aprirlo.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="local-modal siteModal">
+        <div class="modal-content">
+            <h3 style="margin-top:0">Configura Virtual Host</h3>
+            <label>Dominio (Server Name)</label><input type="text" class="new-domain" placeholder="example.com">
+            <label>Porta</label><input type="text" class="new-port" value="80">
+            <label>Root Directory</label><input type="text" class="new-root" value="/var/www/html">
+            <label>Template</label>
+            <select class="new-template">
+                <option value="static">Static HTML</option>
+                <option value="php">PHP (FPM)</option>
+                <option value="proxy">Reverse Proxy</option>
+            </select>
+            <div class="proxy-opts" style="display:none">
+                <label>Proxy Pass URL</label><input type="text" class="new-proxy" placeholder="http://localhost:3000">
+            </div>
+            <div style="margin-top:10px">
+                <label class="switch" style="vertical-align:middle; margin-right:5px">
+                    <input type="checkbox" class="new-enable" checked>
+                    <span class="slider"></span>
+                </label>
+                <span style="font-size:0.8em; color:var(--text-dim)">Abilita subito</span>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px">
+                <button class="btn btn-sec btn-close-modal">Annulla</button>
+                <button class="btn btn-create-site">Crea Config</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(app) {
+            const appInstance = app || window.appInstance;
+            if (!appInstance) {
+                console.error("[Nginx] Critical: appInstance is missing!");
+                return;
+            }
+            const container = appInstance.container;
+                        const currentId = appInstance.hostId;
+                        const wsId = appInstance.workspaceId || 0;
+                        const termId = `${wsId}:nginx_` + Math.random().toString(36).substring(2, 9);
+            
+                        const loadScript = (src) => new Promise((resolve) => {
+                            if (document.querySelector(`script[src="${src}"]`)) return resolve();
+                            const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+                        });
+            
+                        (async function init() {
+                            
+                            try {
+                                if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                            } catch(e) { console.error(e); }
+            
+                            let editor;
+                            let ws = null;
+                            let fileToEdit = null;
+                            let isCloning = false;
+                            let cloneNewName = "";
+                            let openLogTabs = [];
+                            let activeLogTab = null;
+            
+                            if(typeof ace !== 'undefined') {
+                                editor = ace.edit(container.querySelector('#config-editor-div'));
+                                editor.setTheme("ace/theme/monokai");
+                                editor.session.setMode("ace/mode/nginx");
+                            }
+            
+                            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                            const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                            try { ws = new WebSocket(wsUrl); } catch(e) {}
+            
+                            // Bindings
+                            const bind = (sel, fn) => container.querySelector(sel)?.addEventListener('click', fn);
+                            const bindChange = (sel, fn) => container.querySelector(sel)?.addEventListener('change', fn);
+                            const bindInput = (sel, fn) => container.querySelector(sel)?.addEventListener('input', fn);
+            
+                            // Nav
+                            container.querySelectorAll('.nav-item').forEach(item => {
+                                item.addEventListener('click', () => {
+                                    container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                                    item.classList.add('active');
+                                    container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                                    const viewId = item.dataset.view;
+                                    container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                                    if(viewId === 'editor') { editor.resize(); loadFilesList(); }
+                                    if(viewId === 'sites') loadSites();
+                                    if(viewId === 'overview') loadOverview();
+                                    if(viewId === 'logs') loadNginxLogFiles();
+                                });
+                            });
+
+                            // Sub-tabs logic
+                            container.querySelectorAll('.sub-tab').forEach(t => {
+                                t.addEventListener('click', () => {
+                                    const parent = t.closest('.view-panel');
+                                    parent.querySelectorAll('.sub-tab').forEach(x => x.classList.remove('active')); t.classList.add('active');
+                                    parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active')); parent.querySelector('#sub-'+t.dataset.sub).classList.add('active');
+                                });
+                            });
+            
+                            bind('.btn-test-config', () => nginxOp('test'));
+                            bind('.btn-reload', () => nginxOp('reload'));
+                            bind('.btn-restart-nginx', () => nginxOp('restart'));
+                            bind('.btn-new-site', () => container.querySelector('.siteModal').style.display = 'flex');
+                            bind('.btn-create-site', createSite);
+                            bind('.btn-save-config', saveConfigFile);
+                            bind('.btn-close-modal', () => container.querySelector('.siteModal').style.display = 'none');
+                            
+                            bind('.btn-refresh-ng-logs', loadNginxLogFiles);
+                            bind('.btn-load-log', () => loadNginxLogContent());
+                            bindInput('#ng-log-filter', (e) => filterLogContent(e.target.value));
+                            
+                            bindChange('.file-select', loadConfigFile);
+                            bindChange('.new-template', (e) => {
+                                container.querySelector('.proxy-opts').style.display = e.target.value === 'proxy' ? 'block' : 'none';
+                            });
+            
+                            // Delegation for Sites
+                            const handleSiteClick = (e) => {
+                                const btn = e.target.closest('button');
+                                if(!btn) return;
+                                if(btn.dataset.action === 'edit') editSiteRaw(btn.dataset.file);
+                                if(btn.dataset.action === 'delete') deleteSite(btn.dataset.file);
+                                if(btn.dataset.action === 'clone') cloneSite(btn.dataset.file);
+                            };
+                            container.querySelector('.sites-container-avail').addEventListener('click', handleSiteClick);
+                            container.querySelector('.sites-container-en').addEventListener('click', handleSiteClick);
+                            
+                            // Delegation for Switch
+                            const handleSwitch = (e) => {
+                                if(e.target.type === 'checkbox' && e.target.dataset.file) {
+                                    toggleSite(e.target.dataset.file, e.target.checked);
+                                }
+                            };
+                            container.querySelector('.sites-container-avail').addEventListener('change', handleSwitch);
+                            container.querySelector('.sites-container-en').addEventListener('change', handleSwitch);
+            
+                            if(ws) {
+                                ws.onopen = () => {
+                                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                                    loadOverview();
+                                };
+            
+                                ws.onmessage = (e) => {
+                                    const msg = JSON.parse(e.data);
+                                    if(msg.type === "nginx_status") updateStatus(msg.payload);
+                                    if(msg.type === "nginx_log_chunk") updateLogs(msg.payload);
+                                    if(msg.type === "nginx_sites_list") renderSites(msg.payload);
+                                    if(msg.type === "nginx_file_list") populateFileSelect(msg.payload);
+                                    if(msg.type === "nginx_file_content") {
+                                        if(isCloning) {
+                                            isCloning = false;
+                                            const newPath = "sites-available/" + cloneNewName;
+                                            ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_config", file: newPath, content: msg.payload } }));
+                                        } else {
+                                            editor.setValue(msg.payload, -1);
+                                        }
+                                    }
+                                    if(msg.type === "nginx_op_res") {
+                                        alert(msg.payload.status === "success" ? "Successo!" : "Errore: " + msg.payload.msg);
+                                        if(msg.payload.status === "success") { loadOverview(); loadSites(); }
+                                    }
+                                    
+                                    // Log Viewer Messages
+                                    if(msg.type === "nginx_log_list") renderNginxLogFiles(msg.payload);
+                                    if(msg.type === "log_file_content") {
+                                        let content = "";
+                                        if (msg.payload && typeof msg.payload === 'object' && msg.payload.content) {
+                                            content = msg.payload.content;
+                                        } else if (typeof msg.payload === 'string') {
+                                            content = msg.payload;
+                                        }
+                                        renderLogContent(content);
+                                    }
+                                };
+                            }
+            
+                            // Functions
+                            function loadOverview() { ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_status" } })); }
+                            
+                            function updateStatus(data) {
+                                const dot = container.querySelector('.status-dot');
+                                const txt = container.querySelector('.status-text');
+                                if (dot && txt) {
+                                    if(data.active) { dot.className="dot online"; txt.innerText="RUNNING"; txt.style.color="var(--success)"; }
+                                    else { dot.className="dot offline"; txt.innerText="STOPPED"; txt.style.color="var(--danger)"; }
+                                }
+                                
+                                let ver = data.version;
+                                const verEl = container.querySelector('.ng-ver');
+                                if (verEl) {
+                                    if (ver && (ver.includes("command not found") || ver.includes("bash:") || ver.includes("No such file"))) {
+                                        ver = "Not Detected";
+                                        verEl.style.color = "var(--danger)";
+                                    } else {
+                                        verEl.style.color = "white";
+                                    }
+                                    verEl.innerText = ver;
+                                }
+                                const pidEl = container.querySelector('.ng-pid'); if(pidEl) pidEl.innerText = data.pid;
+                                const upEl = container.querySelector('.ng-up'); if(upEl) upEl.innerText = data.uptime;
+                                const sitesEl = container.querySelector('.count-sites'); if(sitesEl) sitesEl.innerText = data.active_sites;
+                                const connEl = container.querySelector('.count-conns'); if(connEl) connEl.innerText = data.connections || "0";
+                            }
+            
+                            function updateLogs(data) {
+                                const acc = container.querySelector('.log-access');
+                                const err = container.querySelector('.log-error');
+                                if(data.type === 'access') appendLine(acc, data.line, 'log-line-acc');
+                                if(data.type === 'error') appendLine(err, data.line, 'log-line-err');
+                            }
+                            function appendLine(el, txt, cls) {
+                                const div = document.createElement('div'); div.className=cls; div.innerText=txt;
+                                el.appendChild(div);
+                                if(el.childElementCount > 50) el.removeChild(el.firstChild);
+                                el.scrollTop = el.scrollHeight;
+                            }
+            
+                            function nginxOp(op) { if(confirm("Eseguire " + op + "?")) ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "service_op", op: op } })); }
+            
+                            function loadSites() { ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_sites" } })); }
+                            
+                            function renderSites(data) {
+                                const renderList = (sites, containerEl, isAvail) => {
+                                    containerEl.innerHTML = "";
+                                    sites.forEach(s => {
+                                    const card = document.createElement('div'); card.className = "site-card";
+                                    const isEnabled = s.enabled;
+                                    const statusColor = isEnabled ? "var(--success)" : "var(--text-dim)";
+                                    const statusText = isEnabled ? "Enabled" : "Disabled";
+            
+                                    card.innerHTML = `
+                                        <div class="site-header">
+                                            <span class="site-domain">${s.domain}</span>
+                                            <span class="site-port" style="color:${statusColor}">${statusText}</span>
+                                        </div>
+                                        <div class="site-details">
+                                            <div class="site-row"><span class="lbl">File:</span> <span>${s.file}</span></div>
+                                            <div class="site-row"><span class="lbl">Root:</span> <span>${s.root}</span></div>
+                                            <div class="site-row"><span class="lbl">Port:</span> <span>${s.port}</span></div>
+                                        </div>
+                                        <div class="site-actions">
+                                            ${isAvail ? `<label class="switch" title="Abilita/Disabilita">
+                                                <input type="checkbox" ${isEnabled ? 'checked' : ''} data-file="${s.file}">
+                                                <span class="slider"></span>
+                                            </label>` : ''}
+                                            <button class="btn btn-sec" style="font-size:0.7em; padding:4px 8px" data-action="edit" data-file="${isAvail ? 'sites-available/' : 'sites-enabled/'}${s.file}"><i class="fas fa-edit"></i> Edit</button>
+                                            ${isAvail ? `<button class="btn btn-sec" style="font-size:0.7em; padding:4px 8px" data-action="clone" data-file="${s.file}"><i class="fas fa-copy"></i></button>
+                                            <button class="btn btn-danger" style="font-size:0.7em; padding:4px 8px; margin-left:auto" data-action="delete" data-file="${s.file}"><i class="fas fa-trash"></i></button>` : ''}
+                                        </div>
+                                    `;
+                                    containerEl.appendChild(card);
+                                    });
+                                };
+
+                                renderList(data.available || [], container.querySelector('.sites-container-avail'), true);
+                                renderList(data.enabled || [], container.querySelector('.sites-container-en'), false);
+                            }
+            
+                            function toggleSite(file, enable) { ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: enable ? "enable_site" : "disable_site", file: file } })); }
+                            function deleteSite(file) { if(confirm("Eliminare " + file + "?")) ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_site", file: file } })); }
+                            
+                            function loadFilesList() { ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_config_files" } })); }
+                            
+                            function populateFileSelect(files) {
+                                const s = container.querySelector('.file-select');
+                                s.innerHTML = '<option value="">Seleziona un file...</option>';
+                                const mainGroup = document.createElement('optgroup'); mainGroup.label = "Main Config";
+                                const availGroup = document.createElement('optgroup'); availGroup.label = "Sites Available";
+                                const enabledGroup = document.createElement('optgroup'); enabledGroup.label = "Sites Enabled";
+                                const confGroup = document.createElement('optgroup'); confGroup.label = "Conf.d";
+            
+                                files.forEach(f => {
+                                    const opt = document.createElement('option'); opt.value = f; opt.innerText = f;
+                                    if(f.includes('nginx.conf')) mainGroup.appendChild(opt);
+                                    else if(f.includes('sites-available')) availGroup.appendChild(opt);
+                                    else if(f.includes('sites-enabled')) enabledGroup.appendChild(opt);
+                                    else confGroup.appendChild(opt);
+                                });
+                                s.append(mainGroup, availGroup, enabledGroup, confGroup);
+                                
+                                if(fileToEdit) {
+                                    for(let i=0; i<s.options.length; i++) {
+                                        // Match robusto: controlla inclusione o match esatto del nome file
+                                        const optVal = s.options[i].value;
+                                        const targetName = fileToEdit.split('/').pop();
+                                        if(optVal.includes(fileToEdit) || optVal.endsWith(targetName)) { 
+                                            s.selectedIndex = i; 
+                                            loadConfigFile(); 
+                                            break; 
+                                        }
+                                    }
+                                    fileToEdit = null;
+                                }
+                            }
+            
+                            function loadConfigFile() { const f = container.querySelector('.file-select').value; if(f) ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_config", file: f } })); }
+                            function saveConfigFile() { const f = container.querySelector('.file-select').value; if(f && confirm("Salvare?")) ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_config", file: f, content: editor.getValue() } })); }
+                            
+                            function editSiteRaw(file) {
+                                container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                                container.querySelector('.nav-item[data-view="editor"]').classList.add('active');
+                                container.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active-view'));
+                                container.querySelector('#view-editor').classList.add('active-view');
+                                fileToEdit = file;
+                                editor.resize();
+                                loadFilesList();
+                            }
+
+                            function cloneSite(file) {
+                                const newName = prompt("Nome per il nuovo sito (clone di " + file + "):");
+                                if(!newName) return;
+                                cloneNewName = newName;
+                                isCloning = true;
+                                ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_config", file: "sites-available/" + file } }));
+                            }
+            
+                            function createSite() {
+                                const p = {
+                                    action: "create_site",
+                                    domain: container.querySelector('.new-domain').value,
+                                    port: container.querySelector('.new-port').value,
+                                    root: container.querySelector('.new-root').value,
+                                    template: container.querySelector('.new-template').value,
+                                    proxy_target: container.querySelector('.new-proxy').value,
+                                    enable_now: container.querySelector('.new-enable').checked,
+                                };
+                                if(!p.domain) return alert("Dominio richiesto");
+                                ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: p }));
+                                container.querySelector('.siteModal').style.display='none';
+                            }
+            
+                            // --- LOG VIEWER FUNCTIONS ---
+                            function loadNginxLogFiles() {
+                                container.querySelector('#ng-log-files').innerHTML = "Loading...";
+                                ws.send(JSON.stringify({ type: "nginx_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_logs" } }));
+                            }
+
+                            function renderNginxLogFiles(raw) {
+                                const list = container.querySelector('#ng-log-files');
+                                list.innerHTML = "";
+                                if (!raw || raw.trim() === "") {
+                                    list.innerHTML = '<div style="padding:10px; color:var(--text-dim)">Nessun log trovato.</div>';
+                                    return;
+                                }
+                                const lines = raw.split('\n');
+                                lines.forEach(name => {
+                                    name = name.trim();
+                                    if(!name) return;
+                                    
+                                    const div = document.createElement('div');
+                                    div.className = "ng-log-item";
+                                    div.innerText = name;
+                                    div.onclick = () => openLogTab(name);
+                                    list.appendChild(div);
+                                });
+                            }
+
+                            function openLogTab(filename) {
+                                if (!openLogTabs.includes(filename)) {
+                                    openLogTabs.push(filename);
+                                    // Create Tab
+                                    const tab = document.createElement('div');
+                                    tab.className = 'ng-log-tab';
+                                    tab.dataset.file = filename;
+                                    tab.innerHTML = `<span>${filename}</span><i class="fas fa-times ng-tab-close"></i>`;
+                                    tab.onclick = () => setActiveLogTab(filename);
+                                    tab.querySelector('.ng-tab-close').onclick = (e) => { e.stopPropagation(); closeLogTab(filename); };
+                                    container.querySelector('#ng-log-tabs-container').appendChild(tab);
+                                    
+                                    // Create Content Div
+                                    const content = document.createElement('div');
+                                    content.className = 'ng-log-content';
+                                    content.dataset.file = filename;
+                                    content.innerHTML = '<div style="padding:10px; color:#888">Loading...</div>';
+                                    container.querySelector('#ng-log-contents').appendChild(content);
+                                    
+                                    // Hide placeholder
+                                    const ph = container.querySelector('#ng-log-placeholder'); if(ph) ph.style.display = 'none';
+                                    
+                                    // Load data
+                                    loadNginxLogContent(filename);
+                                }
+                                setActiveLogTab(filename);
+                            }
+
+                            function closeLogTab(filename) {
+                                openLogTabs = openLogTabs.filter(f => f !== filename);
+                                const tab = container.querySelector(`.ng-log-tab[data-file="${filename}"]`);
+                                if(tab) tab.remove();
+                                const content = container.querySelector(`.ng-log-content[data-file="${filename}"]`);
+                                if(content) content.remove();
+                                
+                                if(activeLogTab === filename) {
+                                    if(openLogTabs.length > 0) setActiveLogTab(openLogTabs[openLogTabs.length - 1]);
+                                    else { activeLogTab = null; const ph = container.querySelector('#ng-log-placeholder'); if(ph) ph.style.display = 'block'; }
+                                }
+                                
+                                if(openLogTabs.length === 0) { const ph = container.querySelector('#ng-log-placeholder'); if(ph) ph.style.display = 'block'; }
+                            }
+
+                            function setActiveLogTab(filename) {
+                                activeLogTab = filename;
+                                container.querySelectorAll('.ng-log-tab').forEach(t => t.classList.toggle('active', t.dataset.file === filename));
+                                container.querySelectorAll('.ng-log-content').forEach(c => c.classList.toggle('active', c.dataset.file === filename));
+                                
+                                // Update sidebar selection
+                                container.querySelectorAll('.ng-log-item').forEach(i => i.classList.toggle('active', i.innerText === filename));
+                            }
+
+                            function loadNginxLogContent(filename) {
+                                const target = filename || activeLogTab;
+                                if(!target) return;
+                                
+                                const lines = container.querySelector('#ng-log-lines').value;
+                                const contentDiv = container.querySelector(`.ng-log-content[data-file="${target}"]`);
+                                if(contentDiv) contentDiv.innerHTML = '<div style="padding:10px; color:#888"><i class="fas fa-circle-notch fa-spin"></i> Loading...</div>';
+                                
+                                ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_file", path: "/var/log/nginx/" + target, lines: lines } }));
+                            }
+
+                            function renderLogContent(text) {
+                                if(!activeLogTab) return;
+                                const contentDiv = container.querySelector(`.ng-log-content[data-file="${activeLogTab}"]`);
+                                if(!contentDiv) return;
+                                
+                                contentDiv.innerHTML = "";
+                                if (!text) return;
+
+                                const fragment = document.createDocumentFragment();
+                                
+                                text.split('\n').forEach(l => {
+                                    if(!l) return;
+                                    const div = document.createElement('div');
+                                    div.className = "log-line";
+                                    div.innerHTML = colorizeLogLine(l);
+                                    fragment.appendChild(div);
+                                });
+                                
+                                contentDiv.appendChild(fragment);
+                                contentDiv.scrollTop = contentDiv.scrollHeight;
+                            }
+
+                            function filterLogContent(query) {
+                                if(!activeLogTab) return;
+                                const contentDiv = container.querySelector(`.ng-log-content[data-file="${activeLogTab}"]`);
+                                if(!contentDiv) return;
+                                
+                                const q = query.toLowerCase();
+                                contentDiv.querySelectorAll('.log-line').forEach(l => {
+                                    l.style.display = l.innerText.toLowerCase().includes(q) ? 'block' : 'none';
+                                });
+                            }
+
+                            function colorizeLogLine(line) {
+                                let l = line.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                                
+                                // Error Log
+                                if (l.match(/^\d{4}\/\d{2}\/\d{2}/)) {
+                                    l = l.replace(/^(\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2})/, '<span class="hl-date">$1</span>');
+                                    l = l.replace(/\[(error|crit|alert|emerg)\]/, '<span class="hl-error">[$1]</span>');
+                                    l = l.replace(/\[(warn|notice)\]/, '<span class="hl-warn">[$1]</span>');
+                                    l = l.replace(/\[(info)\]/, '<span class="hl-info">[$1]</span>');
+                                } 
+                                // Access Log (Common/Combined)
+                                else {
+                                    // IP (start of line) - IPv4/IPv6
+                                    l = l.replace(/^([0-9a-fA-F:.]+)/, '<span class="hl-ip">$1</span>');
+                                    // Date
+                                    l = l.replace(/\[([^\]]+)\]/, '[<span class="hl-date">$1</span>]');
+                                    // Method
+                                    l = l.replace(/"(GET|POST|PUT|DELETE|HEAD|OPTIONS|PATCH)/, '"<span class="hl-method">$1</span>');
+                                    // Status Code
+                                    l = l.replace(/"\s+(\d{3})\s+/, (match, code) => {
+                                        let cls = 'hl-info';
+                                        if(code.startsWith('2')) cls = 'hl-status-2';
+                                        if(code.startsWith('3')) cls = 'hl-status-3';
+                                        if(code.startsWith('4')) cls = 'hl-status-4';
+                                        if(code.startsWith('5')) cls = 'hl-status-5';
+                                        return `" <span class="${cls}">${code}</span> `;
+                                    });
+                                }
+                                return l;
+                            }
+
+                            appInstance.registerCleanup(() => { if(ws) ws.close(); editor.destroy(); });
+                        })();
+                    })(arguments[0]);
+                </script>
+            </div>
+            

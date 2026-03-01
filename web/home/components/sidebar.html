@@ -1,0 +1,815 @@
+<style>
+    /* --- STILE SIDEBAR COMPACT --- */
+    :root {
+        --sidebar-width: 260px;
+        --sidebar-collapsed-width: 60px;
+        --indent-step: 8px;
+        --line-color: #30363d;
+        --bg-sidebar: #0d1117;
+        --bg-element: #161b22;
+        --color-accent: #58a6ff;
+        --color-text: #8b949e;
+        --color-text-hover: #e6edf3;
+    }
+
+    .sidebar { width: var(--sidebar-width); background-color: var(--bg-sidebar); border-right: 1px solid #30363d; display: flex; flex-direction: column; height: 100%; transition: width 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); overflow: hidden; user-select: none; }
+    
+    /* COLLAPSED STATE */
+    .sidebar.collapsed { width: var(--sidebar-collapsed-width); }
+    
+    /* Hide everything by default when collapsed */
+    .sidebar.collapsed > * { display: none !important; }
+    
+    /* Show vertical text */
+    .sidebar.collapsed > .sidebar-vertical-text { display: flex !important; }
+    
+    .sidebar-vertical-text { 
+        display: none; 
+        flex-direction: column; 
+        align-items: center; 
+        height: 100%; 
+        padding-top: 20px; 
+        cursor: pointer; 
+        color: var(--color-accent); 
+        transition: color 0.2s; 
+    }
+    .sidebar-vertical-text:hover { color: var(--color-text-hover); }
+    .sidebar-vertical-text .v-text {
+        writing-mode: vertical-rl;
+        text-orientation: upright;
+        font-weight: 800;
+        font-size: 1.1em;
+        letter-spacing: 6px;
+        margin: auto 0;
+    }
+
+    .sidebar.collapsed .proto-tab { padding: 15px 0; justify-content: center; }
+    .sidebar.collapsed .node-row { padding: 10px 0; justify-content: center; padding-left: 0 !important; }
+    .sidebar.collapsed .node-icon { margin: 0; font-size: 1.4em; }
+    .sidebar.collapsed .fav-item { justify-content: center; padding: 10px 0; }
+    .sidebar.collapsed .quick-connect-btn-icon { width: 100%; }
+    .sidebar.collapsed .quick-connect-wrapper { display: none; }
+    .sidebar.collapsed .sidebar-search { display: none; }
+
+    /* HEADER */
+    .brand { height: 50px; display: flex; align-items: center; padding: 0 15px; font-weight: 800; font-size: 1.1em; color: var(--color-text-hover); border-bottom: 1px solid #30363d; justify-content: space-between; background: var(--bg-element); white-space: nowrap; flex-shrink: 0; }
+    .brand span { color: var(--color-accent); margin-right: 8px; }
+    .brand-actions { display: flex; gap: 8px; }
+    .toggle-btn { background: none; border: none; color: var(--color-text); cursor: pointer; padding: 4px; border-radius: 4px; font-size: 1.1em; }
+    .toggle-btn:hover { color: white; background: rgba(255,255,255,0.1); }
+
+    /* TABS */
+    .protocol-tabs { display: flex; background: #010409; border-bottom: 1px solid #30363d; flex-shrink: 0; }
+    .proto-tab { flex: 1; min-width: 50px; text-align: center; padding: 8px 0; cursor: pointer; color: var(--color-text); border-bottom: 2px solid transparent; transition: 0.2s; font-weight: 600; font-size: 0.8em; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+    .proto-tab:hover { background: rgba(255,255,255,0.03); color: var(--color-text-hover); }
+    .proto-tab.active { color: var(--color-accent); border-bottom-color: var(--color-accent); background: var(--bg-sidebar); }
+
+    /* QUICK CONNECT */
+    .quick-connect-box { padding: 8px 12px; border-bottom: 1px solid #30363d; flex-shrink: 0; background: var(--bg-element); display: flex; gap: 8px; align-items: center; position: relative; }
+    .quick-connect-btn-icon { background: none; border: 1px solid #30363d; color: var(--color-accent); cursor: pointer; padding: 5px 8px; font-size: 0.9em; border-radius: 4px; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; flex-shrink: 0; transition: 0.2s; }
+    .quick-connect-btn-icon:hover { background: rgba(88, 166, 255, 0.1); border-color: var(--color-accent); }
+    .quick-connect-wrapper { display: flex; align-items: center; background: #010409; border: 1px solid #30363d; border-radius: 4px; padding: 0 8px; flex: 1; }
+    .quick-connect-wrapper input { width: 100%; background: transparent; border: none; color: var(--color-text-hover); padding: 5px 5px; font-size: 0.85em; outline: none; }
+    .quick-connect-dropdown { position: absolute; top: 100%; left: 12px; right: 12px; background: #161b22; border: 1px solid #30363d; border-radius: 4px; padding: 12px; z-index: 1000; box-shadow: 0 8px 32px rgba(0,0,0,0.3); margin-top: 4px; }
+    .quick-connect-dropdown input { width: 100%; background: #010409; border: 1px solid #30363d; color: var(--color-text-hover); padding: 6px 10px; border-radius: 4px; font-size: 0.85em; margin-bottom: 8px; outline: none; }
+    .quick-connect-dropdown input:focus { border-color: var(--color-accent); }
+    .quick-connect-dropdown button { width: 100%; background: var(--color-accent); border: none; color: #0d1117; padding: 6px; border-radius: 4px; cursor: pointer; font-weight: 600; font-size: 0.85em; transition: 0.2s; }
+    .quick-connect-dropdown button:hover { background: #58b6ff; }
+
+    /* SEARCH FILTER */
+    .sidebar-search { padding: 8px 12px; border-bottom: 1px solid #30363d; flex-shrink: 0; background: var(--bg-sidebar); }
+    .sidebar-search input { width: 100%; background: #010409; border: 1px solid #30363d; color: var(--color-text-hover); padding: 5px 10px; border-radius: 4px; font-size: 0.85em; outline: none; }
+    .sidebar-search input:focus { border-color: var(--color-accent); }
+
+    /* ACTIONS */
+    .sidebar-actions { padding: 8px 12px; display: flex; gap: 8px; flex-shrink: 0; border-bottom: 1px solid #30363d; background: var(--bg-element); }
+    .btn-sidebar-action { flex: 1; background: #21262d; border: 1px solid #30363d; color: var(--color-text-hover); padding: 5px; border-radius: 4px; cursor: pointer; font-size: 0.75em; display: flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; overflow: hidden; }
+    .btn-sidebar-action:hover { background: #30363d; border-color: var(--color-text); }
+
+    /* FAVORITES */
+    .sidebar-section-title { padding: 10px 15px 5px 15px; font-size: 0.65em; font-weight: bold; color: #484f58; text-transform: uppercase; white-space: nowrap; overflow: hidden; flex-shrink: 0; letter-spacing: 0.5px; }
+    .fav-list { max-height: 100px; overflow-y: auto; flex-shrink: 0; border-bottom: 1px solid #30363d; padding-bottom: 5px; }
+    .fav-item { padding: 3px 15px; cursor: pointer; color: var(--color-text); display: flex; align-items: center; gap: 10px; font-size: 0.85em; white-space: nowrap; overflow: hidden; }
+    .fav-item:hover { background: rgba(255,255,255,0.04); color: var(--color-text-hover); }
+    .fav-item i.fa-star { color: #e3b341; font-size: 0.8em; }
+
+    /* TREE STRUCTURE - ULTRA COMPACT */
+    .tree-container { flex: 1; overflow-y: auto; padding: 5px 0; overflow-x: hidden; }
+    .tree-node { display: flex; flex-direction: column; }
+    
+    .node-row { display: flex; align-items: center; padding: 2px 10px 2px 5px; cursor: pointer; color: var(--color-text); transition: all 0.1s; border-left: 2px solid transparent; position: relative; white-space: nowrap; height: 22px; font-size: 0.88em; }
+    .node-row:hover { background-color: rgba(255,255,255,0.04); color: var(--color-text-hover); }
+    .node-row.active { background-color: rgba(88, 166, 255, 0.1); color: var(--color-accent); border-left-color: var(--color-accent); }
+    
+    .node-row.is-host { color: #7d8590; }
+    .node-row.is-host:hover { color: var(--color-accent); }
+    
+    .node-arrow { width: 16px; height: 16px; display: flex; align-items: center; justify-content: center; margin-right: 2px; font-size: 0.7em; color: #484f58; }
+    .node-icon { margin-right: 6px; color: var(--color-text); font-size: 1em; width: 18px; text-align: center; }
+    .node-text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
+    
+    .node-children { padding-left: var(--indent-step); margin-left: 9px; border-left: 1px solid var(--line-color); display: none; }
+    .node-children.open { display: block; }
+    /* host rows align with folders; no special left padding */
+    .node-row.is-host { }
+     /* When a host is rendered inside a child container, visually align its icon with the parent folder
+         Keep the child container indent and border so folder nesting stays visible. */
+     .node-children .node-row.is-host { margin-left: calc(-1 * var(--indent-step)); padding-left: 6px; }
+
+    .node-actions { display: none; margin-left: auto; gap: 2px; padding-left: 5px; }
+    .node-row:hover .node-actions { display: flex; }
+    .btn-icon-xs { background: none; border: none; color: #484f58; cursor: pointer; padding: 0; font-size: 0.8em; border-radius: 3px; width: 18px; height: 18px; display: flex; align-items: center; justify-content: center;}
+    .btn-icon-xs:hover { color: var(--color-text-hover); background: #30363d; }
+    .btn-icon-xs.del:hover { color: #da3633; }
+    
+    .sidebar-footer { padding: 8px; border-top: 1px solid #30363d; color: #484f58; font-size: 0.65em; text-align: center; flex-shrink: 0; }
+
+    /* Context menu */
+    .sidebar-context-menu { position: absolute; background: linear-gradient(180deg,#0f161b,#12171b); border: 1px solid rgba(99,106,116,0.12); border-radius: 8px; padding: 6px 0; z-index: 2000; box-shadow: 0 12px 40px rgba(2,6,12,0.7); display: none; min-width: 200px; overflow: hidden; }
+    .sidebar-context-menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; background: transparent; border: none; color: var(--color-text); cursor: pointer; font-size: 0.9em; }
+    .sidebar-context-menu button .ico { width:18px; text-align:center; color: #8b949e; }
+    .sidebar-context-menu button:not(:last-child) { border-bottom: 1px solid rgba(255,255,255,0.02); }
+    .sidebar-context-menu button:hover { background: rgba(88,166,255,0.06); color: var(--color-text-hover); }
+
+    /* --- SELECTORS BOX --- */
+    .sidebar-selectors { padding: 10px; border-bottom: 1px solid #30363d; background: #0d1117; display: flex; gap: 8px; }
+    .sidebar.collapsed .sidebar-selectors { display: none; }
+    
+    .stylish-select-wrapper { position: relative; display: flex; align-items: center; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0 8px; height: 28px; transition: 0.2s; flex: 1; min-width: 0; }
+    .stylish-select-wrapper:hover { border-color: #8b949e; }
+    .stylish-select { width: 100%; background: transparent; border: none; color: #e6edf3; font-size: 0.85em; outline: none; cursor: pointer; appearance: none; padding-right: 15px; }
+    .stylish-select option { background: #161b22; color: #e6edf3; }
+    .select-arrow { position: absolute; right: 8px; pointer-events: none; font-size: 0.7em; color: #8b949e; }
+</style>
+
+<div class="sidebar" id="sidebar">
+    <div class="sidebar-vertical-text" onclick="window.toggleSidebar()">
+        <i class="fas fa-bars" style="font-size: 1.4em; margin-bottom: 20px;"></i>
+        <span style="font-weight:800; font-size:1.2em; color:var(--color-accent); writing-mode: horizontal-tb; margin-bottom: 5px;">//</span>
+        <span class="v-text">SHELLDECK</span>
+    </div>
+    <div class="brand">
+        <div class="brand-text"><span>//</span>ShellDeck</div>
+        <div class="brand-actions">
+            <button class="toggle-btn" onclick="window.Tabs.openManager()" title="Settings"><i class="fas fa-cog"></i></button>
+            <button class="toggle-btn" onclick="window.toggleSidebar()"><i class="fas fa-bars"></i></button>
+        </div>
+    </div>
+
+    <div class="sidebar-selectors">
+        <div class="stylish-select-wrapper">
+            <select class="stylish-select workspace-selector" onchange="window.openWorkspaceTab(this.value)"></select>
+            <i class="fas fa-chevron-down select-arrow"></i>
+        </div>
+    </div>
+
+    <div class="protocol-tabs">
+        <div class="proto-tab active" onclick="window.setProtocol('all', this)"><i class="fas fa-th"></i> <span>ALL</span></div>
+        <div class="proto-tab" onclick="window.setProtocol('ssh', this)"><i class="fas fa-terminal"></i> <span>SSH</span></div>
+        <div class="proto-tab" onclick="window.setProtocol('web', this)"><i class="fas fa-globe"></i> <span>WEB</span></div>
+        <div class="proto-tab" onclick="window.setProtocol('sftp', this)"><i class="fas fa-exchange-alt"></i> <span>SFTP</span></div>
+    </div>
+
+    <div class="quick-connect-box">
+        <button class="quick-connect-btn-icon" onclick="window.toggleQuickConnectDropdown(event)"><i class="fas fa-bolt"></i></button>
+        <div class="quick-connect-wrapper">
+            <input type="text" id="sb-quick-input" placeholder="Filter hosts..." onkeyup="window.filterSidebar(this.value)">
+        </div>
+        <div class="quick-connect-dropdown" id="qc-dropdown" style="display:none;">
+            <input type="text" id="qc-ip" placeholder="IP/Host">
+            <input type="text" id="qc-user" placeholder="Username">
+            <input type="password" id="qc-pass" placeholder="Password">
+            <button onclick="window.executeQuickConnectDropdown()">Connect</button>
+        </div>
+    </div>
+
+    <div class="sidebar-actions">
+        <div class="btn-sidebar-action" onclick="if(window.openGroupModalWithParent) window.openGroupModalWithParent(null, event); else alert('Reload Main Dashboard')"><i class="fas fa-folder-plus"></i> Group</div>
+        <div class="btn-sidebar-action" onclick="window.openNewHostModal()"><i class="fas fa-plus"></i> Host</div>
+    </div>
+
+    <div class="sidebar-section-title">FAVORITES</div>
+    <div class="fav-list" id="fav-list"></div>
+
+    <div class="tree-container" id="tree-root"></div>
+    <div class="sidebar-footer">System v2.5.3 &bull; Enterprise</div>
+</div>
+
+<script>
+    window._openGroups = new Set();
+    window._filterText = "";
+
+    window.toggleSidebar = function() { 
+        const el = document.getElementById('sidebar');
+        if(el) {
+            const isCollapsed = el.classList.contains('collapsed');
+
+            // If currently collapsed -> open and mark explicit open
+            if (isCollapsed) {
+                el.classList.remove('collapsed');
+                window._sidebarExplicitOpen = true;
+                window._sidebarHoverOpen = false;
+                return;
+            }
+
+            // If currently open due to hover (not explicit), convert hover-open into explicit open
+            if (window._sidebarHoverOpen && !window._sidebarExplicitOpen) {
+                window._sidebarExplicitOpen = true;
+                window._sidebarHoverOpen = false;
+                return;
+            }
+
+            // Otherwise (explicitly open) -> close it
+            el.classList.add('collapsed');
+            window._sidebarExplicitOpen = false;
+            window._sidebarHoverOpen = false;
+        }
+    };
+
+    window._sidebarExplicitOpen = false;
+    window._sidebarHoverOpen = false;
+
+    window.setupSidebarHoverBehavior = function() {
+        const sidebar = document.getElementById('sidebar');
+        if(!sidebar) return;
+        
+        sidebar.addEventListener('mouseenter', function() {
+            if(sidebar.classList.contains('collapsed') && !window._sidebarExplicitOpen) {
+                sidebar.classList.remove('collapsed');
+                window._sidebarHoverOpen = true;
+            }
+        });
+        
+        sidebar.addEventListener('mouseleave', function() {
+            if(window._sidebarHoverOpen && !window._sidebarExplicitOpen) {
+                sidebar.classList.add('collapsed');
+                window._sidebarHoverOpen = false;
+            }
+        });
+        // Disable browser context menu inside sidebar (we use our custom menu)
+        sidebar.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+    };
+
+    window.toggleQuickConnectDropdown = function(e) {
+        if(e) e.stopPropagation();
+        const dropdown = document.getElementById('qc-dropdown');
+        if(dropdown) {
+            const isVisible = dropdown.style.display !== 'none';
+            dropdown.style.display = isVisible ? 'none' : 'block';
+            if(!isVisible) {
+                // attach enter key handler so Enter triggers Connect
+                window._qcKeyHandler = function(ev){ if(ev.key === 'Enter') { ev.preventDefault(); window.executeQuickConnectDropdown(); } };
+                dropdown.addEventListener('keydown', window._qcKeyHandler);
+                setTimeout(() => document.getElementById('qc-ip').focus(), 100);
+            } else {
+                // remove handler when hidden
+                if(window._qcKeyHandler) { dropdown.removeEventListener('keydown', window._qcKeyHandler); window._qcKeyHandler = null; }
+            }
+        }
+    };
+
+    window.executeQuickConnectDropdown = function() {
+        const ip = document.getElementById('qc-ip').value.trim();
+        const user = document.getElementById('qc-user').value.trim();
+        const pass = document.getElementById('qc-pass').value.trim();
+
+        if(!ip) { alert('Please enter IP/Host'); return; }
+
+        const proto = window.AppState.currentProtocol === 'all' ? 'ssh' : window.AppState.currentProtocol;
+
+        (async () => {
+            try {
+                const res = await fetch('/api/quickconnect', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ protocol: proto, ip: ip, user: user, password: pass })
+                });
+                if(res.status === 401) { window.location.href = '/login.html'; return; }
+                if(!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+
+                const hostId = parseInt(data.host_id);
+                const newHost = {
+                    id: hostId,
+                    name: `Quick: ${ip}`,
+                    ip: ip,
+                    user: user,
+                    protocol: proto,
+                    has_key: false,
+                    jump_ip: null,
+                    favorite: 0,
+                    group_id: null,
+                    workspace_id: window.AppState.currentWorkspaceId || 0
+                };
+                if(!window.AppState.allHosts) window.AppState.allHosts = [];
+                window.AppState.allHosts.push(newHost);
+
+                // Open using same flow as main view
+                window.smartConnect(hostId, proto, ip);
+
+                // Clear form
+                document.getElementById('qc-ip').value = '';
+                document.getElementById('qc-user').value = '';
+                document.getElementById('qc-pass').value = '';
+                document.getElementById('qc-dropdown').style.display = 'none';
+            } catch(err) {
+                console.error('[BRIDGE ERROR] quickconnect failed', err);
+                alert('Quick connect failed: ' + (err.message || err));
+            }
+        })();
+    };
+
+    window.quickConnectSidebar = function() {
+        window.executeQuickConnectDropdown();
+    };
+
+    window.setProtocol = function(proto, el) {
+        window.AppState.currentProtocol = proto;
+        document.querySelectorAll('.proto-tab').forEach(t => t.classList.remove('active'));
+        if(el) el.classList.add('active');
+        window.renderSidebar();
+        if(window.renderMainView) window.renderMainView(window.AppState.currentViewGroupId);
+    };
+
+    // --- SMART CONNECT ---
+    window.smartConnect = function(id, protocol, address) {
+        if(protocol === 'web') {
+            let url = address;
+            if(!url.startsWith('http')) url = 'http://' + url;
+            window.open(url, '_blank');
+        } 
+        else if (protocol === 'rdp') {
+            if(window.Tabs && window.Tabs.openAppHost) window.Tabs.openAppHost(id, "rdp.html", "fas fa-desktop");
+            else window.open(`/host/rdp?id=${id}`, '_blank');
+        }
+        else if (protocol === 'vnc') {
+            if(window.Tabs && window.Tabs.openAppHost) window.Tabs.openAppHost(id, "vnc.html", "fas fa-eye");
+            else window.open(`/host/vnc?id=${id}`, '_blank');
+        }
+        else if (protocol === 'sftp') {
+            // Always open an independent SFTP HostApp instance/tab
+            if (window.openSftpInNewTab) { window.openSftpInNewTab(id); }
+            else if (window.openHostInNewTab) { window.openHostInNewTab(id); }
+            else if(window.Tabs && window.Tabs.openAppHost) { window.Tabs.openAppHost(id, "sftp.html", "fas fa-exchange-alt"); }
+            else window.open(`/host/sftp.html?id=${id}`, '_blank');
+        }
+        else {
+            window.API.connectHost(id);
+        }
+    }
+
+    window.filterSidebar = function(text) {
+        window._filterText = text.toLowerCase();
+        window.renderSidebar();
+        if(window._filterText.length > 0) {
+            document.querySelectorAll('.node-children').forEach(el => el.classList.add('open'));
+            document.querySelectorAll('.node-arrow').forEach(el => el.innerHTML = '<i class="fas fa-chevron-down"></i>');
+        }
+    }
+
+    window.renderSidebar = function() {
+        const root = document.getElementById('tree-root');
+        if(!root) return;
+        root.innerHTML = '';
+        
+        // Root Node
+        const rootNode = document.createElement('div');
+        rootNode.className = 'tree-node';
+        const rootActive = (window.AppState.currentViewGroupId === null) ? 'active' : '';
+        
+        rootNode.innerHTML = `
+            <div class="node-row ${rootActive}" id="node-row-root" onclick="window.selectGroup(null, this)">
+                <div class="node-arrow" style="visibility:hidden"></div>
+                <div class="node-icon" style="color:#58a6ff"><i class="fas fa-sitemap"></i></div>
+                <div class="node-text">Root (All Systems)</div>
+            </div>`;
+        
+        const rootChildrenContainer = document.createElement('div');
+        rootChildrenContainer.style.paddingLeft = "5px"; 
+        
+        buildSidebarRecursive(null, rootChildrenContainer);
+        rootNode.appendChild(rootChildrenContainer);
+        root.appendChild(rootNode);
+    };
+
+    function buildSidebarRecursive(parentId, container) {
+            let hasContent = false;
+
+            // Recupera e ordina Gruppi
+            let childrenGroups = window.AppState.allGroups.filter(g => g.parent_id === parentId);
+            childrenGroups.sort((a, b) => a.name.localeCompare(b.name));
+
+            // Recupera e ordina Host
+            let childrenHosts = window.AppState.allHosts.filter(h => {
+                const grpMatch = (parentId === null) ? (h.group_id === 0 || h.group_id === null) : (h.group_id === parentId);
+                const protoMatch = (window.AppState.currentProtocol === 'all' || h.protocol === window.AppState.currentProtocol);
+                const textMatch = (window._filterText === "") || h.name.toLowerCase().includes(window._filterText);
+                const notJump = h.protocol !== 'jumphost'; // Hide JumpHosts
+                return grpMatch && protoMatch && textMatch && notJump;
+            });
+            childrenHosts.sort((a, b) => a.name.localeCompare(b.name));
+
+            // Combine hosts and groups into a single interleaved list
+            const items = [];
+            childrenGroups.forEach(g => items.push({ type: 'group', name: g.name, obj: g }));
+            childrenHosts.forEach(h => items.push({ type: 'host', name: h.name, obj: h }));
+            items.sort((a, b) => a.name.localeCompare(b.name));
+
+            items.forEach(item => {
+                if(item.type === 'host') {
+                    const host = item.obj;
+                    hasContent = true;
+                    const node = document.createElement('div'); node.className = 'tree-node';
+                    let iconClass = 'fas fa-terminal';
+                    let iconColor = '#58a6ff';
+                    if(host.protocol === 'rdp') { iconClass = 'fas fa-desktop'; iconColor = '#da3633'; }
+                    if(host.protocol === 'vnc') { iconClass = 'fas fa-eye'; iconColor = '#d2a8ff'; }
+                    if(host.protocol === 'web') { iconClass = 'fas fa-globe'; iconColor = '#238636'; }
+                    if(host.protocol === 'sftp' || host.protocol === 'ftp') { iconClass = 'fas fa-folder'; iconColor = '#e3b341'; }
+                    if(host.protocol === 'tunnel') { iconClass = 'fas fa-project-diagram'; iconColor = '#8957e5'; }
+                    const favColor = host.favorite ? '#e3b341' : '#484f58';
+
+                    // Tunnel Logic
+                    let statusIndicator = '';
+                    let clickAction = `window.smartConnect(${host.id}, '${host.protocol}', '${host.ip}')`;
+                    
+                    if (host.protocol === 'tunnel') {
+                        const isActive = window.AppState.activeTunnels && window.AppState.activeTunnels.has(host.id);
+                        const dotColor = isActive ? '#238636' : '#da3633';
+                        statusIndicator = `<div style="width:6px; height:6px; border-radius:50%; background:${dotColor}; margin-left:6px; box-shadow:0 0 4px ${dotColor}; flex-shrink:0;"></div>`;
+                        clickAction = `if(window.toggleTunnel) window.toggleTunnel(${host.id}, ${!isActive});`;
+                    } else {
+                        // Standard Host (SSH/SFTP/etc) - Show green dot if connected (tab open)
+                        if (window.AppState.activeHosts && window.AppState.activeHosts.has(host.id)) {
+                            statusIndicator = `<div style="width:6px; height:6px; border-radius:50%; background:#238636; margin-left:6px; box-shadow:0 0 4px #238636; flex-shrink:0;" title="Connected"></div>`;
+                        }
+                    }
+
+                    const row = document.createElement('div');
+                    row.className = 'node-row is-host';
+                    row.setAttribute('data-id', host.id);
+                    row.setAttribute('data-proto', host.protocol);
+                    row.setAttribute('onclick', clickAction);
+                    row.innerHTML = `
+                        <div class="node-arrow"></div>
+                        <div class="node-icon" style="color:${iconColor}"><i class="${iconClass}"></i></div>
+                        <div class="node-text">${host.name}</div>
+                        ${statusIndicator}
+                        <div class="node-actions">
+                            <button class="btn-icon-xs" onclick="window.prepareEditHost(${host.id}); event.stopPropagation()"><i class="fas fa-pen"></i></button>
+                            <button class="btn-icon-xs" onclick="window.toggleFavorite(${host.id}, event)"><i class="fas fa-star" style="color:${favColor}"></i></button>
+                            <button class="btn-icon-xs del" onclick="window.deleteHost(${host.id}); event.stopPropagation()"><i class="fas fa-trash"></i></button>
+                        </div>
+                    `;
+                    node.appendChild(row);
+                    container.appendChild(node);
+                } else {
+                    const group = item.obj;
+                    const childContainer = document.createElement('div');
+                    const isOpen = (window._filterText.length > 0) || window._openGroups.has(group.id) ? 'open' : '';
+                    childContainer.className = `node-children ${isOpen}`;
+                    childContainer.id = `node-children-${group.id}`;
+
+                    const childrenHaveContent = buildSidebarRecursive(group.id, childContainer);
+
+                    if (childrenHaveContent) {
+                        hasContent = true;
+                        const node = document.createElement('div'); node.className = 'tree-node';
+                        const isActive = (group.id === window.AppState.currentViewGroupId) ? 'active' : '';
+                        const arrowIcon = (isOpen) ? '<i class="fas fa-chevron-down"></i>' : '<i class="fas fa-chevron-right"></i>';
+
+                        const row = document.createElement('div');
+                        row.className = `node-row ${isActive}`;
+                        row.id = `node-row-${group.id}`;
+                        const folderColor = (group.text_color && group.text_color.trim()) ? group.text_color : '#8b949e';
+                        row.innerHTML = `
+                            <div class="node-arrow" onclick="window.toggleNode(${group.id}, event)">${arrowIcon}</div>
+                            <div class="node-icon" style="color:${folderColor}"><i class="fas fa-folder"></i></div>
+                            <div class="node-text">${group.name}</div>
+                            <div class="node-actions">
+                                <button class="btn-icon-xs" onclick="window.editGroup(${group.id}); event.stopPropagation()" title="Edit"><i class="fas fa-pen"></i></button>
+                                <button class="btn-icon-xs" onclick="window.copyGroup(${group.id}); event.stopPropagation()" title="Copy"><i class="fas fa-copy"></i></button>
+                                <button class="btn-icon-xs del" onclick="window.deleteGroup(${group.id}, event)"><i class="fas fa-trash"></i></button>
+                            </div>
+                        `;
+                        row.onclick = function(e) {
+                            e.stopPropagation();
+                            // If group is closed, left-click expands it. Arrow is used to collapse.
+                            const child = document.getElementById(`node-children-${group.id}`);
+                            const wasOpen = window._openGroups.has(group.id);
+                            if(!wasOpen) {
+                                window._openGroups.add(group.id);
+                                if(child) child.classList.add('open');
+                                const arrowEl = this.querySelector('.node-arrow'); if(arrowEl) arrowEl.innerHTML = '<i class="fas fa-chevron-down"></i>';
+                            } else {
+                                window.selectGroup(group.id, this);
+                            }
+                        };
+                        node.appendChild(row);
+                        node.appendChild(childContainer);
+                        container.appendChild(node);
+                    }
+                }
+            });
+
+            return hasContent;
+    }
+
+    window.toggleNode = function(id, e) {
+        if(e) e.stopPropagation();
+        if(window._filterText.length > 0) return;
+        const childContainer = document.getElementById(`node-children-${id}`);
+        const arrow = e.currentTarget;
+        if(!childContainer) return;
+
+        // Toggle: if closed -> open, if open -> close.
+        if(window._openGroups.has(id)) {
+            // currently open -> close
+            window._openGroups.delete(id);
+            childContainer.classList.remove('open');
+            if(arrow) arrow.innerHTML = '<i class="fas fa-chevron-right"></i>';
+        } else {
+            // currently closed -> open
+            window._openGroups.add(id);
+            childContainer.classList.add('open');
+            if(arrow) arrow.innerHTML = '<i class="fas fa-chevron-down"></i>';
+        }
+    };
+
+    window.selectGroup = function(id, el) {
+        document.querySelectorAll('.node-row').forEach(r => r.classList.remove('active'));
+        if(el) el.classList.add('active');
+        window.AppState.currentViewGroupId = id;
+        if(window.Tabs && window.Tabs.activate) window.Tabs.activate('home');
+        if(window.renderMainView) window.renderMainView(id);
+    };
+
+    window.renderFavorites = function() {
+        const list = document.getElementById('fav-list');
+        if(!list) return;
+        list.innerHTML = '';
+        const favs = window.AppState.allHosts.filter(h => h.favorite);
+        if(favs.length === 0) list.innerHTML = '<div style="padding:5px 15px; font-style:italic; font-size:0.8em; color:#484f58">No favorites yet</div>';
+        favs.forEach(h => {
+            const item = document.createElement('div'); item.className = 'fav-item';
+            item.onclick = () => window.smartConnect(h.id, h.protocol, h.ip);
+            item.innerHTML = `<i class="fas fa-star"></i> <span>${h.name}</span>`;
+            list.appendChild(item);
+        });
+    };
+
+    // --- CONTEXT MENU FOR SIDEBAR ---
+    window._sidebarContextMenu = null;
+
+    function buildSidebarContextMenu(items) {
+        let menu = document.getElementById('sidebar-context-menu');
+        if(!menu) {
+            menu = document.createElement('div');
+            menu.id = 'sidebar-context-menu';
+            menu.className = 'sidebar-context-menu';
+            document.body.appendChild(menu);
+        }
+        menu.innerHTML = '';
+        items.forEach(it => {
+            const btn = document.createElement('button');
+            const iconHtml = it.icon ? `<i class="${it.icon} ico"></i>` : `<span class="ico"></span>`;
+            btn.innerHTML = `${iconHtml}<span class="lbl">${it.label}</span>`;
+            btn.onclick = function(e){ e.stopPropagation(); hideSidebarContextMenu(); try{ it.onClick(); } catch(err){ console.error(err); } };
+            menu.appendChild(btn);
+        });
+        return menu;
+    }
+
+    function showSidebarContextMenu(x, y, items) {
+        const menu = buildSidebarContextMenu(items);
+        // place menu and ensure it doesn't overflow viewport
+        menu.style.display = 'block';
+        const mw = menu.offsetWidth || 220; const mh = menu.offsetHeight || 200;
+        const winW = window.innerWidth; const winH = window.innerHeight;
+        let px = x; let py = y;
+        if(px + mw > winW - 8) px = Math.max(8, winW - mw - 8);
+        if(py + mh > winH - 8) py = Math.max(8, winH - mh - 8);
+        menu.style.left = px + 'px';
+        menu.style.top = py + 'px';
+        window._sidebarContextMenu = menu;
+    }
+
+    function hideSidebarContextMenu() {
+        if(window._sidebarContextMenu) {
+            window._sidebarContextMenu.style.display = 'none';
+            window._sidebarContextMenu = null;
+        }
+    }
+
+    // Open host in a new dashboard tab (always new) - create a unique HostApp instance like main view
+    window.openHostInNewTab = async function(hostId) {
+        const h = window.AppState.allHosts.find(x => x.id === hostId);
+        if(!h) return;
+        const proto = h.protocol;
+
+        
+
+        try {
+            if(window.Tabs) {
+                // Web protocol: open as custom iframe tab (unique id)
+                if(proto === 'web') {
+                    const url = h.ip && h.ip.startsWith('http') ? h.ip : `http://${h.ip}`;
+                    const uniqueId = `custom-${hostId}-${Date.now()}`;
+                    if(window.Tabs.openCustomTab) {
+                        window.Tabs.openCustomTab(uniqueId, `WEB: ${h.name || h.ip}`, "fas fa-globe", `<iframe src="${url}" style="width:100%; height:100%; border:none; background:#fff;"></iframe>`);
+                        return;
+                    }
+                }
+
+                // For dashboard/rdp/vnc create a new HostApp instance (preserves appInstance/hostId semantics)
+                const tabId = `tab-host-${hostId}-${Date.now()}`;
+                const viewId = `view-host-${hostId}-${Date.now()}`;
+
+                const tabEl = document.createElement('div');
+                tabEl.className = 'tab'; tabEl.id = tabId;
+                tabEl.onclick = () => { if(window.Tabs && window.Tabs.activate) window.Tabs.activate(tabId); };
+                tabEl.innerHTML = `<i class="fas fa-server"></i> <span class="tab-title">${h.name || 'Host'}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.closeCustom('${tabId}', '${viewId}', event)"></i>`;
+                
+                // FIX: Usa insertBefore per posizionare il tab PRIMA del pulsante di logout/spacer
+                document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+                const viewEl = document.createElement('div');
+                viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+                viewEl.innerHTML = '<div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+                document.getElementById('views-container').appendChild(viewEl);
+
+                if(!window.Tabs) window.Tabs = {}; if(!window.Tabs.openTabs) window.Tabs.openTabs = {};
+                const wsId = h.workspace_id || window.AppState.currentWorkspaceId || 0;
+                window.Tabs.openTabs[tabId] = { 
+                    domTab: tabEl, domView: viewEl, instance: null,
+                    type: 'host',
+                    wsId: wsId,
+                    navData: { allGroups: window.AppState.allGroups, allHosts: window.AppState.allHosts }
+                };
+                if(window.Tabs && window.Tabs.activate) window.Tabs.activate(tabId);
+
+                // ensure close button runs registered cleanup handlers before closing
+                setTimeout(() => {
+                    const closeBtn = tabEl.querySelector('.tab-close');
+                    if(closeBtn) {
+                        closeBtn.onclick = function(e) {
+                            e.stopPropagation();
+                            try { if(window.Tabs.openTabs[tabId] && window.Tabs.openTabs[tabId].instance && window.Tabs.openTabs[tabId].instance.destroy) window.Tabs.openTabs[tabId].instance.destroy(); } catch(_) {}
+                            window.Tabs.closeCustom(tabId, viewId, e);
+                        };
+                    }
+                }, 20);
+
+                // If this is an SFTP host, open sftp.html as a standalone page inside an iframe
+                try {
+                    if (proto === 'sftp') {
+                        viewEl.innerHTML = `<iframe src="/host/sftp.html?id=${h.id}" style="width:100%; height:100%; border:none; background:#000"></iframe>`;
+                        window.Tabs.openTabs[tabId].instance = null;
+                        return;
+                    }
+
+                    // Load HostApp template/class if not present (reuse logic from main view)
+                    if (!window.HostAppClass) {
+                        const resp = await fetch('/host/index.html');
+                        const html = await resp.text();
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+
+                        // Inietta CSS Host (una volta sola)
+                        doc.querySelectorAll('style').forEach(s => document.head.appendChild(s));
+
+                        // Esegui gli script che definiscono HostAppClass
+                        const scripts = doc.querySelectorAll('script');
+                        for (let s of scripts) {
+                            const script = document.createElement('script');
+                            script.textContent = s.textContent;
+                            document.body.appendChild(script);
+                        }
+
+                        // Salva template
+                        window.HostTemplate = doc.getElementById('host-module-template').innerHTML;
+                    }
+
+                    // Inserisci template nella view e istanzia HostAppClass
+                    viewEl.innerHTML = window.HostTemplate || '<div style="padding:20px;color:red">Host template not available.</div>';
+                    setTimeout(async () => {
+                        if (window.HostAppClass) {
+                            const wsId = h.workspace_id || window.AppState.currentWorkspaceId || 0;
+                            const appInstance = new window.HostAppClass(viewEl, h.id, h.name, wsId);
+                            window.Tabs.openTabs[tabId].instance = appInstance;
+                            try {
+                                await appInstance.init();
+                            } catch(e) {
+                                console.error('Host init/load failed', e);
+                            }
+                        } else {
+                            viewEl.innerHTML = "<div style='padding:20px;color:red'>Errore: Classe HostAppClass non caricata.</div>";
+                        }
+                    }, 50);
+                } catch (err) {
+                    console.error('Failed to load HostApp template:', err);
+                    viewEl.innerHTML = `<div style="color:#da3633; padding:20px;">Error loading host module: ${err.message}</div>`;
+                }
+
+                return;
+            }
+        } catch(err) { console.error('Tabs.open new failed', err); }
+
+        // Fallback: open the standard host dashboard page in a new browser tab.
+        window.open(`/host/dashboard.html?id=${hostId}`, '_blank');
+    };
+
+    // Sidebar contextmenu (right-click) to show custom menu and disable browser menu
+    document.addEventListener('contextmenu', function(e){
+        const sidebar = document.getElementById('sidebar');
+        if(!sidebar) return;
+        if(!sidebar.contains(e.target)) return;
+
+        // Ignore contextmenu on controls (buttons, inputs, actions)
+        if(e.target.closest('.btn-icon-xs') || e.target.closest('.btn-sidebar-action') || e.target.closest('.toggle-btn') || e.target.closest('.quick-connect-box') || e.target.closest('.proto-tab')) return;
+
+        const row = e.target.closest('.node-row');
+        if(!row) return;
+
+        e.preventDefault();
+        e.stopPropagation();
+
+        hideSidebarContextMenu();
+
+        const rect = row.getBoundingClientRect();
+        const x = rect.right + 8; const y = rect.top;
+
+        const isHost = row.classList.contains('is-host');
+        const id = parseInt(row.dataset.id);
+
+        if(isHost) {
+            const h = window.AppState.allHosts.find(x => x.id === id) || {};
+            const parentGroup = h.group_id || null;
+            const items = [
+                { label: 'Connect', icon: 'fas fa-plug', onClick: () => window.smartConnect(id, h.protocol, h.ip) },
+                { label: 'Connect in New Tab', icon: 'fas fa-external-link-alt', onClick: () => window.openHostInNewTab(id) },
+                { label: 'Open SFTP', icon: 'fas fa-folder-open', onClick: () => window.openSftpInNewTab(id) },
+                { label: 'New Group', icon: 'fas fa-folder-plus', onClick: () => { if(window.openGroupModalWithParent) window.openGroupModalWithParent(parentGroup); } },
+                { label: 'New Host', icon: 'fas fa-plus', onClick: () => { if(window.openNewHostModalWithGroup) window.openNewHostModalWithGroup(parentGroup); else if(window.openNewHostModal) window.openNewHostModal(); } },
+                { label: 'Edit', icon: 'fas fa-pen', onClick: () => window.prepareEditHost(id) },
+                { label: 'Copy Host', icon: 'fas fa-copy', onClick: () => { if(window.prepareCloneHost) window.prepareCloneHost(id); else if(window.copyHost) window.copyHost(id); } },
+                { label: 'Delete', icon: 'fas fa-trash', onClick: () => window.deleteHost(id) },
+                { label: 'Toggle Favorite', icon: 'fas fa-star', onClick: () => window.toggleFavorite(id) }
+            ];
+            showSidebarContextMenu(x, y, items);
+        } else {
+            const groupId = parseInt(row.getAttribute('data-id')) || null;
+            const items = [
+                { label: 'Open Group (select)', icon: 'fas fa-folder-open', onClick: () => window.selectGroup(groupId, document.getElementById(`node-row-${groupId}`)) },
+                { label: 'New Group', icon: 'fas fa-folder-plus', onClick: () => { if(window.openGroupModalWithParent) window.openGroupModalWithParent(groupId); } },
+                { label: 'New Host', icon: 'fas fa-plus', onClick: () => { if(window.openNewHostModalWithGroup) window.openNewHostModalWithGroup(groupId); else if(window.openNewHostModal) window.openNewHostModal(); } },
+                { label: 'Edit Group', icon: 'fas fa-pen', onClick: () => window.editGroup(groupId) },
+                { label: 'Copy Group', icon: 'fas fa-copy', onClick: () => window.copyGroup(groupId) },
+                { label: 'Move Group', icon: 'fas fa-arrows-alt', onClick: () => window.moveGroup(groupId) },
+                { label: 'Delete Group', icon: 'fas fa-trash', onClick: () => window.deleteGroup(groupId) }
+            ];
+            showSidebarContextMenu(x, y, items);
+        }
+    }, true);
+
+    // Hide menu on outside click or escape
+    document.addEventListener('click', function(e){
+        if(window._sidebarContextMenu && !window._sidebarContextMenu.contains(e.target)) hideSidebarContextMenu();
+    });
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') hideSidebarContextMenu(); });
+
+    // --- FAVORITES BACKEND SYNC ---
+    window.toggleFavorite = async function(id, e) {
+        if(e) e.stopPropagation();
+        const h = window.AppState.allHosts.find(x => x.id === id);
+        if(!h) return;
+
+        // Optimistic UI Update
+        const oldState = h.favorite;
+        h.favorite = !h.favorite;
+        window.renderSidebar(); 
+        window.renderFavorites();
+
+        // Backend Call
+        try {
+            // Esempio: POST /api/hosts/123/toggle-fav
+            // Adatta l'URL alla tua API reale
+            const res = await fetch(`/api/hosts/${id}/favorite`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ favorite: h.favorite })
+            });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+
+            if(!res.ok) throw new Error("API Error");
+        } catch(err) {
+            console.error("Fav sync failed", err);
+            // Revert on error
+            h.favorite = oldState;
+            window.renderSidebar();
+            window.renderFavorites();
+            alert("Failed to save favorite status.");
+        }
+    };
+    
+</script>

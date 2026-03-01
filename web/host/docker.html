@@ -1,0 +1,1021 @@
+<div class="docker-module-wrapper">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    
+    <style>
+        .docker-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #0db7ed; /* Docker Blue */
+            --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #238636;
+        }
+
+        .docker-module-wrapper * { box-sizing: border-box; }
+        
+        .dk-sidebar { width: 220px; min-width: 220px; flex-shrink: 0; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; }
+        .dk-sidebar h3 { color: var(--accent); font-size: 1.1em; margin-bottom: 20px; display:flex; align-items:center; gap:10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-width: 0; }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 25px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; flex-shrink: 0; }
+        
+        .dk-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .dk-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 5; cursor: pointer; user-select: none; }
+        .dk-table th:hover { color: var(--text-main); background: #21262d; }
+        .dk-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .dk-table tr:hover { background: #1c2128; cursor: pointer; }
+
+        .status-badge { padding: 3px 8px; border-radius: 4px; font-size: 0.8em; font-weight: bold; text-transform: uppercase; }
+        .st-running { background: rgba(35, 134, 54, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .st-exited { background: rgba(218, 54, 51, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        .st-paused { background: rgba(210, 153, 34, 0.2); color: var(--warning); border: 1px solid var(--warning); }
+
+        .btn { background: var(--accent); color: #000; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; font-size:0.9em; }
+        .btn:hover { filter: brightness(1.1); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-sec:hover { background: #21262d; }
+        .btn-danger { background: var(--danger); color: white; }
+        .action-btn { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 5px; transition: 0.2s; font-size: 0.8em; }
+        .action-btn:hover { background: #21262d; border-color: var(--text-dim); }
+
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 600px; max-height: 80vh; display: flex; flex-direction: column; }
+        .modal-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; display:flex; justify-content:space-between; }
+        .modal-body { overflow-y: auto; flex: 1; }
+        .modal-footer { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; }
+        .input-group input, .input-group select, .input-group textarea { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        
+        .log-view { background: #000; color: #ccc; padding: 10px; font-family: monospace; height: 400px; overflow: auto; white-space: pre-wrap; font-size: 0.85em; border: 1px solid var(--border); }
+        .env-list { font-family: monospace; font-size: 0.85em; }
+        .env-item { border-bottom: 1px solid #333; padding: 4px 0; word-break: break-all; }
+        .env-key { color: var(--accent); font-weight: bold; }
+
+        /* Sub-tabs for Modals */
+        .sub-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; background: #161b22; }
+        .sub-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); font-size: 0.9em; }
+        .sub-tab:hover { background: #21262d; color: white; }
+        .sub-tab.active { background: var(--bg-body); color: var(--accent); border-top: 2px solid var(--accent); font-weight: bold; }
+        .sub-content { display: none; flex-direction: column; height: 100%; }
+        .sub-content.active { display: flex; }
+        .ace-div { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: 100%; height: 100%; }
+        
+        /* JSON Syntax Highlight */
+        .json-key { color: var(--accent); }
+        .json-string { color: #a5d6ff; }
+        .json-number { color: #79c0ff; }
+        .json-boolean { color: #ff7b72; }
+        .json-null { color: #ff7b72; }
+
+        .stack-bar { position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+    </style>
+
+    <div class="dk-sidebar">
+        <h3><i class="fab fa-docker"></i> Docker</h3>
+        <div class="nav-item active" data-view="containers"><i class="fas fa-box"></i> Containers</div>
+        <div class="nav-item" data-view="images"><i class="fas fa-compact-disc"></i> Images</div>
+        <div class="nav-item" data-view="volumes"><i class="fas fa-hdd"></i> Volumes</div>
+        <div class="nav-item" data-view="networks"><i class="fas fa-network-wired"></i> Networks</div>
+        <div class="nav-item" data-view="compose"><i class="fas fa-layer-group"></i> Compose / Build</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <!-- CONTAINERS -->
+        <div id="view-containers" class="view-panel active-view">
+            <div class="panel-header">
+                <h3>Containers</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-cont"><i class="fas fa-sync"></i> Refresh</button>
+                    <button class="btn btn-sec btn-prune-cont" title="Rimuovi container fermi"><i class="fas fa-broom"></i> Prune</button>
+                    <button class="btn btn-run-cont"><i class="fas fa-plus"></i> Run New</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="dk-table">
+                    <thead><tr><th data-sort="Names">Name</th><th data-sort="ID">ID</th><th data-sort="Image">Image</th><th data-sort="Status">Status</th><th>Ports</th><th>Actions</th></tr></thead>
+                    <tbody class="cont-tbody"><tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim)"><i class="fas fa-circle-notch fa-spin"></i> Loading containers...</td></tr></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- IMAGES -->
+        <div id="view-images" class="view-panel">
+            <div class="panel-header">
+                <h3>Images</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-pull-img"><i class="fas fa-cloud-download-alt"></i> Pull</button>
+                    <button class="btn btn-sec btn-import-img"><i class="fas fa-upload"></i> Import</button>
+                    <input type="file" id="img-upload-input" style="display:none">
+                    <button class="btn btn-sec btn-refresh-img"><i class="fas fa-sync"></i> Refresh</button>
+                    <button class="btn btn-sec btn-prune-img" title="Rimuovi immagini non usate"><i class="fas fa-broom"></i> Prune Unused</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="dk-table">
+                    <thead><tr><th>Repository</th><th>Tag</th><th>ID</th><th>Size</th><th>Created</th><th>Actions</th></tr></thead>
+                    <tbody class="img-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- VOLUMES -->
+        <div id="view-volumes" class="view-panel">
+            <div class="panel-header">
+                <h3>Volumes</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-restore-vol"><i class="fas fa-upload"></i> Restore</button>
+                    <input type="file" id="vol-upload-input" style="display:none">
+                    <button class="btn btn-sec btn-refresh-vol"><i class="fas fa-sync"></i> Refresh</button>
+                    <button class="btn btn-sec btn-create-vol"><i class="fas fa-plus"></i> Create</button>
+                    <button class="btn btn-sec btn-prune-vol"><i class="fas fa-broom"></i> Prune</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="dk-table">
+                    <thead><tr><th>Name</th><th>Driver</th><th>Mountpoint</th><th>Actions</th></tr></thead>
+                    <tbody class="vol-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- NETWORKS -->
+        <div id="view-networks" class="view-panel">
+            <div class="panel-header">
+                <h3>Networks</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-net"><i class="fas fa-sync"></i> Refresh</button>
+                    <button class="btn btn-sec btn-create-net"><i class="fas fa-plus"></i> Create</button>
+                    <button class="btn btn-sec btn-prune-net"><i class="fas fa-broom"></i> Prune</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="dk-table">
+                    <thead><tr><th>ID</th><th>Name</th><th>Driver</th><th>Scope</th><th>Actions</th></tr></thead>
+                    <tbody class="net-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- COMPOSE -->
+        <div id="view-compose" class="view-panel">
+            <div class="panel-header">
+                <h3>Compose & Build Manager</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-compose-new" title="Clear Editor"><i class="fas fa-file"></i> New</button>
+                    <button class="btn btn-sec btn-compose-load"><i class="fas fa-folder-open"></i> Load</button>
+                    <button class="btn btn-sec btn-compose-save"><i class="fas fa-save"></i> Save</button>
+                    <button class="btn btn-compose-up"><i class="fas fa-play"></i> Up / Build</button>
+                </div>
+            </div>
+            
+            <div style="margin-bottom: 10px; display: flex; gap: 10px; align-items: center; background: var(--bg-panel); padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+                <label style="margin:0; color:var(--text-dim)">Working Path:</label>
+                <input type="text" id="compose-path" placeholder="/path/to/docker-compose.yml" style="flex:1; background:#0d1117; border:1px solid var(--border); color:white; padding:6px; border-radius:4px; font-family:monospace;">
+                <select id="compose-type" style="background:#0d1117; border:1px solid var(--border); color:white; padding:6px; border-radius:4px;">
+                    <option value="compose">Docker Compose</option>
+                    <option value="dockerfile">Dockerfile</option>
+                </select>
+            </div>
+
+            <div class="editor-wrapper" style="flex:1; position:relative; border:1px solid var(--border); min-height: 400px;">
+                <div id="compose-editor" class="ace-div"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODALS -->
+    <div class="local-modal modal-details">
+        <div class="modal-content" style="width: 900px; height: 80vh;">
+            <div class="modal-header">
+                <span class="det-title">Container Details</span>
+                <div style="display:flex; gap:10px">
+                    <button class="action-btn btn-det-start" title="Start"><i class="fas fa-play"></i></button>
+                    <button class="action-btn btn-det-stop" title="Stop"><i class="fas fa-stop"></i></button>
+                    <button class="action-btn btn-det-pause" title="Pause"><i class="fas fa-pause"></i></button>
+                    <button class="action-btn btn-det-restart" title="Restart"><i class="fas fa-sync"></i></button>
+                    <button class="action-btn btn-det-rename" title="Rename"><i class="fas fa-edit"></i></button>
+                    <button class="action-btn btn-det-clone" title="Clone"><i class="fas fa-copy"></i></button>
+                    <button class="action-btn btn-det-edit" title="Edit & Recreate"><i class="fas fa-wrench"></i></button>
+                    <button class="action-btn btn-det-export" title="Export FS"><i class="fas fa-download"></i></button>
+                    <i class="fas fa-times btn-close-modal" style="cursor:pointer; margin-left:10px; font-size:1.2em"></i>
+                </div>
+            </div>
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-sub="det-info">Info</div>
+                <div class="sub-tab" data-sub="det-stats">Stats (Live)</div>
+                <div class="sub-tab" data-sub="det-logs">Logs</div>
+                <div class="sub-tab" data-sub="det-term">Terminal</div>
+                <div class="sub-tab" data-sub="det-env">Env Vars</div>
+            </div>
+            
+            <div id="sub-det-info" class="sub-content active modal-body">
+                <div class="det-info-content" style="white-space:pre-wrap; font-family:monospace; font-size:0.85em;">Loading...</div>
+            </div>
+            
+            <div id="sub-det-stats" class="sub-content modal-body">
+                <div class="stats-box" style="background:#000; padding:15px; font-family:monospace; border:1px solid var(--border);">
+                    <div style="margin-bottom:10px">CPU: <span class="st-cpu">--</span></div>
+                    <div style="margin-bottom:10px">MEM: <span class="st-mem">--</span></div>
+                    <div style="margin-bottom:10px">NET: <span class="st-net">--</span></div>
+                    <div style="margin-bottom:10px">BLOCK I/O: <span class="st-io">--</span></div>
+                    <div style="margin-bottom:10px">PIDS: <span class="st-pids">--</span></div>
+                </div>
+            </div>
+            
+            <div id="sub-det-logs" class="sub-content modal-body">
+                <div class="log-view">Loading...</div>
+            </div>
+            <div id="sub-det-term" class="sub-content modal-body" style="padding:0; background:#000; flex-direction:column;">
+                <div id="det-term-embed" style="flex:1; width:100%;"></div>
+            </div>
+            <div id="sub-det-env" class="sub-content modal-body"><div class="env-list"></div></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-run">
+        <div class="modal-content" style="width: 600px;">
+            <div class="modal-header"><span>Run New Container</span><i class="fas fa-times btn-close-modal" style="cursor:pointer"></i></div>
+            <div class="modal-body">
+                <div class="input-group">
+                    <label>Image</label>
+                    <div style="display:flex; gap:10px; margin-bottom:5px">
+                        <label><input type="radio" name="img-source" value="local" checked> Local</label>
+                        <label><input type="radio" name="img-source" value="repo"> Repo</label>
+                    </div>
+                    <select class="run-img-local" style="width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;"></select>
+                    <input type="text" class="run-img-repo" placeholder="nginx:latest" style="display:none; width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;">
+                </div>
+                <div class="input-group"><label>Name (Optional)</label><input type="text" class="run-name" placeholder="my-web-server"></div>
+                <div class="input-group"><label>Ports (-p host:container)</label><input type="text" class="run-ports" placeholder="-p 8080:80"></div>
+                <div class="input-group"><label>Network</label><select class="run-network" style="width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;"></select></div>
+                <div class="input-group">
+                    <label>Volume Mount</label>
+                    <div style="display:flex; gap:10px; margin-bottom:5px">
+                        <label><input type="radio" name="vol-source" value="volume" checked> Volume</label>
+                        <label><input type="radio" name="vol-source" value="bind"> Bind Path</label>
+                    </div>
+                    <select class="run-vol-name" style="width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px; margin-bottom:5px"></select>
+                    <input type="text" class="run-vol-path" placeholder="/host/path" style="display:none; width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px; margin-bottom:5px">
+                    <input type="text" class="run-vol-dest" placeholder="/container/path (e.g. /data)" style="width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;">
+                </div>
+                <div class="input-group"><label>Env Vars (-e KEY=VAL)</label><input type="text" class="run-env" placeholder="-e DEBUG=1"></div>
+                <div class="input-group"><label>Command (Optional)</label><input type="text" class="run-cmd"></div>
+                <input type="hidden" class="run-recreate-id">
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sec btn-close-modal">Cancel</button>
+                <button class="btn btn-confirm-run">Run</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-commit">
+        <div class="modal-content">
+            <div class="modal-header"><span>Backup Container (Commit)</span><i class="fas fa-times btn-close-modal" style="cursor:pointer"></i></div>
+            <div class="modal-body">
+                <div style="margin-bottom:10px; color:var(--text-dim)">Crea una nuova immagine dallo stato attuale del container.</div>
+                <div class="input-group"><label>Repository Name</label><input type="text" class="commit-repo" placeholder="my-backup-image"></div>
+                <div class="input-group"><label>Tag</label><input type="text" class="commit-tag" value="latest"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-sec btn-close-modal">Cancel</button>
+                <button class="btn btn-confirm-commit">Commit</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(app) {
+            const appInstance = app || window.appInstance;
+            if (!appInstance) { console.error("[Docker] AppInstance not found"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:docker-` + Date.now();
+
+            let ws = null;
+            let composeEditor = null;
+            let activeContainerId = null;
+            let statsInterval = null;
+            
+            // Terminal vars
+            let term = null;
+            let fitAddon = null;
+            let containerTermId = null;
+            let resizeObserver = null;
+
+            // Cache for dropdowns
+            let cachedImages = [];
+            let cachedNetworks = [];
+            let cachedVolumes = [];
+
+            let lastContainers = [];
+            let sortField = 'Names';
+            let sortDir = 1;
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            const loadScript = (src) => new Promise((resolve) => {
+                if (document.querySelector(`script[src="${src}"]`)) return resolve();
+                const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                try {
+                    if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                    if (typeof Terminal === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js');
+                    if (typeof FitAddon === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
+                } catch(e) { console.error(e); }
+
+                // Bindings
+                function ensureEditor(id, ref) {
+                    if(typeof ace === 'undefined') return;
+                    const el = container.querySelector('#' + id);
+                    if(el && el.offsetParent !== null && !ref) {
+                        try {
+                            const ed = ace.edit(el);
+                            ed.setTheme("ace/theme/monokai");
+                            ed.session.setMode("ace/mode/yaml");
+                            return ed;
+                        } catch(e) { console.error("Ace init error", e); }
+                    }
+                    return ref;
+                }
+
+                function updateEditors() {
+                    composeEditor = ensureEditor('compose-editor', composeEditor);
+                    if(composeEditor) composeEditor.resize();
+                }
+
+            const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+            const bindChange = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('change', fn); };
+            
+            // Nav
+            container.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                    item.classList.add('active');
+                    container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                    const viewId = item.dataset.view;
+                    container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                    
+                    if(viewId === 'containers') loadContainers();
+                    if(viewId === 'images') loadImages();
+                    if(viewId === 'volumes') loadVolumes();
+                    if(viewId === 'networks') loadNetworks();
+                    if(viewId === 'compose') { 
+                        // Init editor when visible
+                        setTimeout(updateEditors, 100);
+                    }
+                });
+            });
+
+            // Buttons
+            bind('.btn-refresh-cont', loadContainers);
+            bind('.btn-prune-cont', () => { if(confirm("Rimuovere tutti i container fermi?")) sendCmd("prune_containers"); });
+            bind('.btn-run-cont', () => openRunModal());
+            
+            bind('.btn-refresh-img', loadImages);
+            bind('.btn-prune-img', () => { if(confirm("Rimuovere tutte le immagini non usate?")) sendCmd("prune_images"); });
+            bind('.btn-import-img', () => container.querySelector('#img-upload-input').click());
+            bindChange('#img-upload-input', (e) => handleUpload(e.target.files[0], 'image'));
+            bind('.btn-pull-img', () => { const i = prompt("Image Name (e.g. ubuntu:latest):"); if(i) sendCmd("image_pull", {image:i}); });
+            
+            bind('.btn-refresh-vol', loadVolumes);
+            bind('.btn-create-vol', () => { const n=prompt("Volume Name:"); if(n) sendCmd("volume_op", {op:"create", name:n}); });
+            bind('.btn-prune-vol', () => { if(confirm("Rimuovere volumi non usati?")) sendCmd("prune_volumes"); });
+            bind('.btn-restore-vol', () => container.querySelector('#vol-upload-input').click());
+            bindChange('#vol-upload-input', (e) => handleUpload(e.target.files[0], 'volume'));
+
+            bind('.btn-refresh-net', loadNetworks);
+            bind('.btn-create-net', () => { const n=prompt("Network Name:"); if(n) sendCmd("network_op", {op:"create", id:n, driver:"bridge"}); });
+            bind('.btn-prune-net', () => { if(confirm("Rimuovere network non usate?")) sendCmd("prune_networks"); });
+
+            // Sorting headers
+            container.querySelectorAll('.dk-table th[data-sort]').forEach(th => {
+                th.addEventListener('click', () => {
+                    const field = th.dataset.sort;
+                    if(sortField === field) sortDir = -sortDir;
+                    else { sortField = field; sortDir = 1; }
+                    renderContainers(lastContainers);
+                });
+            });
+
+            // --- COMPOSE / BUILD ACTIONS (REWRITTEN) ---
+            bind('.btn-compose-new', () => {
+                composeEditor = ensureEditor('compose-editor', composeEditor);
+                if(composeEditor) {
+                    composeEditor.setValue("", -1);
+                    composeEditor.resize();
+                }
+                container.querySelector('#compose-path').value = "";
+                container.querySelector('#compose-type').value = "compose";
+            });
+
+            bind('.btn-compose-load', () => {
+                const path = container.querySelector('#compose-path').value;
+                if(!path) return alert("Inserisci un percorso");
+                sendCmd("read_docker_file", {path: path});
+            });
+
+            bind('.btn-compose-save', () => {
+                const c = composeEditor ? composeEditor.getValue() : "";
+                const path = container.querySelector('#compose-path').value;
+                if(!path) return alert("Path required to save");
+                // We use run_docker_file logic but maybe we need a save only? 
+                // For now we assume the user wants to run/build or we can add a save action.
+                // Let's use fs_command save if possible, or just rely on run_docker_file which saves first.
+                // Actually, let's just use run_docker_file for now as it saves.
+                alert("Use 'Up / Build' to save and run. Standalone save not implemented in this view yet.");
+            });
+
+            bind('.btn-compose-up', () => {
+                const c = composeEditor ? composeEditor.getValue() : "";
+                if(!c) return alert("Content is empty");
+                const path = container.querySelector('#compose-path').value;
+                const type = container.querySelector('#compose-type').value;
+                
+                if(path) sendCmd("run_docker_file", {path: path, content: c});
+                else sendCmd("run_new_stack", {content: c, name: prompt("Stack/Image Name:"), type: type});
+            });
+
+            // Run Modal Logic
+            container.querySelectorAll('input[name="img-source"]').forEach(r => r.addEventListener('change', e => {
+                const isLocal = e.target.value === 'local';
+                container.querySelector('.run-img-local').style.display = isLocal ? 'block' : 'none';
+                container.querySelector('.run-img-repo').style.display = isLocal ? 'none' : 'block';
+            }));
+            container.querySelectorAll('input[name="vol-source"]').forEach(r => r.addEventListener('change', e => {
+                const isVol = e.target.value === 'volume';
+                container.querySelector('.run-vol-name').style.display = isVol ? 'block' : 'none';
+                container.querySelector('.run-vol-path').style.display = isVol ? 'none' : 'block';
+            }));
+
+            // Run Modal
+            bind('.btn-confirm-run', () => {
+                const imgSource = container.querySelector('input[name="img-source"]:checked').value;
+                const image = imgSource === 'local' ? container.querySelector('.run-img-local').value : container.querySelector('.run-img-repo').value;
+                
+                if(!image) return alert("Image required");
+
+                // Construct volumes
+                let vols = "";
+                const volSource = container.querySelector('input[name="vol-source"]:checked').value;
+                const volSrc = volSource === 'volume' ? container.querySelector('.run-vol-name').value : container.querySelector('.run-vol-path').value;
+                const volDst = container.querySelector('.run-vol-dest').value;
+                if(volSrc && volDst) {
+                    vols = `-v ${volSrc}:${volDst}`;
+                }
+
+                const p = {
+                    action: "run_container",
+                    image: image,
+                    name: container.querySelector('.run-name').value,
+                    ports: container.querySelector('.run-ports').value,
+                    network: container.querySelector('.run-network').value,
+                    env: container.querySelector('.run-env').value,
+                    vols: vols,
+                    cmd: container.querySelector('.run-cmd').value
+                };
+                
+                const recreateId = container.querySelector('.run-recreate-id').value;
+                if(recreateId) {
+                    sendCmd("container_op", {op:"rm", id:recreateId}); // Force remove old
+                }
+                ws.send(JSON.stringify({ type: "docker_command", host_id: parseInt(currentId), term_id: termId, payload: p }));
+                container.querySelector('.modal-run').style.display='none';
+            });
+
+            bind('.btn-confirm-commit', () => {
+                const repo = container.querySelector('.commit-repo').value;
+                const tag = container.querySelector('.commit-tag').value;
+                if(repo && activeContainerId) {
+                    sendCmd("commit_container", { id: activeContainerId, repo: repo, tag: tag });
+                    container.querySelector('.modal-commit').style.display='none';
+                }
+            });
+
+            // Details Modal Actions
+            bind('.btn-det-start', () => sendCmd("container_op", {op:"start", id:activeContainerId}));
+            bind('.btn-det-stop', () => sendCmd("container_op", {op:"stop", id:activeContainerId}));
+            bind('.btn-det-pause', () => sendCmd("container_op", {op:"pause", id:activeContainerId}));
+            bind('.btn-det-restart', () => sendCmd("container_op", {op:"restart", id:activeContainerId}));
+            bind('.btn-det-rename', () => { const n=prompt("New Name:"); if(n) sendCmd("container_rename", {id:activeContainerId, name:n}); });
+            bind('.btn-det-clone', () => cloneContainer(activeContainerId));
+            bind('.btn-det-edit', () => editContainer(activeContainerId));
+            bind('.btn-det-export', () => {
+                // Export FS logic: save to /tmp then download
+                // For now just alert path
+                alert("Export non ancora implementato completamente.");
+            });
+
+            // Sub-tabs logic
+            container.querySelectorAll('.sub-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                        const parent = t.closest('.modal-content') || t.closest('.view-panel');
+                        if (!parent) return;
+
+                    parent.querySelectorAll('.sub-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+                    parent.querySelector('#sub-'+t.dataset.sub).classList.add('active');
+                    
+                    if(t.dataset.sub === 'det-stats') startStatsPoll();
+                    else stopStatsPoll();
+                    
+                    if(t.dataset.sub === 'det-logs') sendCmd("get_logs", {id:activeContainerId});
+
+                    if(t.dataset.sub === 'det-term') {
+                        setTimeout(() => initContainerTerminal(activeContainerId), 100);
+                    } else {
+                        destroyContainerTerminal();
+                    }
+                });
+            });
+
+            container.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => {
+                container.querySelectorAll('.local-modal').forEach(m => m.style.display='none');
+                stopStatsPoll();
+                destroyContainerTerminal();
+            }));
+
+            // Delegation
+            container.addEventListener('click', (e) => {
+                // Row Click for Containers
+                const row = e.target.closest('tr');
+                if(row && row.dataset.cid) {
+                    // If clicked on action button, don't open modal
+                    if(e.target.closest('button')) return;
+                    openContainerDetails(row.dataset.cid);
+                }
+
+                const btn = e.target.closest('button');
+                if(btn) {
+                    const id = btn.dataset.id;
+                    const action = btn.dataset.action;
+                    
+                    if(action === 'start') sendCmd("container_op", {op:"start", id:id});
+                    if(action === 'stop') sendCmd("container_op", {op:"stop", id:id});
+                    if(action === 'restart') sendCmd("container_op", {op:"restart", id:id});
+                    if(action === 'kill') { if(confirm("Kill container?")) sendCmd("container_op", {op:"kill", id:id}); }
+                    if(action === 'remove') { if(confirm("Remove container?")) sendCmd("container_op", {op:"rm", id:id}); }
+                    if(action === 'commit') {
+                        activeContainerId = id;
+                        container.querySelector('.modal-commit').style.display='flex';
+                    }
+
+                    if(action === 'rmi') { if(confirm("Remove image?")) sendCmd("image_op", {op:"rmi", id:id}); }
+                    if(action === 'rmvol') { if(confirm("Remove volume?")) sendCmd("volume_op", {op:"rm", name:id}); }
+                    if(action === 'rmnet') { if(confirm("Remove network?")) sendCmd("network_op", {op:"rm", id:id}); }
+                    
+                    if(action === 'export-img') {
+                        const path = prompt("Path di destinazione sul server (es. /tmp/image.tar):");
+                        if(path) sendCmd("image_save", {image:id, path:path});
+                    }
+                    if(action === 'backup-vol') {
+                        sendCmd("volume_backup", {volume:id, path:id+".tar.gz"});
+                    }
+                }
+            });
+
+            if(ws) {
+                const onOpen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    sendCmd("check_docker");
+                    loadContainers();
+                    loadImages();
+                };
+
+                ws.onopen = onOpen;
+                if (ws.readyState === WebSocket.OPEN) onOpen();
+
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "docker_status") {
+                        if(!msg.payload.installed) container.innerHTML = "<div style='padding:20px; text-align:center; color:#da3633'>Docker non trovato su questo host.</div>";
+                    }
+                    if(msg.type === "docker_error") {
+                        console.error("[Docker] Error:", msg.payload);
+                        container.querySelector('.cont-tbody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger)">${msg.payload}</td></tr>`;
+                        container.querySelector('.img-tbody').innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--danger)">${msg.payload}</td></tr>`;
+                    }
+                    if(msg.type === "docker_containers") renderContainers(msg.payload);
+                    if(msg.type === "docker_images") {
+                        renderImages(msg.payload);
+                        populateLocalImagesDropdown(msg.payload);
+                    }
+                    if(msg.type === "docker_volumes") renderVolumes(msg.payload);
+                    if(msg.type === "docker_networks") renderNetworks(msg.payload);
+                    
+                    if(msg.type === "docker_logs") container.querySelector('.log-view').innerText = msg.payload;
+                    
+                    if(msg.type === "docker_inspect") {
+                        handleInspectData(msg.payload);
+                    }
+
+                    if(msg.type === "docker_stats") {
+                        try {
+                            const s = JSON.parse(msg.payload);
+                            container.querySelector('.st-cpu').innerText = s.CPUPerc;
+                            container.querySelector('.st-mem').innerText = s.MemUsage + " / " + s.MemPerc;
+                            container.querySelector('.st-net').innerText = s.NetIO;
+                            container.querySelector('.st-io').innerText = s.BlockIO;
+                            container.querySelector('.st-pids').innerText = s.PIDs;
+                        } catch(e) {}
+                    }
+
+                    if(msg.type === "docker_file_content") {
+                        if(composeEditor) {
+                            composeEditor.setValue(msg.payload.content, -1);
+                            const path = msg.payload.path.toLowerCase();
+                            if(path.includes("dockerfile")) composeEditor.session.setMode("ace/mode/dockerfile");
+                            else composeEditor.session.setMode("ace/mode/yaml");
+                        }
+                    }
+
+                    if(msg.type === "fs_op_res" && msg.payload.action === "upload_native") {
+                        // Upload finished, trigger docker load or restore
+                        const f = msg.payload.filename; // e.g. /tmp/upload_...
+                        if(msg.payload.context === 'image') sendCmd("image_load", {path: f});
+                        if(msg.payload.context === 'volume') sendCmd("volume_restore", {volume: prompt("Nome Volume Target:"), file: f});
+                    }
+
+                    if(msg.type === "docker_op_res") {
+                        if(msg.payload.status === "success") {
+                            // Refresh current view
+                            if(container.querySelector('#view-containers').classList.contains('active-view')) loadContainers();
+                            if(container.querySelector('#view-images').classList.contains('active-view')) loadImages();
+                            if(container.querySelector('#view-volumes').classList.contains('active-view')) loadVolumes();
+                            if(container.querySelector('#view-networks').classList.contains('active-view')) loadNetworks();
+                        } else {
+                            alert("Error: " + msg.payload.msg);
+                        }
+                    }
+
+                        // Terminal Output
+                        if(msg.type === "ssh_output" && msg.term_id === containerTermId && term) {
+                            term.write(msg.payload);
+                            // Force refresh to ensure text appears
+                            // term.refresh(0, term.rows - 1); 
+                        }
+                };
+            }
+
+            function sendCmd(action, payload = {}) {
+                ws.send(JSON.stringify({ type: "docker_command", host_id: parseInt(currentId), term_id: termId, payload: { action: action, ...payload } }));
+            }
+
+            function loadContainers() { sendCmd("list_containers"); }
+            function loadImages() { sendCmd("list_images"); }
+            function loadVolumes() { sendCmd("list_volumes"); }
+            function loadNetworks() { sendCmd("list_networks"); }
+
+            function renderContainers(list) {
+                lastContainers = list || [];
+                const tbody = container.querySelector('.cont-tbody');
+                tbody.innerHTML = "";
+                if(!lastContainers || lastContainers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim)">Nessun container trovato.</td></tr>';
+                    return;
+                }
+
+                // Sort
+                lastContainers.sort((a, b) => {
+                    const valA = (a[sortField] || "").toString().toLowerCase();
+                    const valB = (b[sortField] || "").toString().toLowerCase();
+                    return valA.localeCompare(valB) * sortDir;
+                });
+
+                // Update headers icon
+                container.querySelectorAll('.dk-table th[data-sort]').forEach(th => {
+                    const field = th.dataset.sort;
+                    let icon = "";
+                    if(field === sortField) icon = sortDir === 1 ? " <i class='fas fa-caret-down'></i>" : " <i class='fas fa-caret-up'></i>";
+                    th.innerHTML = field + icon;
+                });
+
+                lastContainers.forEach(c => {
+                    if (!c.ID) return;
+                    const isUp = c.Status.startsWith("Up");
+                    const stClass = isUp ? "st-running" : (c.Status.includes("Exited") ? "st-exited" : "st-paused");
+                    
+                    // Stack detection
+                    let stackColor = "transparent";
+                    let stackName = "";
+                    if(c.Labels && c.Labels.includes("com.docker.compose.project=")) {
+                        const match = c.Labels.match(/com\.docker\.compose\.project=([^,]+)/);
+                        if(match) { stackName = match[1]; stackColor = stringToColor(stackName); }
+                    }
+
+                    const tr = document.createElement('tr');
+                    tr.dataset.cid = c.ID;
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white; position:relative; padding-left:15px;">
+                            <div class="stack-bar" style="background:${stackColor}" title="${stackName ? 'Stack: '+stackName : ''}"></div>
+                            ${c.Names}
+                        </td>
+                        <td style="font-family:monospace; color:var(--text-dim)">${c.ID.substring(0,12)}</td>
+                        <td style="color:var(--accent)">${c.Image}</td>
+                        <td><span class="status-badge ${stClass}">${c.Status}</span></td>
+                        <td style="font-size:0.8em; color:var(--text-dim)">${c.Ports}</td>
+                        <td>
+                            ${isUp ? 
+                                `<button class="action-btn" data-action="stop" data-id="${c.ID}" title="Stop"><i class="fas fa-stop" style="color:var(--warning)"></i></button>
+                                 <button class="action-btn" data-action="restart" data-id="${c.ID}" title="Restart"><i class="fas fa-sync"></i></button>` : 
+                                `<button class="action-btn" data-action="start" data-id="${c.ID}" title="Start"><i class="fas fa-play" style="color:var(--success)"></i></button>`
+                            }
+                            <button class="action-btn" data-action="commit" data-id="${c.ID}" title="Backup Image"><i class="fas fa-save"></i></button>
+                            <button class="action-btn" data-action="remove" data-id="${c.ID}" title="Remove" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderImages(list) {
+                const tbody = container.querySelector('.img-tbody');
+                tbody.innerHTML = "";
+                if(!list || list.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding:20px; color:var(--text-dim)">Nessuna immagine trovata.</td></tr>';
+                    return;
+                }
+                list.forEach(i => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white">${i.Repository}</td>
+                        <td style="color:var(--accent)">${i.Tag}</td>
+                        <td style="font-family:monospace; color:var(--text-dim)">${i.ID.substring(0,12)}</td>
+                        <td>${i.Size}</td>
+                        <td style="font-size:0.8em; color:var(--text-dim)">${i.CreatedSince}</td>
+                        <td>
+                            <button class="action-btn" data-action="export-img" data-id="${i.Repository}:${i.Tag}" title="Export"><i class="fas fa-download"></i></button>
+                            <button class="action-btn" data-action="rmi" data-id="${i.ID}" title="Remove" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderVolumes(list) {
+                const tbody = container.querySelector('.vol-tbody');
+                tbody.innerHTML = "";
+                if(!list) return;
+                list.forEach(v => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white">${v.Name}</td>
+                        <td>${v.Driver}</td>
+                        <td style="font-size:0.8em; color:var(--text-dim)">${v.Mountpoint}</td>
+                        <td>
+                            <button class="action-btn" data-action="backup-vol" data-id="${v.Name}" title="Backup"><i class="fas fa-download"></i></button>
+                            <button class="action-btn" data-action="rmvol" data-id="${v.Name}" title="Remove" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderNetworks(list) {
+                const tbody = container.querySelector('.net-tbody');
+                tbody.innerHTML = "";
+                if(!list) return;
+                list.forEach(n => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-family:monospace; color:var(--text-dim)">${n.ID.substring(0,12)}</td>
+                        <td style="font-weight:bold; color:white">${n.Name}</td>
+                        <td>${n.Driver}</td>
+                        <td>${n.Scope}</td>
+                        <td>
+                            <button class="action-btn" data-action="rmnet" data-id="${n.ID}" title="Remove" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function populateLocalImagesDropdown(list) {
+                const sel = container.querySelector('.run-img-local');
+                if(!sel) return;
+                sel.innerHTML = "";
+                if(!list) return;
+                list.forEach(i => {
+                    const opt = document.createElement('option');
+                    const val = (i.Repository && i.Tag) ? `${i.Repository}:${i.Tag}` : i.ID.substring(0,12);
+                    opt.value = val;
+                    opt.innerText = val;
+                    sel.appendChild(opt);
+                });
+            }
+
+            function stringToColor(str) {
+                let hash = 0;
+                for (let i = 0; i < str.length; i++) hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                return `hsl(${Math.abs(hash % 360)}, 60%, 50%)`;
+            }
+
+            function openContainerDetails(id) {
+                activeContainerId = id;
+                container.querySelector('.modal-details').style.display='flex';
+                container.querySelector('.det-title').innerText = "Container: " + id.substring(0,12);
+                container.querySelector('.det-info-content').innerText = "Loading...";
+                container.querySelector('.env-list').innerText = "";
+                sendCmd("inspect_container", {id:id});
+                
+                // Reset tabs
+                container.querySelector('.sub-tab[data-sub="det-info"]').click();
+            }
+
+            function handleInspectData(payload) {
+                try {
+                    const data = JSON.parse(payload);
+                    if(data && data[0]) {
+                        const c = data[0];
+                        container.querySelector('.det-info-content').innerHTML = syntaxHighlight(c);
+                        
+                        if(c.Config && c.Config.Env) {
+                            const envs = c.Config.Env;
+                            container.querySelector('.env-list').innerHTML = envs.map(e => {
+                                const p = e.split('=');
+                                return `<div class="env-item"><span class="env-key">${p[0]}</span>=${p.slice(1).join('=')}</div>`;
+                            }).join('');
+                        }
+                        
+                        // Store for Clone/Edit
+                        window.lastInspect = c;
+                    }
+                } catch(e) { container.querySelector('.det-info-content').innerText = "Error parsing inspect data"; }
+            }
+
+            function syntaxHighlight(json) {
+                if (typeof json != 'string') json = JSON.stringify(json, undefined, 2);
+                json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                return json.replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'json-number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) cls = 'json-key';
+                        else cls = 'json-string';
+                    } else if (/true|false/.test(match)) cls = 'json-boolean';
+                    else if (/null/.test(match)) cls = 'json-null';
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+            }
+
+            function startStatsPoll() {
+                if(statsInterval) clearInterval(statsInterval);
+                const poll = () => {
+                    if(activeContainerId && container.querySelector('.modal-details').style.display !== 'none') {
+                        sendCmd("get_stats", {id:activeContainerId});
+                    }
+                };
+                poll();
+                statsInterval = setInterval(poll, 2000);
+            }
+            function stopStatsPoll() { if(statsInterval) clearInterval(statsInterval); }
+
+            function cloneContainer(id) {
+                if(!window.lastInspect) return alert("Wait for inspect data");
+                const c = window.lastInspect;
+                openRunModal(c, c.Name.replace('/','') + "-clone", false);
+            }
+
+            function editContainer(id) {
+                if(!window.lastInspect) return alert("Wait for inspect data");
+                const c = window.lastInspect;
+                openRunModal(c, c.Name.replace('/',''), true);
+            }
+
+            function openRunModal(conf, name, recreate) {
+                container.querySelector('.modal-run').style.display='flex';
+                container.querySelector('.run-img').value = conf.Config.Image;
+                container.querySelector('.run-name').value = name;
+                container.querySelector('.run-recreate-id').value = recreate ? conf.Id : "";
+                
+                // Reconstruct params (approx)
+                let envs = "";
+                if(conf.Config.Env) envs = conf.Config.Env.map(e => "-e "+e).join(" ");
+                container.querySelector('.run-env').value = envs;
+
+                let ports = "";
+                if(conf.HostConfig.PortBindings) {
+                    for(let k in conf.HostConfig.PortBindings) {
+                        const v = conf.HostConfig.PortBindings[k];
+                        if(v && v[0]) ports += `-p ${v[0].HostPort}:${k.split('/')[0]} `;
+                    }
+                }
+                container.querySelector('.run-ports').value = ports;
+
+                let vols = "";
+                if(conf.HostConfig.Binds) vols = conf.HostConfig.Binds.map(b => "-v "+b).join(" ");
+                container.querySelector('.run-vols').value = vols;
+
+                let cmd = "";
+                if(conf.Config.Cmd) cmd = conf.Config.Cmd.join(" ");
+                container.querySelector('.run-cmd').value = cmd;
+            }
+
+            function handleUpload(file, context) {
+                if(!file) return;
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const content = e.target.result.split(',')[1]; // Base64
+                    // Use fs_command upload. We hijack the payload to include context for the callback
+                    // Note: This requires backend support to pass context back or we handle it blindly.
+                    // Actually, let's use a specific action if possible, or just rely on filename convention.
+                    // For now, standard upload to /tmp/
+                    const fname = "upload_" + Date.now() + ".tar";
+                    ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "upload", path: "/tmp", filename: fname, content: content } }));
+                    // We need to know when it finishes. The backend sends fs_op_res.
+                    // We can listen for that in onmessage.
+                };
+                reader.readAsDataURL(file);
+            }
+
+                // --- TERMINAL LOGIC ---
+                function initContainerTerminal(cid) {
+                    if (term) return; // Already active
+                    if (typeof Terminal === 'undefined' || typeof FitAddon === 'undefined') { console.error("Terminal lib not loaded"); return; }
+                    
+                    const termContainer = container.querySelector('#det-term-embed');
+                    termContainer.innerHTML = ""; // Clear previous instance
+
+                    containerTermId = `${wsId}:dk-term-${cid}-${Date.now()}`;
+                    
+                    term = new Terminal({ 
+                        cursorBlink: true, 
+                        fontSize: 13, 
+                        fontFamily: '"JetBrains Mono", monospace',
+                        theme: { background: '#000', foreground: '#0f0' },
+                        convertEol: true
+                    });
+                    
+                    fitAddon = new FitAddon.FitAddon();
+                    term.loadAddon(fitAddon);
+                    term.open(termContainer);
+                    term.writeln('\x1b[1;32mConnecting to container shell...\x1b[0m');
+                    
+                    // Resize Observer per gestire il layout
+                    resizeObserver = new ResizeObserver(() => {
+                        try { fitAddon.fit(); } catch(e){}
+                        if (ws && ws.readyState === WebSocket.OPEN && term.cols > 2 && term.rows > 2) {
+                            ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: containerTermId, payload: { cols: term.cols, rows: term.rows } }));
+                        }
+                    });
+                    resizeObserver.observe(termContainer);
+
+                    setTimeout(() => {
+                        if(!term) return;
+                        try { fitAddon.fit(); } catch(e){}
+                        term.focus();
+                        if(ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: containerTermId, payload: { cols: term.cols, rows: term.rows } }));
+                            
+                            // Simplified command
+                            const cmd = `sudo docker exec -it -e TERM=xterm ${cid} /bin/bash || sudo docker exec -it -e TERM=xterm ${cid} /bin/sh\n`;
+                            ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: containerTermId, payload: cmd }));
+                        }
+                    }, 800);
+
+                    term.onData(d => {
+                        ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: containerTermId, payload: d }));
+                    });
+                }
+
+                function destroyContainerTerminal() {
+                    if (term) {
+                        term.dispose();
+                        term = null;
+                        fitAddon = null;
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: containerTermId }));
+                        }
+                        if (resizeObserver) resizeObserver.disconnect();
+                        containerTermId = null;
+                        resizeObserver = null;
+                    }
+                }
+
+                appInstance.registerCleanup(() => { 
+                    if(ws) ws.close(); 
+                    if(composeEditor) composeEditor.destroy();
+                    destroyContainerTerminal();
+                });
+            })();
+        })(arguments[0]);
+    </script>
+</div>
+```

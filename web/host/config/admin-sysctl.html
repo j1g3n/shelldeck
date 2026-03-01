@@ -1,0 +1,347 @@
+<style>
+    .sys-layout { display: flex; flex-direction: column; height: 100%; gap: 15px; padding: 20px; }
+    
+    /* Tabs */
+    .sys-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .sys-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: bold; }
+    .sys-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    
+    .sys-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .sys-content.active { display: flex; }
+    
+    /* Toolbar */
+    .sys-toolbar { display: flex; gap: 10px; align-items: center; background: var(--bg-panel); padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+    .sys-search { flex: 1; background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; }
+    
+    /* Table */
+    .sys-table-wrapper { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 6px; background: var(--bg-panel); }
+    .sys-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .sys-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border); }
+    .sys-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-main); vertical-align: middle; }
+    .sys-table tr:hover { background: #21262d; }
+    
+    .val-input { width: 100%; background: #0d1117; border: 1px solid var(--accent); color: white; padding: 6px; border-radius: 4px; font-family: monospace; }
+    
+    /* Buttons */
+    .btn-warning { background-color: var(--warning) !important; color: #0d1117 !important; border-color: var(--warning) !important; }
+    .btn-warning:hover { filter: brightness(1.1); }
+    
+    .btn-action { padding: 4px 8px; border-radius: 4px; cursor: pointer; border: 1px solid var(--border); background: transparent; color: var(--text-dim); font-size: 0.85em; }
+    .btn-action:hover { color: white; border-color: white; background: #30363d; }
+    .btn-save-row { color: var(--accent); border-color: var(--accent); }
+    .btn-save-row:hover { background: var(--accent); color: white; }
+
+    /* Modal */
+    .local-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-box { background: var(--bg-panel); padding: 20px; border-radius: 8px; border: 1px solid var(--border); width: 450px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+    
+    /* Rapid Config */
+    .rapid-grid { display: grid; grid-template-columns: 1fr 2fr; gap: 20px; height: 100%; }
+    .profile-list { display: flex; flex-direction: column; gap: 10px; }
+    .profile-btn { padding: 15px; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; text-align: left; transition: 0.2s; }
+    .profile-btn:hover { border-color: var(--accent); background: #21262d; }
+    .profile-btn.active { border-color: var(--accent); background: rgba(35, 134, 54, 0.1); }
+    .profile-title { font-weight: bold; color: #e6edf3; margin-bottom: 5px; display: block; }
+    .profile-desc { font-size: 0.8em; color: var(--text-dim); }
+</style>
+
+<div class="sys-layout">
+    <div class="usr-header">
+        <div class="usr-title">Kernel Parameters (Sysctl)</div>
+        <div style="display:flex; gap:10px">
+            <button class="btn btn-sec" id="btn-export"><i class="fas fa-download"></i> Export Config</button>
+            <button class="btn btn-sec" id="btn-import"><i class="fas fa-upload"></i> Import Config</button>
+            <input type="file" id="file-import" style="display:none" accept=".conf">
+        </div>
+    </div>
+
+    <div class="sys-tabs">
+        <div class="sys-tab active" data-tab="params">Parametri</div>
+        <div class="sys-tab" data-tab="rapid">Rapid Config</div>
+    </div>
+
+    <div id="tab-params" class="sys-content active">
+        <div class="sys-toolbar">
+            <input type="text" class="sys-search" placeholder="Filtra parametri (es. ipv4.forward)..." id="sys-filter">
+            <button class="btn btn-primary" id="btn-add-key"><i class="fas fa-plus"></i> Aggiungi Voce</button>
+            <button class="btn btn-sec" id="btn-refresh"><i class="fas fa-sync"></i> Ricarica</button>
+        </div>
+
+        <div class="sys-table-wrapper">
+            <table class="sys-table">
+                <thead>
+                    <tr>
+                        <th style="width: 50px"></th>
+                        <th style="width: 40%">Parametro</th>
+                        <th>Valore</th>
+                    </tr>
+                </thead>
+                <tbody id="sys-tbody">
+                    <tr><td colspan="3" style="text-align:center; padding:20px">Caricamento...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-rapid" class="sys-content">
+        <div class="rapid-grid">
+            <div class="profile-list">
+                <div class="profile-btn" onclick="selectProfile('server', this)">
+                    <span class="profile-title"><i class="fas fa-server"></i> Profilo Server</span>
+                    <span class="profile-desc">Ottimizzato per throughput e servizi background. Swappiness basso.</span>
+                </div>
+                <div class="profile-btn" onclick="selectProfile('desktop', this)">
+                    <span class="profile-title"><i class="fas fa-desktop"></i> Profilo Desktop</span>
+                    <span class="profile-desc">Bilanciato per reattività interfaccia utente.</span>
+                </div>
+                <div class="profile-btn" onclick="selectProfile('harden', this)">
+                    <span class="profile-title" style="color:var(--warning)"><i class="fas fa-shield-alt"></i> Network Hardening</span>
+                    <span class="profile-desc">Disabilita redirect, ICMP broadcast e abilita protezioni TCP.</span>
+                </div>
+            </div>
+            <div class="sys-table-wrapper" style="display:flex; flex-direction:column">
+                <div style="padding:10px; background:#161b22; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:center">
+                    <span style="font-weight:bold; color:var(--accent)">Anteprima Modifiche</span>
+                    <button class="btn btn-primary" id="btn-apply-profile" disabled>Applica Profilo</button>
+                </div>
+                <table class="sys-table">
+                    <thead><tr><th>Chiave</th><th>Nuovo Valore</th></tr></thead>
+                    <tbody id="profile-preview-body">
+                        <tr><td colspan="2" style="text-align:center; padding:20px; color:var(--text-dim)">Seleziona un profilo a sinistra</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Add -->
+<div class="local-modal" id="modal-add-sys">
+    <div class="modal-box">
+        <h3 style="margin-top:0">Aggiungi Parametro Kernel</h3>
+        <div>
+            <label style="display:block; margin-bottom:5px; color:var(--text-dim)">Chiave (es. net.ipv4.ip_forward)</label>
+            <input type="text" id="new-sys-key" style="width:100%; padding:8px; background:#0d1117; border:1px solid var(--border); color:white; border-radius:4px;">
+        </div>
+        <div>
+            <label style="display:block; margin-bottom:5px; color:var(--text-dim)">Valore</label>
+            <input type="text" id="new-sys-val" style="width:100%; padding:8px; background:#0d1117; border:1px solid var(--border); color:white; border-radius:4px;">
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px">
+            <button class="btn btn-sec" onclick="document.getElementById('modal-add-sys').style.display='none'">Annulla</button>
+            <button class="btn btn-primary" id="btn-confirm-add">Applica</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view') || document.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-sysctl-` + Date.now();
+        let ws = null;
+        let allParams = [];
+        let currentProfileData = {};
+
+        const PROFILES = {
+            'server': { 'vm.swappiness': '10', 'vm.vfs_cache_pressure': '50' },
+            'desktop': { 'vm.swappiness': '60', 'vm.vfs_cache_pressure': '100' },
+            'harden': { 'net.ipv4.conf.all.accept_redirects': '0', 'net.ipv4.conf.all.send_redirects': '0', 'net.ipv4.icmp_echo_ignore_broadcasts': '1', 'net.ipv4.tcp_syncookies': '1' }
+        };
+
+        // WS Setup
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+        if(ws) {
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                loadSysctl();
+            };
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.term_id && msg.term_id !== termId) return;
+
+                if(msg.type === "admin_sysctl_dump") parseAndRender(msg.payload);
+                if(msg.type === "admin_op_res") {
+                    alert(msg.payload.msg);
+                    if(msg.payload.status === 'success') loadSysctl();
+                }
+            };
+        }
+
+        wrapper.addEventListener('submodule_unload', () => {
+            if(ws) ws.close();
+        }, { once: true });
+
+        // Tabs
+        wrapper.querySelectorAll('.sys-tab').forEach(t => t.onclick = () => {
+            wrapper.querySelectorAll('.sys-tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            wrapper.querySelectorAll('.sys-content').forEach(c => c.classList.remove('active'));
+            wrapper.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+        });
+
+        function loadSysctl() {
+            wrapper.querySelector('#sys-tbody').innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px">Caricamento...</td></tr>';
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "sysctl_dump" } }));
+        }
+
+        function parseAndRender(raw) {
+            allParams = [];
+            const lines = raw.split('\n');
+            lines.forEach(line => {
+                const idx = line.indexOf('=');
+                if(idx > 0) {
+                    const key = line.substring(0, idx).trim();
+                    const val = line.substring(idx + 1).trim();
+                    allParams.push({key, val});
+                }
+            });
+            renderTable("");
+        }
+
+        function renderTable(filter) {
+            const tbody = wrapper.querySelector('#sys-tbody');
+            tbody.innerHTML = "";
+            const f = filter.toLowerCase();
+            
+            const filtered = allParams.filter(p => p.key.toLowerCase().includes(f));
+            
+            if(filtered.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:var(--text-dim)">Nessun risultato</td></tr>';
+                return;
+            }
+
+            // Limit rendering for performance if too many
+            const toRender = filtered.slice(0, 500);
+
+            toRender.forEach(p => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="text-align:center">
+                        <button class="btn-action btn-edit" title="Modifica"><i class="fas fa-pen"></i></button>
+                    </td>
+                    <td style="font-weight:bold; color:#e6edf3">${p.key}</td>
+                    <td class="val-cell" style="font-family:monospace; color:#a5d6ff">${p.val}</td>
+                `;
+                
+                const btnEdit = tr.querySelector('.btn-edit');
+                const valCell = tr.querySelector('.val-cell');
+                
+                btnEdit.onclick = () => {
+                    if(btnEdit.querySelector('.fa-save')) {
+                        // Save
+                        const newVal = valCell.querySelector('input').value;
+                        window.setSysctl(p.key, newVal);
+                    } else {
+                        // Edit mode
+                        const currentVal = valCell.innerText;
+                        valCell.innerHTML = `<input type="text" class="val-input" value="${currentVal}">`;
+                        btnEdit.innerHTML = '<i class="fas fa-save"></i>';
+                        btnEdit.classList.add('btn-save-row');
+                        btnEdit.title = "Salva";
+                    }
+                };
+                
+                tbody.appendChild(tr);
+            });
+        }
+
+        wrapper.querySelector('#sys-filter').addEventListener('input', (e) => renderTable(e.target.value));
+        wrapper.querySelector('#btn-refresh').onclick = loadSysctl;
+        
+        wrapper.querySelector('#btn-add-key').onclick = () => {
+            document.getElementById('new-sys-key').value = "";
+            document.getElementById('new-sys-val').value = "";
+            document.getElementById('modal-add-sys').style.display = 'flex';
+        };
+
+        wrapper.querySelector('#btn-confirm-add').onclick = () => {
+            const k = document.getElementById('new-sys-key').value;
+            const v = document.getElementById('new-sys-val').value;
+            if(k && v) {
+                window.setSysctl(k, v);
+                document.getElementById('modal-add-sys').style.display = 'none';
+            }
+        };
+
+        window.setSysctl = (key, val) => {
+            ws.send(JSON.stringify({ 
+                type: "admin_command", 
+                host_id: parseInt(currentId), 
+                term_id: termId,
+                payload: { action: "sysctl_set", key: key, value: val } 
+            }));
+        };
+
+        window.selectProfile = (type, el) => {
+            wrapper.querySelectorAll('.profile-btn').forEach(b => b.classList.remove('active'));
+            if(el) el.classList.add('active');
+            
+            currentProfileData = PROFILES[type];
+            const tbody = wrapper.querySelector('#profile-preview-body');
+            tbody.innerHTML = "";
+            
+            for(const [k, v] of Object.entries(currentProfileData)) {
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="font-weight:bold; color:#e6edf3">${k}</td>
+                        <td><input type="text" class="val-input" value="${v}" onchange="window.updateProfileVal('${k}', this.value)"></td>
+                    </tr>`;
+            }
+            wrapper.querySelector('#btn-apply-profile').disabled = false;
+        };
+
+        window.updateProfileVal = (k, v) => { currentProfileData[k] = v; };
+
+        wrapper.querySelector('#btn-apply-profile').onclick = () => {
+            if(!confirm("Applicare questi parametri?")) return;
+            for(const [k, v] of Object.entries(currentProfileData)) {
+                window.setSysctl(k, v);
+            }
+            alert("Profilo applicato.");
+        };
+
+        // Import / Export
+        wrapper.querySelector('#btn-export').onclick = () => {
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_sysctl_conf" } }));
+        };
+
+        wrapper.querySelector('#btn-import').onclick = () => wrapper.querySelector('#file-import').click();
+        
+        wrapper.querySelector('#file-import').onchange = (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                if(confirm("Sovrascrivere /etc/sysctl.conf con questo file e ricaricare?")) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_sysctl_conf", content: ev.target.result } }));
+                }
+            };
+            reader.readAsText(file);
+            e.target.value = '';
+        };
+
+        // Handle export response
+        const originalOnMessage = ws.onmessage;
+        ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if(msg.type === "sysctl_conf_content") downloadFile("sysctl.conf", msg.payload);
+            else originalOnMessage(e);
+        };
+
+        function downloadFile(filename, content) {
+            const element = document.createElement('a');
+            element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+            element.setAttribute('download', filename);
+            element.style.display = 'none';
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+    })(arguments[0]);
+</script>

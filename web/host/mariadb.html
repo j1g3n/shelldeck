@@ -1,0 +1,356 @@
+<div class="mariadb-module-wrapper">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .mariadb-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #d29922; /* MariaDB Orange/Goldish */
+            --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --success: #238636;
+        }
+        .mariadb-module-wrapper * { box-sizing: border-box; }
+        
+        .mdb-sidebar { width: 220px; min-width: 220px; flex-shrink: 0; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; }
+        .mdb-sidebar h3 { color: var(--accent); font-size: 1.1em; margin-bottom: 20px; display:flex; align-items:center; gap:10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: var(--accent); color: #000; font-weight: bold; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-width: 0; }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 25px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; flex-shrink: 0; }
+        
+        .mdb-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .mdb-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10; }
+        .mdb-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .mdb-table tr:hover { background: #1c2128; }
+
+        .btn { background: var(--accent); color: #000; border: none; padding: 8px 14px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; font-size:0.9em; }
+        .btn:hover { filter: brightness(1.1); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-sec:hover { background: #21262d; }
+        .action-btn { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 4px 8px; border-radius: 4px; cursor: pointer; margin-right: 5px; transition: 0.2s; font-size: 0.8em; }
+        .action-btn:hover { background: #21262d; border-color: var(--text-dim); }
+
+        .status-badge { padding: 5px 10px; border-radius: 4px; font-weight: bold; text-transform: uppercase; font-size: 0.9em; }
+        .st-active { background: rgba(35, 134, 54, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .st-inactive { background: rgba(218, 54, 51, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+
+        .log-view { background: #000; color: #ccc; padding: 10px; font-family: monospace; height: 300px; overflow: auto; white-space: pre-wrap; font-size: 0.85em; border: 1px solid var(--border); margin-top: 10px; }
+
+        .creds-box { background: var(--bg-panel); padding: 15px; border-bottom: 1px solid var(--border); display: flex; gap: 10px; align-items: center; }
+        .creds-box input { background: #0d1117; border: 1px solid var(--border); color: white; padding: 6px; border-radius: 4px; }
+        
+        .ace-div { position: absolute; top: 0; bottom: 0; left: 0; right: 0; width: 100%; height: 100%; }
+    </style>
+
+    <div class="mdb-sidebar">
+        <h3><i class="fas fa-database"></i> MariaDB</h3>
+        <div class="nav-item active" data-view="status"><i class="fas fa-heartbeat"></i> Status</div>
+        <div class="nav-item" data-view="databases"><i class="fas fa-server"></i> Databases</div>
+        <div class="nav-item" data-view="users"><i class="fas fa-users"></i> Users</div>
+        <div class="nav-item" data-view="config"><i class="fas fa-cog"></i> Configuration</div>
+    </div>
+
+    <div class="main-wrapper">
+        <div class="creds-box">
+            <span style="font-size:0.9em; color:var(--text-dim)"><i class="fas fa-key"></i> Credentials (Optional):</span>
+            <input type="text" id="db-user" placeholder="root">
+            <input type="password" id="db-pass" placeholder="password">
+            <button class="btn btn-sec btn-save-creds" style="padding: 6px 10px;">Set</button>
+            <span style="font-size:0.8em; color:var(--text-dim); margin-left:auto">Leave empty for sudo/socket auth</span>
+        </div>
+
+        <!-- STATUS -->
+        <div id="view-status" class="view-panel active-view">
+            <div class="panel-header">
+                <h3>Service Status</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-status"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+            <div style="margin-bottom: 20px;">
+                <span id="service-status-badge" class="status-badge st-inactive">Unknown</span>
+                <div style="margin-top: 15px; display:flex; gap:10px">
+                    <button class="btn btn-sec btn-svc-start"><i class="fas fa-play"></i> Start</button>
+                    <button class="btn btn-sec btn-svc-stop"><i class="fas fa-stop"></i> Stop</button>
+                    <button class="btn btn-sec btn-svc-restart"><i class="fas fa-sync"></i> Restart</button>
+                </div>
+            </div>
+            <h4>Recent Logs</h4>
+            <div class="log-view" id="status-logs">Loading logs...</div>
+        </div>
+
+        <!-- DATABASES -->
+        <div id="view-databases" class="view-panel">
+            <div class="panel-header">
+                <h3>Databases</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-dbs"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="mdb-table">
+                    <thead><tr><th>Name</th><th>Size (MB)</th><th>Actions</th></tr></thead>
+                    <tbody id="dbs-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- USERS -->
+        <div id="view-users" class="view-panel">
+            <div class="panel-header">
+                <h3>Users</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-users"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="mdb-table">
+                    <thead><tr><th>User</th><th>Host</th></tr></thead>
+                    <tbody id="users-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- CONFIG -->
+        <div id="view-config" class="view-panel">
+            <div class="panel-header">
+                <h3>Configuration Editor</h3>
+                <div style="display:flex; gap:10px">
+                    <select id="config-type" style="background:#0d1117; border:1px solid var(--border); color:white; padding:6px; border-radius:4px;">
+                        <option value="mysql">MySQL (/etc/mysql)</option>
+                        <option value="mariadb">MariaDB (/etc/mariadb)</option>
+                    </select>
+                    <button class="btn btn-sec btn-load-configs"><i class="fas fa-sync"></i> List Files</button>
+                    <button class="btn btn-sec btn-save-config"><i class="fas fa-save"></i> Save</button>
+                    <button class="btn btn-sec btn-svc-restart-conf"><i class="fas fa-sync"></i> Restart Service</button>
+                </div>
+            </div>
+            <div style="display:flex; flex:1; gap:10px; overflow:hidden;">
+                <div class="config-list" style="width:250px; background:#0d1117; border:1px solid var(--border); overflow-y:auto;"></div>
+                <div style="flex:1; position:relative; border:1px solid var(--border);">
+                    <div id="config-editor" class="ace-div"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function(app) {
+            const appInstance = app || window.appInstance;
+            if (!appInstance) { console.error("AppInstance not found"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:mariadb-` + Date.now();
+
+            let ws = null;
+            let dbCreds = { user: '', pass: '' };
+            let configEditor = null;
+            let currentConfigFile = null;
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            const loadScript = (src) => new Promise((resolve) => {
+                if (document.querySelector(`script[src="${src}"]`)) return resolve();
+                const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+            });
+
+            const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+
+            async function initEditor() {
+                if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                if (!configEditor && document.getElementById('config-editor')) {
+                    configEditor = ace.edit(container.querySelector('#config-editor'));
+                    configEditor.setTheme("ace/theme/monokai");
+                    configEditor.session.setMode("ace/mode/ini");
+                }
+            }
+
+            // Nav
+            container.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                    item.classList.add('active');
+                    container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                    const viewId = item.dataset.view;
+                    container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                    
+                    if(viewId === 'status') loadStatus();
+                    if(viewId === 'databases') loadDbs();
+                    if(viewId === 'users') loadUsers();
+                    if(viewId === 'config') {
+                        initEditor();
+                        setTimeout(() => { if(configEditor) configEditor.resize(); }, 100);
+                    }
+                });
+            });
+
+            // Creds
+            bind('.btn-save-creds', () => {
+                dbCreds.user = container.querySelector('#db-user').value;
+                dbCreds.pass = container.querySelector('#db-pass').value;
+                alert("Credentials set for this session.");
+                loadStatus(); // Test
+            });
+
+            // Actions
+            bind('.btn-refresh-status', loadStatus);
+            bind('.btn-svc-start', () => sendCmd("service_op", {op:"start"}));
+            bind('.btn-svc-stop', () => sendCmd("service_op", {op:"stop"}));
+            bind('.btn-svc-restart', () => sendCmd("service_op", {op:"restart"}));
+            
+            bind('.btn-refresh-dbs', loadDbs);
+            bind('.btn-refresh-users', loadUsers);
+
+            bind('.btn-load-configs', () => {
+                const type = container.querySelector('#config-type').value;
+                container.querySelector('.config-list').innerHTML = "<div style='padding:10px; color:#8b949e; font-size:0.8em; text-align:center'><i class='fas fa-circle-notch fa-spin'></i> Loading...</div>";
+                sendCmd("list_configs", {type: type});
+            });
+            bind('.btn-save-config', () => {
+                if(!currentConfigFile || !configEditor) return;
+                const content = configEditor.getValue();
+                sendCmd("save_config", {file: currentConfigFile, content: content});
+            });
+            bind('.btn-svc-restart-conf', () => sendCmd("service_op", {op:"restart"}));
+
+            // Delegation for dynamic buttons
+            container.addEventListener('click', (e) => {
+                const btn = e.target.closest('.action-btn');
+                if(btn) {
+                    const action = btn.dataset.action;
+                    const name = btn.dataset.name;
+
+                    if(action === 'dump') {
+                        if(confirm(`Start async dump for ${name}?`)) {
+                            sendCmd("dump_db", {name: name});
+                        }
+                    }
+                }
+                
+                const fileItem = e.target.closest('.config-file-item');
+                if(fileItem) {
+                    container.querySelectorAll('.config-file-item').forEach(i => i.style.background = '');
+                    fileItem.style.background = '#21262d';
+                    currentConfigFile = fileItem.dataset.path;
+                    sendCmd("read_config", {file: currentConfigFile});
+                }
+            });
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    loadStatus();
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "mariadb_status") {
+                        const s = msg.payload.status;
+                        const badge = container.querySelector('#service-status-badge');
+                        badge.innerText = s;
+                        badge.className = 'status-badge ' + (s === 'active' ? 'st-active' : 'st-inactive');
+                        container.querySelector('#status-logs').innerText = msg.payload.logs;
+                    }
+                    if(msg.type === "mariadb_dbs") renderDbs(msg.payload);
+                    if(msg.type === "mariadb_users") renderUsers(msg.payload);
+                    if(msg.type === "mariadb_error") alert("MariaDB Error: " + msg.payload);
+                    if(msg.type === "mariadb_op_res") {
+                        if(msg.payload.status === 'error') alert("Error: " + msg.payload.msg);
+                        else loadStatus();
+                    }
+                    if(msg.type === "mariadb_dump_started") {
+                        alert(msg.payload.msg || "Dump started in background.");
+                    }
+                    if(msg.type === "mariadb_dump_res") {
+                        if(msg.payload.status === 'success') {
+                            alert("Dump Success!\nFile: " + msg.payload.file);
+                        } else {
+                            alert("Dump Failed: " + msg.payload.msg);
+                        }
+                    }
+                    if(msg.type === "mariadb_config_list") renderConfigList(msg.payload);
+                    if(msg.type === "mariadb_config_content") {
+                        if(configEditor) {
+                            configEditor.setValue(msg.payload.content, -1);
+                            currentConfigFile = msg.payload.file;
+                        }
+                    }
+                };
+            }
+
+            function sendCmd(action, payload = {}) {
+                const p = { action: action, db_user: dbCreds.user, db_pass: dbCreds.pass, ...payload };
+                ws.send(JSON.stringify({ type: "mariadb_command", host_id: parseInt(currentId), term_id: termId, payload: p }));
+            }
+
+            function loadStatus() { sendCmd("check_status"); }
+            function loadDbs() { sendCmd("list_dbs"); }
+            function loadUsers() { sendCmd("list_users"); }
+
+            function renderDbs(list) {
+                const tbody = container.querySelector('#dbs-tbody');
+                tbody.innerHTML = "";
+                if(!list) return;
+                list.forEach(d => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white">${d.name}</td>
+                        <td>${d.size}</td>
+                        <td>
+                            <button class="action-btn" data-action="dump" data-name="${d.name}" title="Dump (Export)"><i class="fas fa-download"></i> Dump</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderUsers(list) {
+                const tbody = container.querySelector('#users-tbody');
+                tbody.innerHTML = "";
+                if(!list) return;
+                list.forEach(u => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white">${u.user}</td>
+                        <td>${u.host}</td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderConfigList(list) {
+                const div = container.querySelector('.config-list');
+                div.innerHTML = "";
+                if(!list || list.length === 0) {
+                    div.innerHTML = "<div style='padding:10px; color:#8b949e; font-size:0.8em; text-align:center'>No config files found.</div>";
+                    return;
+                }
+                list.forEach(f => {
+                    const item = document.createElement('div');
+                    item.className = 'config-file-item';
+                    item.style.padding = '8px';
+                    item.style.cursor = 'pointer';
+                    item.style.borderBottom = '1px solid var(--border)';
+                    item.style.fontSize = '0.9em';
+                    item.style.whiteSpace = 'nowrap';
+                    item.style.overflow = 'hidden';
+                    item.style.textOverflow = 'ellipsis';
+                    item.innerText = f;
+                    item.title = f;
+                    item.dataset.path = f;
+                    div.appendChild(item);
+                });
+            }
+
+            appInstance.registerCleanup(() => { if(ws) ws.close(); });
+        })(arguments[0]);
+    </script>
+</div>

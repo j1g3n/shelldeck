@@ -1,0 +1,161 @@
+<style>
+    .env-layout { display: flex; flex-direction: column; height: 100%; padding: 20px; gap: 20px; }
+    .env-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .env-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: bold; }
+    .env-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .env-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .env-content.active { display: flex; }
+
+    .env-editor { flex: 1; border: 1px solid var(--border); position: relative; }
+    .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    
+    .env-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .env-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+    .env-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .env-table input { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; }
+</style>
+
+<div class="usr-header">
+    <div class="usr-title">Environment Variables (/etc/environment)</div>
+</div>
+
+<div class="env-layout">
+    <div class="env-tabs">
+        <div class="env-tab active" data-tab="table">Tabella Variabili</div>
+        <div class="env-tab" data-tab="text">Editor Testuale</div>
+    </div>
+
+    <div id="tab-table" class="env-content active">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:10px">
+            <button class="btn btn-primary" id="btn-add-var"><i class="fas fa-plus"></i> Aggiungi Variabile</button>
+        </div>
+        <div style="flex:1; overflow-y:auto; border:1px solid var(--border);">
+            <table class="env-table">
+                <thead><tr><th style="width:30%">Chiave</th><th>Valore</th><th style="width:50px"></th></tr></thead>
+                <tbody id="env-tbody"></tbody>
+            </table>
+        </div>
+        <div style="margin-top:10px; text-align:right">
+            <button class="btn btn-primary" id="btn-save-table"><i class="fas fa-save"></i> Applica Modifiche</button>
+        </div>
+    </div>
+
+    <div id="tab-text" class="env-content">
+        <div class="env-editor">
+            <div class="ace-div" id="env-ace"></div>
+        </div>
+        <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center">
+            <div style="color:var(--text-dim); font-size:0.9em;">
+                Formato: KEY="VALUE" (una per riga). Richiede riavvio o re-login per applicare.
+            </div>
+            <button class="btn btn-primary" id="btn-save-env"><i class="fas fa-save"></i> Salva</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-env-` + Date.now();
+        let ws = null;
+        let editor = null;
+
+        const loadScript = (src) => new Promise((resolve) => {
+            if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+            const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+        });
+
+        async function init() {
+            if(typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+            if(typeof ace !== 'undefined') {
+                editor = ace.edit(wrapper.querySelector('#env-ace'));
+                editor.setTheme("ace/theme/monokai"); editor.session.setMode("ace/mode/sh");
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_env" } }));
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "admin_env_content") {
+                        if(editor) editor.setValue(msg.payload, -1);
+                        parseAndRenderTable(msg.payload);
+                    }
+                    if(msg.type === "admin_op_res") alert(msg.payload.msg);
+                };
+            }
+
+            // Tabs
+            wrapper.querySelectorAll('.env-tab').forEach(t => t.onclick = () => {
+                wrapper.querySelectorAll('.env-tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                wrapper.querySelectorAll('.env-content').forEach(c => c.classList.remove('active'));
+                wrapper.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+                
+                if(t.dataset.tab === 'table') parseAndRenderTable(editor.getValue());
+                if(t.dataset.tab === 'text') editor.resize();
+            });
+
+            function parseAndRenderTable(content) {
+                const tbody = wrapper.querySelector('#env-tbody');
+                tbody.innerHTML = "";
+                const lines = content.split('\n');
+                lines.forEach(line => {
+                    const l = line.trim();
+                    if(!l || l.startsWith('#')) return;
+                    const idx = l.indexOf('=');
+                    if(idx > 0) {
+                        const key = l.substring(0, idx);
+                        let val = l.substring(idx + 1);
+                        if(val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+                        addVarRow(key, val);
+                    }
+                });
+            }
+
+            function addVarRow(key = "", val = "") {
+                const tbody = wrapper.querySelector('#env-tbody');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" class="e-key" value="${key}" placeholder="PATH"></td>
+                    <td><input type="text" class="e-val" value="${val}" placeholder="/usr/local/bin:..."></td>
+                    <td><button class="btn-action" style="color:var(--danger)" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            wrapper.querySelector('#btn-add-var').onclick = () => addVarRow();
+
+            const saveFn = () => {
+                if(editor && confirm("Salvare le variabili d'ambiente?")) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_env", content: editor.getValue() } }));
+                }
+            };
+
+            wrapper.querySelector('#btn-save-env').onclick = () => {
+                saveFn();
+            };
+            
+            wrapper.querySelector('#btn-save-table').onclick = () => {
+                let out = "";
+                wrapper.querySelectorAll('#env-tbody tr').forEach(tr => {
+                    const k = tr.querySelector('.e-key').value.trim();
+                    const v = tr.querySelector('.e-val').value.trim();
+                    if(k) out += `${k}="${v}"\n`;
+                });
+                editor.setValue(out, -1);
+                saveFn();
+            };
+        }
+
+        init();
+    })(arguments[0]);
+</script>

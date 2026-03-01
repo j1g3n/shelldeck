@@ -1,0 +1,402 @@
+<style>
+    .kern-layout { display: flex; flex-direction: column; height: 100%; padding: 20px; gap: 20px; }
+    .kern-info { background: var(--bg-panel); padding: 15px; border: 1px solid var(--border); border-radius: 6px; display: flex; justify-content: space-between; align-items: center; }
+    .kern-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
+    .kern-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; }
+    .kern-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+    .ktab-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .ktab-content.active { display: flex; }
+    
+    .grub-editor { flex: 1; width: 100%; height: 400px; position: relative; }
+    .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    
+    /* Module Table */
+    .mod-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+    .mod-table th { text-align: left; padding: 8px; background: #161b22; color: var(--text-dim); position: sticky; top: 0; }
+    .mod-table td { padding: 6px 8px; border-bottom: 1px solid #30363d; }
+    .mod-table tr:hover { background: #21262d; }
+    
+    .cleaner-list { flex: 1; background: #0d1117; border: 1px solid var(--border); overflow-y: auto; padding: 10px; }
+    .pkg-item { display: flex; justify-content: space-between; padding: 5px; border-bottom: 1px solid #333; }
+    
+    .grub-gui { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+    .grub-card { background: var(--bg-panel); padding: 15px; border: 1px solid var(--border); border-radius: 6px; }
+    .grub-opt { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .grub-opt label { color: var(--text-dim); font-size: 0.9em; }
+    
+    .switch { position: relative; display: inline-block; width: 34px; height: 20px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #333; transition: .4s; border-radius: 34px; }
+    .slider:before { position: absolute; content: ""; height: 14px; width: 14px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background-color: var(--accent); }
+    input:checked + .slider:before { transform: translateX(14px); }
+
+    /* Sub-tabs for Modules */
+    .mod-sub-tabs { display: flex; gap: 15px; margin-bottom: 15px; border-bottom: 1px solid var(--border); }
+    .mod-sub-tab { padding: 8px 12px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; font-size: 0.9em; }
+    .mod-sub-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+</style>
+
+<div class="kern-layout">
+    <div class="kern-info">
+        <div>
+            <div style="font-size:0.8em; color:var(--text-dim)">Kernel Corrente</div>
+            <div style="font-size:1.2em; font-weight:bold; color:white" id="kern-ver">Loading...</div>
+        </div>
+        <button class="btn btn-primary" id="btn-refresh-kern"><i class="fas fa-sync"></i> Aggiorna</button>
+    </div>
+
+    <div class="kern-tabs">
+        <div class="kern-tab active" data-tab="grub">Bootloader (GRUB)</div>
+        <div class="kern-tab" data-tab="modules">Moduli Kernel</div>
+        <div class="kern-tab" data-tab="cleaner">Kernel Cleaner</div>
+    </div>
+
+    <div id="ktab-grub" class="ktab-content active">
+        <div class="grub-gui">
+            <div class="grub-card">
+                <h4 style="margin-top:0; color:var(--accent)">Opzioni di Avvio</h4>
+                <div class="grub-opt">
+                    <label>Timeout (secondi)</label>
+                    <input type="number" id="grub-timeout" style="width:60px; background:#0d1117; border:1px solid var(--border); color:white; padding:4px; border-radius:4px;">
+                </div>
+                <div class="grub-opt">
+                    <label>Boot Default</label>
+                    <select id="grub-default" style="width:150px; background:#0d1117; border:1px solid var(--border); color:white; padding:4px; border-radius:4px;">
+                        <option value="0">Primo (0)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="grub-card">
+                <h4 style="margin-top:0; color:var(--accent)">Parametri Kernel</h4>
+                <div class="grub-opt">
+                    <label>Quiet (Nascondi Log)</label>
+                    <label class="switch"><input type="checkbox" id="chk-quiet"><span class="slider"></span></label>
+                </div>
+                <div class="grub-opt">
+                    <label>Splash (Logo Avvio)</label>
+                    <label class="switch"><input type="checkbox" id="chk-splash"><span class="slider"></span></label>
+                </div>
+                <div class="grub-opt">
+                    <label>Nomodeset (Safe Graphics)</label>
+                    <label class="switch"><input type="checkbox" id="chk-nomodeset"><span class="slider"></span></label>
+                </div>
+                <div class="grub-opt">
+                    <label>Disable IPv6</label>
+                    <label class="switch"><input type="checkbox" id="chk-ipv6"><span class="slider"></span></label>
+                </div>
+            </div>
+        </div>
+        
+        <div style="margin-bottom:10px; display:flex; justify-content:space-between; align-items:center">
+            <span style="color:var(--text-dim); font-size:0.9em">Editor Avanzato (/etc/default/grub)</span>
+            <button class="btn btn-primary" id="btn-save-grub"><i class="fas fa-save"></i> Applica Modifiche</button>
+        </div>
+        <div class="grub-editor" style="height:300px"><div class="ace-div" id="grub-ace"></div></div>
+    </div>
+
+    <div id="ktab-modules" class="ktab-content">
+        <div class="mod-sub-tabs">
+            <div class="mod-sub-tab active" data-sub="loaded">Loaded (Attivi)</div>
+            <div class="mod-sub-tab" data-sub="unloaded">Unloaded (Disponibili)</div>
+        </div>
+
+        <div style="margin-bottom:10px; display:flex; gap:10px">
+            <input type="text" id="mod-search" placeholder="Cerca modulo..." style="background:#0d1117; border:1px solid var(--border); color:white; padding:6px; border-radius:4px; flex:1">
+        </div>
+        <div style="flex:1; overflow-y:auto; border:1px solid var(--border); margin-bottom:10px; background:#0d1117;">
+            <table class="mod-table">
+                <thead id="mod-thead">
+                    <tr><th>Nome</th><th>Size</th><th>Used By</th><th>Descrizione</th><th>Stato</th><th>Azioni</th></tr>
+                </thead>
+                <tbody id="mod-tbody"></tbody>
+            </table>
+        </div>
+        <div style="display:flex; gap:10px; background:var(--bg-panel); padding:10px; border-radius:4px;">
+            <input type="text" id="inp-mod-name" placeholder="Nome Modulo" style="background:#0d1117; border:1px solid var(--border); color:white; padding:5px; flex:1">
+            <button class="btn-action" onclick="modOp('load')">Load</button>
+            <button class="btn-action btn-del" onclick="modOp('unload')">Unload</button>
+            <button class="btn-action btn-del" onclick="modOp('blacklist')">Blacklist</button>
+        </div>
+    </div>
+
+    <div id="ktab-cleaner" class="ktab-content">
+        <div style="margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; background:var(--bg-panel); padding:15px; border-radius:6px; border:1px solid var(--border)">
+            <div>
+                <div style="font-size:0.9em; color:var(--text-dim)">Kernel Attivo</div>
+                <div style="font-size:1.4em; font-weight:bold; color:var(--accent)" id="cleaner-current">Loading...</div>
+            </div>
+            <button class="btn btn-primary" id="btn-auto-clean"><i class="fas fa-broom"></i> Auto-Clean</button>
+        </div>
+        <div class="cleaner-list" id="pkg-list">Loading packages...</div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-kern-` + Date.now();
+        let ws = null;
+        let editor = null;
+        let loadedModules = [];
+        let availableModules = []; // Tutti i moduli trovati su disco
+        let currentKernelVer = "";
+        let currentModView = "loaded";
+
+        const loadScript = (src) => new Promise((resolve) => {
+            if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+            const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+        });
+
+        async function init() {
+            if(typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+            if(typeof ace !== 'undefined') {
+                editor = ace.edit(wrapper.querySelector('#grub-ace'));
+                editor.setTheme("ace/theme/monokai"); editor.session.setMode("ace/mode/sh");
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    refreshAll();
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "admin_kernel_info") {
+                        wrapper.querySelector('#kern-ver').innerText = msg.payload.current;
+                        currentKernelVer = msg.payload.current;
+                        
+                        parseModules(msg.payload.lsmod, msg.payload.blacklist);
+                        parseGrub(msg.payload.grub_config, msg.payload.grub_entries);
+                        
+                        if(editor) editor.setValue(msg.payload.grub_config, -1);
+                    }
+                    if(msg.type === "admin_all_modules") {
+                        parseAllModules(msg.payload);
+                    }
+                    if(msg.type === "admin_old_kernels") {
+                        renderCleaner(msg.payload);
+                    }
+                    if(msg.type === "admin_op_res") { alert(msg.payload.msg); refreshAll(); }
+                };
+            }
+
+            wrapper.querySelectorAll('.kern-tab').forEach(t => t.onclick = () => {
+                wrapper.querySelectorAll('.kern-tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                wrapper.querySelectorAll('.ktab-content').forEach(c => c.classList.remove('active'));
+                wrapper.querySelector('#ktab-'+t.dataset.tab).classList.add('active');
+                if(t.dataset.tab === 'grub' && editor) editor.resize();
+                if(t.dataset.tab === 'modules') {
+                    // Carica anche la lista completa se non c'è
+                    if(availableModules.length === 0) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_all_modules" } }));
+                }
+                if(t.dataset.tab === 'cleaner') ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_old_kernels" } }));
+            });
+
+            wrapper.querySelector('#btn-refresh-kern').onclick = refreshAll;
+            wrapper.querySelector('#btn-save-grub').onclick = () => {
+                applyGrubGuiToEditor();
+                if(confirm("Salvare e aggiornare GRUB?")) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_grub", content: editor.getValue() } }));
+            };
+
+            // Sub-tabs logic
+            wrapper.querySelectorAll('.mod-sub-tab').forEach(t => t.onclick = () => {
+                wrapper.querySelectorAll('.mod-sub-tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                currentModView = t.dataset.sub;
+                renderModules(wrapper.querySelector('#mod-search').value);
+            });
+
+            window.modOp = (op, moduleName) => {
+                const m = moduleName || wrapper.querySelector('#inp-mod-name').value;
+                if(m) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "module_op", op: op, module: m } }));
+            };
+
+            wrapper.querySelector('#mod-search').addEventListener('input', (e) => renderModules(e.target.value));
+            
+            wrapper.querySelector('#btn-auto-clean').onclick = () => {
+                // Logic for auto clean
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_old_kernels" } }));
+                setTimeout(() => {
+                    const removable = Array.from(wrapper.querySelectorAll('.pkg-item.removable')).map(el => el.dataset.pkg);
+                    if(removable.length === 0) return alert("Nessun vecchio kernel da rimuovere.");
+                    if(confirm("Rimuovere i seguenti kernel?\n" + removable.join("\n"))) {
+                        ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "remove_kernels", packages: removable } }));
+                    }
+                }, 500);
+            };
+        }
+
+        function refreshAll() {
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_kernel_info" } }));
+        }
+
+        // --- GRUB LOGIC ---
+        function parseGrub(config, entries) {
+            // Parse Timeout
+            const timeoutMatch = config.match(/GRUB_TIMEOUT="?(\d+)"?/);
+            if(timeoutMatch) wrapper.querySelector('#grub-timeout').value = timeoutMatch[1];
+            
+            // Parse Cmdline
+            const cmdMatch = config.match(/GRUB_CMDLINE_LINUX_DEFAULT="([^"]*)"/);
+            if(cmdMatch) {
+                const params = cmdMatch[1];
+                wrapper.querySelector('#chk-quiet').checked = params.includes('quiet');
+                wrapper.querySelector('#chk-splash').checked = params.includes('splash');
+                wrapper.querySelector('#chk-nomodeset').checked = params.includes('nomodeset');
+                wrapper.querySelector('#chk-ipv6').checked = params.includes('ipv6.disable=1');
+            }
+            
+            // Populate Entries
+            const sel = wrapper.querySelector('#grub-default');
+            sel.innerHTML = '<option value="0">Default (0)</option>';
+            if(entries) {
+                entries.split('\n').forEach(e => {
+                    if(e.trim()) {
+                        const opt = document.createElement('option');
+                        opt.value = e.trim();
+                        opt.innerText = e.trim();
+                        sel.appendChild(opt);
+                    }
+                });
+            }
+        }
+
+        function applyGrubGuiToEditor() {
+            let content = editor.getValue();
+            
+            // Update Timeout
+            const timeout = wrapper.querySelector('#grub-timeout').value;
+            if(content.includes('GRUB_TIMEOUT=')) {
+                content = content.replace(/GRUB_TIMEOUT=.*/, `GRUB_TIMEOUT="${timeout}"`);
+            } else {
+                content += `\nGRUB_TIMEOUT="${timeout}"`;
+            }
+            
+            // Update Cmdline
+            let params = [];
+            if(wrapper.querySelector('#chk-quiet').checked) params.push('quiet');
+            if(wrapper.querySelector('#chk-splash').checked) params.push('splash');
+            if(wrapper.querySelector('#chk-nomodeset').checked) params.push('nomodeset');
+            if(wrapper.querySelector('#chk-ipv6').checked) params.push('ipv6.disable=1');
+            
+            // Preserve other params? Complex regex needed. For now, we replace known ones or append.
+            // Simple approach: Replace the whole line with our constructed one (might lose custom params, be careful)
+            // Better: Read existing, remove our toggles, add back if checked.
+            // For simplicity in this UI: We overwrite GRUB_CMDLINE_LINUX_DEFAULT with our set.
+            const newCmdLine = `GRUB_CMDLINE_LINUX_DEFAULT="${params.join(' ')}"`;
+            if(content.includes('GRUB_CMDLINE_LINUX_DEFAULT=')) {
+                content = content.replace(/GRUB_CMDLINE_LINUX_DEFAULT=.*/, newCmdLine);
+            } else {
+                content += `\n${newCmdLine}`;
+            }
+            
+            editor.setValue(content, -1);
+        }
+
+        // --- MODULES LOGIC ---
+        function parseModules(raw, blacklistRaw) {
+            loadedModules = [];
+            const blacklist = new Set(blacklistRaw.split('\n').map(s=>s.trim()));
+            
+            raw.split('\n').forEach(line => {
+                const p = line.split('|');
+                if(p.length >= 4) {
+                    loadedModules.push({ name: p[0], size: p[1], used: p[2], desc: p[3], blacklisted: blacklist.has(p[0]) });
+                }
+            });
+            renderModules(wrapper.querySelector('#mod-search').value);
+        }
+
+        function parseAllModules(raw) {
+            availableModules = raw.split('\n').map(s => s.trim()).filter(s => s);
+            renderModules(wrapper.querySelector('#mod-search').value);
+        }
+
+        function renderModules(filter) {
+            const tbody = wrapper.querySelector('#mod-tbody');
+            const thead = wrapper.querySelector('#mod-thead');
+            tbody.innerHTML = "";
+            const f = filter.toLowerCase();
+
+            if (currentModView === 'loaded') {
+                thead.innerHTML = `<tr><th>Nome</th><th>Size</th><th>Used By</th><th>Descrizione</th><th>Stato</th><th>Azioni</th></tr>`;
+                loadedModules.filter(m => m.name.toLowerCase().includes(f)).forEach(m => {
+                    const statusBadge = m.blacklisted 
+                        ? '<span style="color:var(--warning); border:1px solid var(--warning); padding:2px 4px; border-radius:3px; font-size:0.7em">Loaded (Blacklisted)</span>' 
+                        : '<span style="color:var(--success); border:1px solid var(--success); padding:2px 4px; border-radius:3px; font-size:0.7em">Loaded</span>';
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:${m.blacklisted?'var(--danger)':'white'}">${m.name} ${m.blacklisted?'(BL)':''}</td>
+                        <td>${m.size}</td>
+                        <td>${m.used}</td>
+                        <td style="color:var(--text-dim); font-size:0.9em">${m.desc}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <button class="btn-action btn-del" onclick="modOp('unload', '${m.name}')" title="Unload"><i class="fas fa-stop"></i></button>
+                            <button class="btn-action btn-del" onclick="modOp('blacklist', '${m.name}')" title="Blacklist"><i class="fas fa-ban"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } else {
+                // Unloaded View
+                thead.innerHTML = `<tr><th>Nome Modulo</th><th>Stato</th><th>Azioni</th></tr>`;
+                
+                // Set di nomi caricati per filtro veloce
+                const loadedSet = new Set(loadedModules.map(m => m.name));
+                
+                // Filtra: deve corrispondere alla ricerca E NON deve essere già caricato
+                const unloaded = availableModules.filter(name => 
+                    name.toLowerCase().includes(f) && !loadedSet.has(name)
+                );
+
+                // Limitiamo il rendering per performance (la lista completa è enorme)
+                const toRender = unloaded.slice(0, 200);
+
+                toRender.forEach(name => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:var(--text-dim)">${name}</td>
+                        <td><span style="color:var(--text-dim); border:1px solid var(--border); padding:2px 4px; border-radius:3px; font-size:0.7em">Available</span></td>
+                        <td>
+                            <button class="btn-action" onclick="modOp('load', '${name}')" title="Load"><i class="fas fa-play"></i> Load</button>
+                            <button class="btn-action btn-del" onclick="modOp('blacklist', '${name}')" title="Blacklist"><i class="fas fa-ban"></i></button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                if (unloaded.length > 200) {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td colspan="3" style="text-align:center; color:var(--text-dim); font-style:italic">...altri ${unloaded.length - 200} moduli nascosti. Usa la ricerca...</td>`;
+                    tbody.appendChild(tr);
+                }
+            }
+        }
+
+        // --- CLEANER LOGIC ---
+        function renderCleaner(data) {
+            wrapper.querySelector('#cleaner-current').innerText = data.current;
+            const list = wrapper.querySelector('#pkg-list');
+            list.innerHTML = "";
+            
+            data.installed.forEach(pkg => {
+                const isCurrent = pkg.includes(data.current);
+                const isRemovable = !isCurrent; // Simplified logic. Real logic needs version comparison.
+                const cls = isRemovable ? "pkg-item removable" : "pkg-item";
+                const style = isCurrent ? "color:var(--success); font-weight:bold" : (isRemovable ? "color:var(--warning)" : "");
+                list.innerHTML += `<div class="${cls}" data-pkg="${pkg}" style="${style}"><span>${pkg}</span> <span>${isCurrent?'(In Uso)':(isRemovable?'(Vecchio)':'')}</span></div>`;
+            });
+        }
+
+        init();
+    })(arguments[0]);
+</script>

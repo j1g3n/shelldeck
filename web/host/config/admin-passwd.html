@@ -1,0 +1,186 @@
+<style>
+    .passwd-layout { display: flex; flex-direction: column; height: 100%; padding: 20px; gap: 20px; }
+    .passwd-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .passwd-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: bold; }
+    .passwd-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .passwd-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .passwd-content.active { display: flex; }
+
+    .passwd-editor { flex: 1; border: 1px solid var(--border); position: relative; }
+    .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    
+    .passwd-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .passwd-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1; }
+    .passwd-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .passwd-table input { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; }
+    .passwd-table tr:hover { background: #21262d; }
+</style>
+
+<div class="usr-header">
+    <div class="usr-title">Gestione File /etc/passwd</div>
+    <div style="font-size:0.8em; color:var(--text-dim)">Ultima Modifica: <span id="passwd-mtime" style="color:var(--accent)">Loading...</span></div>
+</div>
+
+<div class="passwd-layout">
+    <div class="passwd-tabs">
+        <div class="passwd-tab active" data-tab="table">Tabella Dettagliata</div>
+        <div class="passwd-tab" data-tab="text">Editor Testuale</div>
+    </div>
+
+    <div id="tab-table" class="passwd-content active">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:10px">
+            <button class="btn btn-primary" id="btn-add-row"><i class="fas fa-plus"></i> Aggiungi Riga</button>
+        </div>
+        <div style="flex:1; overflow-y:auto; border:1px solid var(--border);">
+            <table class="passwd-table">
+                <thead>
+                    <tr>
+                        <th style="width:15%">Username</th>
+                        <th style="width:5%">Pwd</th>
+                        <th style="width:8%">UID</th>
+                        <th style="width:8%">GID</th>
+                        <th style="width:20%">Info (GECOS)</th>
+                        <th style="width:20%">Home</th>
+                        <th style="width:15%">Shell</th>
+                        <th style="width:50px"></th>
+                    </tr>
+                </thead>
+                <tbody id="passwd-tbody"></tbody>
+            </table>
+        </div>
+        <div style="margin-top:10px; text-align:right">
+            <button class="btn btn-primary" id="btn-save-table"><i class="fas fa-save"></i> Applica Modifiche</button>
+        </div>
+    </div>
+
+    <div id="tab-text" class="passwd-content">
+        <div class="passwd-editor">
+            <div class="ace-div" id="passwd-ace"></div>
+        </div>
+        <div style="margin-top:10px; display:flex; justify-content:space-between; align-items:center">
+            <div style="color:var(--text-dim); font-size:0.9em;">
+                Formato: user:x:uid:gid:gecos:home:shell
+            </div>
+            <button class="btn btn-primary" id="btn-save-text"><i class="fas fa-save"></i> Salva</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-passwd-` + Date.now();
+        let ws = null;
+        let editor = null;
+
+        const loadScript = (src) => new Promise((resolve) => {
+            if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+            const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+        });
+
+        async function init() {
+            if(typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+            if(typeof ace !== 'undefined') {
+                editor = ace.edit(wrapper.querySelector('#passwd-ace'));
+                editor.setTheme("ace/theme/monokai"); editor.session.setMode("ace/mode/text");
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_passwd_info" } }));
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "admin_passwd_info") {
+                        if(editor) editor.setValue(msg.payload.content, -1);
+                        wrapper.querySelector('#passwd-mtime').innerText = msg.payload.mtime;
+                        parseAndRenderTable(msg.payload.content);
+                    }
+                    if(msg.type === "admin_op_res") {
+                        alert(msg.payload.msg);
+                        if(msg.payload.status === 'success') {
+                             ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_passwd_info" } }));
+                        }
+                    }
+                };
+            }
+
+            // Tabs
+            wrapper.querySelectorAll('.passwd-tab').forEach(t => t.onclick = () => {
+                wrapper.querySelectorAll('.passwd-tab').forEach(x => x.classList.remove('active'));
+                t.classList.add('active');
+                wrapper.querySelectorAll('.passwd-content').forEach(c => c.classList.remove('active'));
+                wrapper.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+                
+                if(t.dataset.tab === 'table') parseAndRenderTable(editor.getValue());
+                if(t.dataset.tab === 'text') editor.resize();
+            });
+
+            function parseAndRenderTable(content) {
+                const tbody = wrapper.querySelector('#passwd-tbody');
+                tbody.innerHTML = "";
+                const lines = content.split('\n');
+                lines.forEach(line => {
+                    const l = line.trim();
+                    if(!l) return;
+                    const parts = l.split(':');
+                    while(parts.length < 7) parts.push("");
+                    addRow(parts);
+                });
+            }
+
+            function addRow(parts = ["", "x", "", "", "", "", ""]) {
+                const tbody = wrapper.querySelector('#passwd-tbody');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><input type="text" class="p-user" value="${parts[0]}"></td>
+                    <td><input type="text" class="p-pwd" value="${parts[1]}" style="width:40px"></td>
+                    <td><input type="text" class="p-uid" value="${parts[2]}"></td>
+                    <td><input type="text" class="p-gid" value="${parts[3]}"></td>
+                    <td><input type="text" class="p-gecos" value="${parts[4]}"></td>
+                    <td><input type="text" class="p-home" value="${parts[5]}"></td>
+                    <td><input type="text" class="p-shell" value="${parts[6]}"></td>
+                    <td><button class="btn-action" style="color:var(--danger)" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+                `;
+                tbody.appendChild(tr);
+            }
+
+            wrapper.querySelector('#btn-add-row').onclick = () => addRow();
+
+            const saveFn = () => {
+                if(editor && confirm("Salvare il file /etc/passwd?")) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_passwd", content: editor.getValue() } }));
+                }
+            };
+
+            wrapper.querySelector('#btn-save-text').onclick = saveFn;
+            
+            wrapper.querySelector('#btn-save-table').onclick = () => {
+                let out = "";
+                wrapper.querySelectorAll('#passwd-tbody tr').forEach(tr => {
+                    const user = tr.querySelector('.p-user').value.trim();
+                    if(!user) return;
+                    const pwd = tr.querySelector('.p-pwd').value.trim();
+                    const uid = tr.querySelector('.p-uid').value.trim();
+                    const gid = tr.querySelector('.p-gid').value.trim();
+                    const gecos = tr.querySelector('.p-gecos').value.trim();
+                    const home = tr.querySelector('.p-home').value.trim();
+                    const shell = tr.querySelector('.p-shell').value.trim();
+                    
+                    out += `${user}:${pwd}:${uid}:${gid}:${gecos}:${home}:${shell}\n`;
+                });
+                editor.setValue(out, -1);
+                saveFn();
+            };
+        }
+
+        init();
+    })(arguments[0]);
+</script>

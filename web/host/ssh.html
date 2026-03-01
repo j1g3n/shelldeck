@@ -1,0 +1,309 @@
+<div class="ssh-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .ssh-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --info: #2f81f7; --success: #238636;
+        }
+
+        .ssh-module-wrapper * { box-sizing: border-box; }
+        
+        .ssh-sidebar { 
+            width: 220px; min-width: 220px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .ssh-sidebar h3 { color: var(--accent); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: var(--accent); color: white; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-width: 0; }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 25px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; flex-shrink: 0; }
+        
+        .status-card { background: #0d1117; border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: flex; align-items: center; gap: 30px; margin-bottom: 20px; flex-shrink: 0; }
+        .status-indicator { display: flex; align-items: center; gap: 10px; font-weight: bold; font-size: 1.2em; }
+        .dot { width: 12px; height: 12px; border-radius: 50%; background: #555; }
+        .dot.online { background: var(--success); box-shadow: 0 0 10px var(--success); }
+        .dot.offline { background: var(--danger); }
+
+        .btn-group { display: flex; gap: 10px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.85em; display: flex; align-items: center; gap: 8px; transition: 0.2s; }
+        .btn:hover { filter: brightness(1.2); }
+        .btn-stop { background: var(--danger); }
+        .btn-restart { background: var(--warning); color: #000; }
+        .btn-add { background: var(--info); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+
+        /* Config Table */
+        .table-container { flex: 1; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; margin-bottom: 20px; min-height: 200px; }
+        .config-table { width: 100%; border-collapse: collapse; background: var(--bg-panel); }
+        .config-table th { background: #21262d; text-align: left; padding: 12px 15px; font-size: 0.8em; color: var(--text-dim); text-transform: uppercase; position: sticky; top: 0; z-index: 10; }
+        .config-table td { padding: 10px 15px; border-bottom: 1px solid var(--border); font-size: 0.9em; }
+        .config-table input { background: #0d1117; border: 1px solid var(--border); color: var(--warning); padding: 5px 8px; border-radius: 4px; width: 100%; font-family: inherit; }
+        .remove-btn { color: var(--danger); cursor: pointer; opacity: 0.6; }
+        .remove-btn:hover { opacity: 1; }
+
+        .log-section { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 150px; }
+        .log-box { flex: 1; background: #000; color: #ccc; padding: 15px; border-radius: 6px; font-size: 0.85em; font-family: monospace; border: 1px solid var(--border); overflow-y: auto; white-space: pre-wrap; }
+
+        .editor-container { flex: 1; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; position: relative; min-height: 400px; }
+        .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+        /* Modals */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 400px; display:flex; flex-direction:column; gap:15px; }
+        .modal-header h4 { margin: 0; color: var(--text-main); }
+    </style>
+
+    <div class="ssh-sidebar">
+        <h3><i class="fas fa-key"></i> SSH Service</h3>
+        <div class="nav-item active" data-view="overview"><i class="fas fa-info-circle"></i> Panoramica</div>
+        <div class="nav-item" data-view="editor-sshd"><i class="fas fa-file-alt"></i> sshd_config</div>
+        <div class="nav-item" data-view="editor-ssh"><i class="fas fa-file-code"></i> ssh_config</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <div id="view-overview" class="view-panel active-view">
+            <div class="panel-header">
+                <h3>Gestione Servizio SSH</h3>
+                <div class="btn-group">
+                    <button class="btn btn-restart"><i class="fas fa-sync"></i> Restart</button>
+                    <button class="btn btn-toggle-service"><i class="fas fa-power-off"></i> Start/Stop</button>
+                </div>
+            </div>
+
+            <div class="status-card">
+                <div class="status-indicator">
+                    <div class="dot status-dot"></div>
+                    <span class="status-text">CARICAMENTO...</span>
+                </div>
+                <div style="font-size: 0.85em; color: var(--text-dim)">
+                    Versione: <span class="val ssh-version" style="color: var(--info)">-</span><br>
+                    Processo: <span class="val ssh-pid" style="color: var(--warning)">-</span>
+                </div>
+            </div>
+
+            <div class="panel-header" style="margin-bottom: 10px;">
+                <h4>Configurazione Attiva (sshd_config)</h4>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-add btn-open-add"><i class="fas fa-plus"></i> Aggiungi</button>
+                    <button class="btn btn-save-table"><i class="fas fa-save"></i> Applica</button>
+                </div>
+            </div>
+            
+            <div class="table-container">
+                <table class="config-table">
+                    <thead><tr><th style="width: 30%">Parametro</th><th>Valore</th><th style="width: 50px"></th></tr></thead>
+                    <tbody class="config-table-body"></tbody>
+                </table>
+            </div>
+
+            <div class="log-section">
+                <div class="panel-header" style="margin-bottom: 5px; border:none; padding-bottom:0;">
+                    <h4>Ultime Connessioni (last)</h4>
+                </div>
+                <div class="log-box ssh-logs">Caricamento log...</div>
+            </div>
+        </div>
+
+        <div id="view-editor-sshd" class="view-panel">
+            <div class="panel-header">
+                <h3>Editor: /etc/ssh/sshd_config</h3>
+                <button class="btn btn-save-sshd"><i class="fas fa-save"></i> Salva File</button>
+            </div>
+            <div class="editor-container"><div class="ace-div" id="sshd-ace-div"></div></div>
+        </div>
+
+        <div id="view-editor-ssh" class="view-panel">
+            <div class="panel-header">
+                <h3>Editor: /etc/ssh/ssh_config</h3>
+                <button class="btn btn-save-ssh"><i class="fas fa-save"></i> Salva File</button>
+            </div>
+            <div class="editor-container"><div class="ace-div" id="ssh-ace-div"></div></div>
+        </div>
+
+    </div>
+
+    <div class="local-modal addModal">
+        <div class="modal-content">
+            <div class="modal-header"><h4>Nuova Direttiva</h4></div>
+            <div style="display:flex; flex-direction:column; gap:10px">
+                <div><label style="font-size:0.8em">Parametro</label><input type="text" class="new-key" style="width:100%; background:#0d1117; border:1px solid #30363d; color:white; padding:8px; border-radius:4px;"></div>
+                <div><label style="font-size:0.8em">Valore</label><input type="text" class="new-val" style="width:100%; background:#0d1117; border:1px solid #30363d; color:white; padding:8px; border-radius:4px;"></div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:10px;">
+                    <button class="btn btn-sec btn-close-modal">Annulla</button>
+                    <button class="btn btn-add-entry">Aggiungi</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') return;
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:ssh-` + Date.now();
+
+            const loadScript = (src) => new Promise((res) => {
+                if (document.querySelector(`script[src="${src}"]`)) return res();
+                const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                try {
+                    if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                } catch(e) { console.error(e); }
+
+                let sshdAce, sshAce;
+                let ws = null;
+
+                // UI Setup
+                if(typeof ace !== 'undefined') {
+                    sshdAce = ace.edit(container.querySelector('#sshd-ace-div'));
+                    sshdAce.setTheme("ace/theme/monokai"); sshdAce.session.setMode("ace/mode/sh");
+                    sshAce = ace.edit(container.querySelector('#ssh-ace-div'));
+                    sshAce.setTheme("ace/theme/monokai"); sshAce.session.setMode("ace/mode/sh");
+                }
+
+                // WS
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+                // Bindings
+                const bind = (sel, fn) => container.querySelector(sel)?.addEventListener('click', fn);
+
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                        const viewId = item.dataset.view;
+                        container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                        if(viewId === 'editor-sshd') sshdAce.resize();
+                        if(viewId === 'editor-ssh') sshAce.resize();
+                    });
+                });
+
+                bind('.btn-restart', () => serviceOp('restart'));
+                bind('.btn-toggle-service', () => serviceOp('toggle'));
+                bind('.btn-open-add', () => container.querySelector('.addModal').style.display = 'flex');
+                bind('.btn-close-modal', () => container.querySelector('.addModal').style.display = 'none');
+                bind('.btn-add-entry', addTableEntry);
+                bind('.btn-save-table', saveTableConfig);
+                bind('.btn-save-sshd', () => saveRawConfig('sshd'));
+                bind('.btn-save-ssh', () => saveRawConfig('ssh'));
+
+                // Delegation for Remove Table Row
+                container.querySelector('.config-table-body').addEventListener('click', (e) => {
+                    if(e.target.classList.contains('remove-btn')) e.target.closest('tr').remove();
+                });
+
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        setTimeout(refreshAll, 100);
+                    };
+
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.type === "ssh_status") updateStatusUI(msg.payload);
+                        if(msg.type === "ssh_config_data") {
+                            if(msg.payload.file === 'sshd') {
+                                sshdAce.setValue(msg.payload.content, -1);
+                                populateTable(msg.payload.content);
+                            } else {
+                                sshAce.setValue(msg.payload.content, -1);
+                            }
+                        }
+                        if(msg.type === "ssh_op_res") {
+                            alert(msg.payload.status === "success" ? "Operazione riuscita!" : "Errore: " + msg.payload.msg);
+                            refreshAll();
+                        }
+                    };
+                }
+
+                // Logic
+                function refreshAll() {
+                    ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_status" } }));
+                    ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_config", file: "sshd" } }));
+                    ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_config", file: "ssh" } }));
+                }
+
+                function updateStatusUI(data) {
+                    const dot = container.querySelector('.status-dot');
+                    const text = container.querySelector('.status-text');
+                    const btn = container.querySelector('.btn-toggle-service');
+                    if(data.active === "active") {
+                        dot.className = "dot online"; text.innerText = "RUNNING"; text.style.color = "var(--success)";
+                        btn.className = "btn btn-stop btn-toggle-service"; btn.innerHTML = '<i class="fas fa-stop"></i> Stop SSH';
+                    } else {
+                        dot.className = "dot offline"; text.innerText = "STOPPED"; text.style.color = "var(--danger)";
+                        btn.className = "btn btn-toggle-service"; btn.innerHTML = '<i class="fas fa-play"></i> Start SSH';
+                    }
+                    container.querySelector('.ssh-version').innerText = data.version || "N/D";
+                    container.querySelector('.ssh-pid').innerText = data.pid || "-";
+                    container.querySelector('.ssh-logs').innerText = data.logs || "Nessun log recente";
+                }
+
+                function populateTable(content) {
+                    const tbody = container.querySelector('.config-table-body');
+                    tbody.innerHTML = "";
+                    content.split('\n').forEach(line => {
+                        const trimmed = line.trim();
+                        if(!trimmed || trimmed.startsWith('#')) return;
+                        const parts = trimmed.split(/\s+/);
+                        if(parts.length >= 2) addTableRow(parts[0], parts.slice(1).join(" "));
+                    });
+                }
+
+                function addTableRow(key, val) {
+                    const tbody = container.querySelector('.config-table-body');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td style="color:var(--text-main); font-weight:bold">${key}</td><td><input type="text" class="cfg-val" data-key="${key}" value="${val}"></td><td style="text-align:center"><i class="fas fa-times remove-btn"></i></td>`;
+                    tbody.appendChild(tr);
+                }
+
+                function serviceOp(op) { ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "service_op", op: op } })); }
+
+                function saveTableConfig() {
+                    let content = "# Generated by JCONMAN SSH Manager\n# Modifications made via GUI\n\n";
+                    container.querySelectorAll('.config-table-body tr').forEach(tr => {
+                        content += `${tr.cells[0].innerText} ${tr.querySelector('input').value}\n`;
+                    });
+                    if(confirm("Sovrascrivere sshd_config?")) {
+                        ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_config", file: "sshd", content: content } }));
+                    }
+                }
+
+                function saveRawConfig(target) {
+                    const content = target === 'sshd' ? sshdAce.getValue() : sshAce.getValue();
+                    if(confirm("Salvare " + target + "_config?")) {
+                        ws.send(JSON.stringify({ type: "ssh_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_config", file: target, content: content } }));
+                    }
+                }
+
+                function addTableEntry() {
+                    const k = container.querySelector('.new-key').value, v = container.querySelector('.new-val').value;
+                    if(k && v) { addTableRow(k, v); container.querySelector('.addModal').style.display='none'; }
+                }
+
+                appInstance.registerCleanup(() => { if(ws) ws.close(); sshdAce.destroy(); sshAce.destroy(); });
+            })();
+        })();
+    </script>
+</div>

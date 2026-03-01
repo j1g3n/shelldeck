@@ -1,0 +1,389 @@
+<div class="admin-users-module">
+    <style>
+        .admin-users-module { display: flex; flex-direction: column; height: 100%; }
+        .usr-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        
+        .usr-tabs { display: flex; gap: 20px; }
+        .usr-tab { cursor: pointer; padding-bottom: 5px; color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: bold; }
+        .usr-tab.active { color: white; border-bottom-color: var(--accent); }
+        
+        .usr-table-wrapper { padding: 20px; overflow-y: auto; flex: 1; min-height: 0; }
+        .usr-content { display: none; flex: 1; flex-direction: column; min-height: 0; }
+        .usr-content.active { display: flex; }
+
+        .usr-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .usr-table th { text-align: left; padding: 10px; background: var(--bg-panel); color: var(--text-dim); border-bottom: 1px solid var(--border); position: sticky; top: 0; }
+        .usr-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .usr-table tr:hover { background: #161b22; }
+
+        .badge-sudo { background: #d29922; color: #000; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; font-weight: bold; }
+        .badge-user { background: #2f81f7; color: white; padding: 2px 6px; border-radius: 4px; font-size: 0.75em; }
+
+        .btn-action { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 8px; border-radius: 4px; cursor: pointer; transition: 0.2s; margin-right: 5px; }
+        .btn-action:hover { border-color: white; color: white; }
+        .btn-del:hover { border-color: #da3633; color: #da3633; }
+
+        /* Modals interne allo scope */
+        .local-modal { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 10; }
+        .modal-box { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 400px; display:flex; flex-direction:column; gap:15px; }
+        .inp-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; }
+        .inp-group input, .inp-group select, .inp-group textarea { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Edit Modal Tabs */
+        .edit-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
+        .edit-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); font-size: 0.9em; }
+        .edit-tab.active { color: var(--accent); border-bottom: 2px solid var(--accent); font-weight: bold; }
+        .etab-content { display: none; flex-direction: column; gap: 10px; }
+        .etab-content.active { display: flex; }
+        
+        .group-list-check { max-height: 200px; overflow-y: auto; background: #0d1117; border: 1px solid var(--border); padding: 10px; border-radius: 4px; }
+        .chk-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+    </style>
+
+    <div class="usr-header">
+        <div class="usr-tabs">
+            <div class="usr-tab active" data-tab="users">Utenti</div>
+            <div class="usr-tab" data-tab="groups">Gruppi</div>
+        </div>
+        <div class="usr-actions">
+            <button class="btn btn-primary btn-add-user"><i class="fas fa-user-plus"></i> Nuovo Utente</button>
+            <button class="btn btn-primary btn-add-group" style="display:none"><i class="fas fa-users"></i> Nuovo Gruppo</button>
+        </div>
+    </div>
+
+    <div id="tab-users" class="usr-content active">
+        <div class="usr-table-wrapper">
+            <table class="usr-table">
+                <thead><tr><th>Utente</th><th>UID</th><th>Gruppo</th><th>Shell</th><th>Home</th><th>Azioni</th></tr></thead>
+                <tbody class="user-list-body"><tr><td colspan="6" style="text-align:center; padding:20px;">Caricamento...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div id="tab-groups" class="usr-content">
+        <div class="usr-table-wrapper">
+            <table class="usr-table">
+                <thead><tr><th>Gruppo</th><th>GID</th><th>Azioni</th></tr></thead>
+                <tbody class="group-list-body"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="local-modal modal-create">
+        <div class="modal-box">
+            <h3>Nuovo Utente</h3>
+            <div class="inp-group"><label>Username</label><input type="text" class="new-user-name"></div>
+            <div class="inp-group"><label>Password</label><input type="password" class="new-user-pass"></div>
+            <div class="inp-group"><label>Shell</label>
+                <select class="new-user-shell">
+                    <option value="/bin/bash">/bin/bash</option>
+                    <option value="/bin/sh">/bin/sh</option>
+                    <option value="/usr/bin/zsh">/usr/bin/zsh</option>
+                </select>
+            </div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <input type="checkbox" class="new-user-sudo" id="chk-sudo"> <label for="chk-sudo">Aggiungi a Sudo/Wheel</label>
+            </div>
+            <div style="display:flex; justify-content:flex-end; gap:10px;">
+                <button class="btn-action btn-close-create">Annulla</button>
+                <button class="btn btn-primary btn-confirm-create">Crea</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-edit-user">
+        <div class="modal-box" style="width: 600px;">
+            <h3>Modifica Utente: <span class="edit-username" style="color:var(--accent)"></span></h3>
+            <div class="edit-tabs">
+                <div class="edit-tab active" data-etab="general">Generale</div>
+                <div class="edit-tab" data-etab="groups">Gruppi</div>
+            </div>
+            
+            <div id="etab-general" class="etab-content active">
+                <div class="inp-group"><label>Home Directory</label><input type="text" class="edit-home" readonly></div>
+                <div class="inp-group"><label>Nuova Password (lascia vuoto per non cambiare)</label><input type="password" class="edit-pass"></div>
+                <button class="btn btn-primary btn-save-pass" style="align-self:flex-end">Aggiorna Password</button>
+            </div>
+            
+            <div id="etab-groups" class="etab-content">
+                <div class="group-list-check">Caricamento gruppi...</div>
+                <button class="btn btn-primary btn-save-groups" style="align-self:flex-end">Salva Gruppi</button>
+            </div>
+            
+            <div style="display:flex; justify-content:flex-end; margin-top:15px; border-top:1px solid var(--border); padding-top:10px"><button class="btn-action btn-close-edit">Chiudi</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-ssh-user">
+        <div class="modal-box" style="width: 700px;">
+            <h3>Gestione SSH: <span class="ssh-username" style="color:var(--accent)"></span></h3>
+            
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+                <div>
+                    <h4 style="margin-top:0; color:var(--text-dim)">Authorized Keys (Accesso IN)</h4>
+                    <textarea class="ssh-auth-keys" style="width:100%; height:200px; font-family:monospace; font-size:0.8em; background:#0d1117; border:1px solid var(--border); color:#ccc; resize:none;"></textarea>
+                    <button class="btn btn-primary btn-save-auth-keys" style="width:100%; margin-top:5px">Salva Authorized Keys</button>
+                </div>
+                <div>
+                    <h4 style="margin-top:0; color:var(--text-dim)">User Keys (Accesso OUT)</h4>
+                    <div class="ssh-files-list" style="height:165px; overflow-y:auto; background:#0d1117; border:1px solid var(--border); padding:5px; margin-bottom:5px;"></div>
+                    <div style="display:flex; gap:5px; align-items:center">
+                        <select class="ssh-gen-type" style="flex:1"><option value="rsa">RSA</option><option value="ed25519">Ed25519</option></select>
+                        <button class="btn btn-primary btn-gen-key">Genera Nuova</button>
+                    </div>
+                </div>
+            </div>
+            <div style="display:flex; justify-content:flex-end; margin-top:10px;"><button class="btn-action btn-close-ssh">Chiudi</button></div>
+        </div>
+    </div>
+
+    <script>
+        (function(app) {
+            // Nota: 'app' è l'appInstance passata dalla funzione new Function() in admin.html
+            
+            // Cerchiamo il container nel modo più sicuro possibile
+            // Se admin.html carica questo HTML dentro #admin-sub-view, cerchiamo lì dentro
+            const container = app.container.querySelector('#admin-sub-view') || document.querySelector('#admin-sub-view');
+            const currentId = app.hostId;
+            const wsId = app.workspaceId || 0;
+            const termId = `${wsId}:adm-users-` + Date.now();
+            let ws = null;
+            let allGroups = [];
+            let editingUser = null;
+            let sshUser = null;
+
+            // WebSocket Setup
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+            try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    loadUsers();
+                    loadGroups();
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    // Importante: filtriamo per host_id se il backend manda broadcast
+                    // (anche se qui siamo su un canale dedicato, meglio essere sicuri)
+                    
+                    if(msg.type === "admin_user_list") renderUsers(msg.payload);
+                    if(msg.type === "admin_group_list") { allGroups = msg.payload; renderGroups(msg.payload); }
+                    if(msg.type === "admin_user_details") populateEditModal(msg.payload);
+                    if(msg.type === "admin_user_ssh_info") populateSSHModal(msg.payload);
+                    if(msg.type === "admin_ssh_key_content") alert("Contenuto Chiave (" + msg.payload.file + "):\n\n" + msg.payload.content);
+                    if(msg.type === "admin_op_res") {
+                        alert(msg.payload.msg);
+                        if(msg.payload.status === 'success') {
+                            container.querySelector('.modal-create').style.display = 'none';
+                            loadUsers();
+                            if(sshUser) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_user_ssh_info", username: sshUser } }));
+                        }
+                    }
+                };
+            }
+
+            function loadUsers() { ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_users" } })); }
+            function loadGroups() { ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_groups" } })); }
+
+            function renderUsers(list) {
+                const tbody = container.querySelector('.user-list-body');
+                tbody.innerHTML = "";
+                list.forEach(u => {
+                    if(parseInt(u.uid) < 1000 && u.uid !== "0") return; // Filtro opzionale
+
+                    const isRoot = u.uid === "0";
+                    const tags = isRoot ? '<span class="badge-sudo">ROOT</span>' : (u.sudo ? '<span class="badge-sudo">SUDO</span>' : '<span class="badge-user">USER</span>');
+                    
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-weight:bold; color:white">${u.username} ${tags}</td>
+                        <td>${u.uid}</td>
+                        <td>${u.gid}</td> <td>${u.shell}</td>
+                        <td>${u.home}</td>
+                        <td>
+                            <button class="btn-action btn-edit-user" data-user="${u.username}" title="Modifica"><i class="fas fa-edit"></i></button>
+                            <button class="btn-action btn-ssh-user" data-user="${u.username}" title="Gestione SSH"><i class="fas fa-key"></i></button>
+                            ${!isRoot ? `<button class="btn-action btn-del btn-del-user" data-user="${u.username}" title="Elimina"><i class="fas fa-trash"></i></button>` : ''}
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            function renderGroups(list) {
+                const tbody = container.querySelector('.group-list-body');
+                tbody.innerHTML = "";
+                list.forEach(g => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td><b>${g.name}</b></td><td>${g.gid}</td>
+                        <td><button class="btn-action btn-del-group" data-group="${g.name}" title="Elimina"><i class="fas fa-trash"></i></button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // Bindings UI
+            container.querySelectorAll('.usr-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                    container.querySelectorAll('.usr-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    container.querySelectorAll('.usr-content').forEach(c => c.classList.remove('active'));
+                    container.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+                    
+                    container.querySelector('.btn-add-user').style.display = t.dataset.tab === 'users' ? 'block' : 'none';
+                    container.querySelector('.btn-add-group').style.display = t.dataset.tab === 'groups' ? 'block' : 'none';
+                });
+            });
+
+            const btnAdd = container.querySelector('.btn-add-user');
+            if(btnAdd) btnAdd.onclick = () => container.querySelector('.modal-create').style.display = 'flex';
+            
+            const btnAddGroup = container.querySelector('.btn-add-group');
+            if(btnAddGroup) btnAddGroup.onclick = () => {
+                const n = prompt("Nome nuovo gruppo:");
+                if(n) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "create_group", name: n } }));
+            };
+
+            const btnClose = container.querySelector('.btn-close-create');
+            if(btnClose) btnClose.onclick = () => container.querySelector('.modal-create').style.display = 'none';
+            
+            const btnCreate = container.querySelector('.btn-confirm-create');
+            if(btnCreate) btnCreate.onclick = () => {
+                const user = container.querySelector('.new-user-name').value;
+                const pass = container.querySelector('.new-user-pass').value;
+                const shell = container.querySelector('.new-user-shell').value;
+                const sudo = container.querySelector('.new-user-sudo').checked;
+                
+                if(!user || !pass) return alert("Utente e password obbligatori");
+                
+                ws.send(JSON.stringify({ 
+                    type: "admin_command", 
+                    host_id: parseInt(currentId), 
+                    term_id: termId,
+                    payload: { action: "create_user", username: user, password: pass, shell: shell, sudo: sudo } 
+                }));
+            };
+
+            // Edit Modal Logic
+            container.querySelectorAll('.edit-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                    container.querySelectorAll('.edit-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    container.querySelectorAll('.etab-content').forEach(c => c.classList.remove('active'));
+                    container.querySelector('#etab-'+t.dataset.etab).classList.add('active');
+                });
+            });
+            container.querySelector('.btn-close-edit').onclick = () => container.querySelector('.modal-edit-user').style.display = 'none';
+
+            function populateEditModal(details) {
+                editingUser = details.username;
+                container.querySelector('.edit-username').innerText = details.username;
+                container.querySelector('.edit-home').value = details.home;
+                
+                // Populate Groups
+                const gList = container.querySelector('.group-list-check');
+                gList.innerHTML = "";
+                const userGroups = new Set(details.groups);
+                allGroups.forEach(g => {
+                    const div = document.createElement('div');
+                    div.className = 'chk-item';
+                    div.innerHTML = `<input type="checkbox" class="chk-group" value="${g.name}" ${userGroups.has(g.name) ? 'checked' : ''}> ${g.name}`;
+                    gList.appendChild(div);
+                });
+                
+                container.querySelector('.modal-edit-user').style.display = 'flex';
+            }
+
+            function populateSSHModal(info) {
+                sshUser = info.username;
+                container.querySelector('.ssh-username').innerText = info.username;
+                container.querySelector('.ssh-auth-keys').value = info.authorized_keys || "";
+                
+                const fileList = container.querySelector('.ssh-files-list');
+                fileList.innerHTML = "";
+                if(info.files && info.files.length > 0) {
+                    info.files.forEach(f => {
+                        if(!f) return;
+                        const div = document.createElement('div');
+                        div.style.padding = "4px"; div.style.borderBottom = "1px solid #333"; div.style.display="flex"; div.style.justifyContent="space-between";
+                        div.innerHTML = `<span>${f}</span>`;
+                        if(f.endsWith(".pub")) {
+                            div.innerHTML += `<button class="btn-action" style="padding:0 5px; font-size:0.7em" onclick="window.viewKey('${f}')">Vedi</button>`;
+                        }
+                        fileList.appendChild(div);
+                    });
+                } else {
+                    fileList.innerHTML = "<div style='color:#666; padding:5px'>Nessun file in .ssh</div>";
+                }
+                container.querySelector('.modal-ssh-user').style.display = 'flex';
+            }
+
+            container.querySelector('.btn-save-pass').onclick = () => {
+                const p = container.querySelector('.edit-pass').value;
+                if(p) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "change_pass", username: editingUser, password: p } }));
+            };
+
+            container.querySelector('.btn-save-groups').onclick = () => {
+                const selected = Array.from(container.querySelectorAll('.chk-group:checked')).map(c => c.value).join(',');
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "update_user_groups", username: editingUser, groups: selected } }));
+            };
+
+            // SSH Modal Actions
+            container.querySelector('.btn-close-ssh').onclick = () => container.querySelector('.modal-ssh-user').style.display = 'none';
+            
+            container.querySelector('.btn-save-auth-keys').onclick = () => {
+                const c = container.querySelector('.ssh-auth-keys').value;
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_authorized_keys", username: sshUser, keys: c } }));
+            };
+            
+            container.querySelector('.btn-gen-key').onclick = () => {
+                const t = container.querySelector('.ssh-gen-type').value;
+                if(confirm(`Generare una nuova coppia di chiavi ${t} per ${sshUser}?`))
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "generate_user_ssh_key", username: sshUser, type: t } }));
+            };
+
+            // Event Delegation per la tabella (più sicuro dei globali)
+            const tbody = container.querySelector('.user-list-body');
+            tbody.addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if(!btn) return;
+
+                const user = btn.dataset.user;
+                
+                if(btn.classList.contains('btn-del-user')) {
+                    if(confirm(`Eliminare utente ${user} e la sua home?`)) {
+                        ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_user", username: user } }));
+                    }
+                }
+                
+                if(btn.classList.contains('btn-edit-user')) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_user_details", username: user } }));
+                }
+
+                if(btn.classList.contains('btn-ssh-user')) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_user_ssh_info", username: user } }));
+                }
+            });
+
+            window.viewKey = (file) => {
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_user_key", username: sshUser, file: file } }));
+            };
+
+            container.querySelector('.group-list-body').addEventListener('click', (e) => {
+                const btn = e.target.closest('button');
+                if(!btn) return;
+                if(btn.classList.contains('btn-del-group')) {
+                    if(confirm(`Eliminare gruppo ${btn.dataset.group}?`)) {
+                        ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_group", name: btn.dataset.group } }));
+                    }
+                }
+            });
+
+            // Cleanup al cambio pagina (importante per non lasciare WS aperti)
+            // Se admin.html gestisce il reload del sottomodulo, dovrebbe idealmente chiudere questo WS.
+            // Per semplicità qui, ci affidiamo al fatto che il WS si chiude se il tab principale muore o se il sottomodulo viene sovrascritto (garbage collection del WS object).
+
+        })(arguments[0]); // Passiamo l'argomento ricevuto da new Function
+    </script>
+</div>

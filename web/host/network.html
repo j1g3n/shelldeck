@@ -1,0 +1,1201 @@
+<div class="network-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+
+    <style>
+        .network-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative;
+            box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #238636;
+        }
+
+        /* Reset box-sizing */
+        .network-module-wrapper * { box-sizing: border-box; }
+
+        /* RINOMINATO .sidebar IN .net-sidebar PER EVITARE CONFLITTI */
+        .net-sidebar { 
+            width: 250px; min-width: 250px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .net-sidebar h2 { color: var(--accent); margin-top: 0; font-size: 1.2em; display: flex; align-items: center; gap: 10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: #238636; color: white; }
+
+        .main-wrapper { 
+            flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; 
+            min-width: 0; /* Impedisce al contenuto di espandere il layout */
+        }
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; display: none; }
+        .main-content.active-view { display: block; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .action-btn { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; transition: 0.2s; }
+        .action-btn:hover { background: #21262d; border-color: var(--text-dim); }
+
+        .iface-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; margin-bottom: 30px; }
+        .iface-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 15px; }
+        .iface-header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 5px; }
+        .iface-name { font-weight: bold; color: white; font-size: 1.1em; }
+        .status-badge { font-size: 0.7em; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+        .bg-up { background: rgba(35, 134, 54, 0.2); color: var(--success); border: 1px solid var(--success); }
+        .bg-down { background: rgba(218, 54, 51, 0.2); color: var(--danger); border: 1px solid var(--danger); }
+        .iface-row { display: flex; justify-content: space-between; font-size: 0.85em; margin-bottom: 5px; }
+        .lbl { color: var(--text-dim); }
+        .val { color: var(--warning); font-family: monospace; }
+        .iface-actions { margin-top: 15px; border-top: 1px solid #30363d; padding-top: 10px; display: flex; justify-content: space-between; }
+
+        .fw-table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-bottom: 10px; }
+        .fw-table th { text-align: left; padding: 10px; border-bottom: 2px solid var(--border); color: var(--text-dim); background: #161b22; position: sticky; top: 0; }
+        .fw-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .action-accept { color: var(--success); font-weight: bold; }
+        .action-drop { color: var(--danger); font-weight: bold; }
+
+        .mon-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .mon-panel { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; display: flex; flex-direction: column; max-height: 400px; }
+        .mon-header { padding: 10px; background: #21262d; border-bottom: 1px solid var(--border); font-weight: bold; font-size: 0.9em; color: var(--accent); display: flex; justify-content: space-between; align-items: center; }
+        .mon-body { overflow: auto; padding: 0; flex: 1; }
+        .mon-console { background: #000; color: #0f0; font-family: monospace; padding: 10px; font-size: 0.8em; overflow-y: auto; height: 300px; white-space: pre-wrap; }
+        .mon-raw { padding: 10px; font-size: 0.8em; white-space: pre-wrap; color: #a5d6ff; font-family: monospace; }
+        
+        .tools-console { background: #000; border: 1px solid var(--border); border-radius: 4px; height: 400px; padding: 15px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 0.85em; color: #ccc; white-space: pre-wrap; }
+        .console-prompt { color: var(--accent); font-weight: bold; }
+
+        .editor-wrapper { flex: 1; border: 1px solid var(--border); position: relative; height: 500px; }
+        .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+        .terminal-panel { height: 250px; background: #000; border-top: 2px solid var(--border); display: none; padding: 5px; box-sizing: border-box; width: 100%; }
+        .terminal-embed { width: 100%; height: 100%; }
+
+        .editor-actions { height: 50px; padding: 0 20px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; justify-content: flex-end; align-items: center; flex-shrink: 0; width: 100%; box-sizing: border-box; }
+        .btn-cmd { background: #444; display: flex; align-items: center; gap: 5px; } .btn-cmd.active { background: var(--warning); color: #000; }
+
+        /* Modals */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 500px; display: flex; flex-direction: column; }
+        .modal-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; }
+        .input-group input, .input-group select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        .modal-footer { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; }
+
+        .host-widget { display: flex; align-items: center; gap: 10px; background: #21262d; padding: 5px 15px; border-radius: 20px; border: 1px solid var(--border); }
+
+        .context-menu { display: none; position: fixed; z-index: 9999; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9); min-width: 200px; padding: 5px 0; }
+        .ctx-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--text-main); font-size: 0.9em; transition: 0.2s; }
+        .ctx-item:hover { background: var(--accent); color: white; }
+        .ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
+        
+        /* Network Table */
+        .net-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .net-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 2px solid var(--border); position: sticky; top: 0; z-index: 10; }
+        .net-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+        .net-table tr:hover { background: #1c2128; }
+        .net-table .child-row td:first-child { padding-left: 30px; position: relative; }
+        .net-table .child-row td:first-child::before { content: "└"; position: absolute; left: 15px; color: var(--text-dim); }
+        
+        .traffic-cell { font-family: monospace; font-size: 0.8em; white-space: nowrap; }
+
+        /* Sub-tabs */
+        .sub-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; background: #161b22; }
+        .sub-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); font-size: 0.9em; }
+        .sub-tab:hover { background: #21262d; color: white; }
+        .sub-tab.active { background: var(--bg-body); color: var(--accent); border-top: 2px solid var(--accent); font-weight: bold; }
+        .sub-content { display: none; flex-direction: column; height: 100%; }
+        .sub-content.active { display: flex; }
+
+        /* Monitor Tables */
+        .mon-table { width: 100%; border-collapse: collapse; font-size: 0.8em; }
+        .mon-table th { text-align: left; padding: 6px; background: #21262d; color: var(--text-dim); position: sticky; top: 0; }
+        .mon-table td { padding: 4px 6px; border-bottom: 1px solid #30363d; white-space: nowrap; }
+        .mon-filter { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8em; margin-bottom: 5px; }
+        .mon-section { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+    </style>
+
+    <div class="net-sidebar">
+        <h2><i class="fas fa-network-wired"></i> Network</h2>
+        <div class="nav-item active" data-view="interfaces"><i class="fas fa-ethernet"></i> Interfacce</div>
+        <div class="nav-item" data-view="monitoring"><i class="fas fa-chart-line"></i> Advanced Monitor</div>
+        <div class="nav-item" data-view="config"><i class="fas fa-file-code"></i> Network Config</div>
+        <div class="nav-item" data-view="hosts"><i class="fas fa-list-alt"></i> Host & DNS</div>
+        <div class="nav-item" data-view="iptables"><i class="fas fa-shield-alt"></i> Firewall (IPTables)</div>
+        <div class="nav-item" data-view="ufw"><i class="fas fa-fire"></i> UFW Firewall</div>
+        <div class="nav-item" data-view="selinux"><i class="fas fa-shield-alt"></i> SELinux</div>
+    </div>
+
+    <div class="main-wrapper">
+
+        <div id="view-interfaces" class="main-content active-view">
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-sub="list">Lista Interfacce</div>
+                <div class="sub-tab" data-sub="diag">Diagnostic Tools</div>
+            </div>
+
+            <div id="sub-list" class="sub-content active">
+                <div class="panel-header">
+                    <h3>Stato Interfacce</h3>
+                    <div style="display:flex; gap:10px; align-items:center;">
+                        <div class="host-widget">
+                            <i class="fas fa-server"></i> 
+                            <span class="disp-hostname" style="color:white; font-weight:bold;">Loading...</span>
+                            <i class="fas fa-pencil-alt btn-edit-hostname" style="cursor:pointer; font-size:0.8em; color:var(--text-dim)" title="Modifica Hostname"></i>
+                        </div>
+                        <button class="action-btn btn-refresh-iface"><i class="fas fa-sync"></i> Aggiorna</button>
+                        <button class="btn btn-open-bridge-modal"><i class="fas fa-plus"></i> Crea Virtuale</button>
+                    </div>
+                </div>
+                
+                <div class="iface-container" style="overflow-x: auto;">
+                    <table class="net-table">
+                        <thead>
+                            <tr>
+                                <th>Nome</th>
+                                <th>Stato</th>
+                                <th>Traffico (Live)</th>
+                                <th>IPv4 / GW</th>
+                                <th>IPv6 / GW</th>
+                                <th>DNS</th>
+                                <th style="text-align:right">Azioni</th>
+                            </tr>
+                        </thead>
+                        <tbody class="iface-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="sub-diag" class="sub-content">
+                <div class="panel-header"><h3>Strumenti Diagnostici</h3></div>
+                <div style="background:var(--bg-panel); padding:15px; border:1px solid var(--border); display:flex; gap:10px; align-items:flex-end; margin-bottom:10px; flex-wrap:wrap;">
+                    <div class="input-group" style="margin:0; width:150px"><label>Tool</label>
+                        <select class="tool-select">
+                            <option value="ping">Ping</option><option value="traceroute">Traceroute</option><option value="dig">Dig</option>
+                            <option value="nslookup">Nslookup</option><option value="curl">Curl</option><option value="whois">Whois</option>
+                            <option value="mtr">MTR</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="margin:0; width:150px"><label>Interfaccia (Opz)</label>
+                        <select class="tool-iface-select"><option value="default">Default</option></select>
+                    </div>
+                    <div class="input-group" style="margin:0; flex:1"><label>Target / Params</label><input type="text" class="tool-args" placeholder="google.com"></div>
+                    <button class="btn btn-run-tool"><i class="fas fa-play"></i> Run</button>
+                    <button class="action-btn btn-clear-tool">Clear</button>
+                </div>
+                <div class="tools-console tool-output"></div>
+            </div>
+        </div>
+
+        <div id="view-monitoring" class="main-content">
+            <div class="panel-header">
+                <h3>Monitoraggio Avanzato</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="action-btn btn-refresh-mon"><i class="fas fa-sync"></i> Aggiorna Statiche</button>
+                </div>
+            </div>
+
+            <div class="mon-grid">
+                <div class="mon-panel mon-section">
+                    <div class="mon-header">
+                        <span><i class="fas fa-plug"></i> Socket Stats (ss)</span>
+                        <button class="action-btn" style="font-size:0.7em; padding:2px 6px" onclick="loadSS()"><i class="fas fa-sync"></i></button>
+                    </div>
+                    <div style="padding:5px"><input type="text" class="mon-filter filter-ss" placeholder="Filtra socket..."></div>
+                    <div class="mon-body mon-ss-body" style="overflow:auto"></div>
+                </div>
+                <div class="mon-panel mon-section">
+                    <div class="mon-header">
+                        <span><i class="fas fa-route"></i> Routing Table</span>
+                        <button class="action-btn" style="font-size:0.7em; padding:2px 6px" onclick="loadRoutes()"><i class="fas fa-sync"></i></button>
+                    </div>
+                    <div style="padding:5px"><input type="text" class="mon-filter filter-route" placeholder="Filtra route..."></div>
+                    <div class="mon-body mon-route-body" style="overflow:auto"></div>
+                </div>
+            </div>
+
+            <div class="mon-grid">
+                <div class="mon-panel mon-section" style="grid-column: span 2;">
+                    <div class="mon-header">
+                        <span><i class="fas fa-chart-bar"></i> Traffico Raw (/proc/net/dev)</span>
+                        <button class="action-btn" style="font-size:0.7em; padding:2px 6px" onclick="loadNetDev()"><i class="fas fa-sync"></i></button>
+                    </div>
+                    <div style="padding:5px"><input type="text" class="mon-filter filter-dev" placeholder="Filtra interfaccia..."></div>
+                    <div class="mon-body" style="overflow:auto">
+                        <table class="mon-table" style="margin:0">
+                            <thead><tr><th>Iface</th><th>RX Bytes</th><th>RX Pkts</th><th>RX Errs</th><th>TX Bytes</th><th>TX Pkts</th><th>TX Errs</th></tr></thead>
+                            <tbody class="mon-dev-body"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mon-panel" style="margin-bottom:20px">
+                <div class="mon-header"><span><i class="fas fa-info-circle"></i> Link Details (ip -s link)</span></div>
+                <div class="mon-body"><div class="mon-raw mon-iplink-raw">Caricamento dati...</div></div>
+            </div>
+
+            <div class="mon-grid">
+                <div class="mon-panel">
+                    <div class="mon-header">
+                        <span><i class="fas fa-satellite-dish"></i> IP Monitor Event Stream</span>
+                        <span style="font-size:0.8em; color:lime">● LIVE</span>
+                    </div>
+                    <div class="mon-console stream-ipmon">In attesa di eventi kernel...</div>
+                </div>
+                <div class="mon-panel">
+                    <div class="mon-header">
+                        <span><i class="fas fa-microscope"></i> TCPDump Stream</span>
+                        <div style="display:flex; gap:5px">
+                            <input type="text" class="tcpdump-filter" placeholder="es: port 80" style="background:#000; border:1px solid #444; color:white; padding:2px 5px; font-size:0.8em; width:100px;">
+                            <button class="action-btn btn-dump-start" style="font-size:0.7em"><i class="fas fa-play"></i></button>
+                            <button class="action-btn btn-dump-stop" style="font-size:0.7em; color:var(--danger)"><i class="fas fa-stop"></i></button>
+                        </div>
+                    </div>
+                    <div class="mon-console stream-tcpdump">Premere Play per avviare lo sniffing...</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-config" class="main-content">
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-sub="netplan">Netplan (YAML)</div>
+                <div class="sub-tab" data-sub="interfaces">/etc/network/interfaces</div>
+                <div class="sub-tab" data-sub="etcnet">/etc/network/ (Advanced)</div>
+                <div class="sub-tab" data-sub="nm">NetworkManager</div>
+            </div>
+
+            <div id="sub-netplan" class="sub-content active">
+                <div class="panel-header">
+                    <h3>Netplan Editor</h3>
+                    <div style="display:flex; gap:10px"><select class="action-btn netplan-file-select"></select><button class="btn btn-save-netplan">Salva & Apply</button></div>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="netplan-editor-div"></div></div>
+            </div>
+
+            <div id="sub-interfaces" class="sub-content">
+                <div class="panel-header">
+                    <h3>Legacy Interfaces Editor</h3>
+                    <button class="btn btn-save-interfaces">Salva</button>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="interfaces-editor-div"></div></div>
+            </div>
+
+            <div id="sub-etcnet" class="sub-content">
+                <div class="panel-header">
+                    <h3>File Browser: /etc/network</h3>
+                    <div style="display:flex; gap:10px">
+                        <button class="btn btn-sec" id="btn-new-etcnet"><i class="fas fa-plus"></i> Nuovo File</button>
+                        <select class="action-btn etcnet-file-select"></select>
+                        <button class="btn btn-save-etcnet">Salva</button>
+                    </div>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="etcnet-editor-div"></div></div>
+            </div>
+
+            <div id="sub-nm" class="sub-content">
+                <div class="panel-header">
+                    <h3>NetworkManager Connections</h3>
+                    <div style="display:flex; gap:10px"><select class="action-btn nm-file-select"></select><button class="btn btn-save-nm">Salva</button></div>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="nm-editor-div"></div></div>
+            </div>
+        </div>
+
+        <div id="view-hosts" class="main-content">
+            <!-- Loaded dynamically from admin-hosts.html -->
+        </div>
+
+        <div id="view-iptables" class="main-content">
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-sub="ipt-live">Live Rules</div>
+                <div class="sub-tab" data-sub="ipt-config">Config Manager</div>
+            </div>
+
+            <div id="sub-ipt-live" class="sub-content active">
+                <div class="panel-header">
+                    <h3>Firewall & NAT Rules (Runtime)</h3>
+                    <div style="display:flex; gap:10px">
+                        <button class="btn btn-sec" id="btn-ipt-export"><i class="fas fa-download"></i> Export</button>
+                        <button class="btn btn-sec" id="btn-ipt-import"><i class="fas fa-upload"></i> Import</button>
+                        <button class="btn btn-sec" id="btn-ipt-saveas"><i class="fas fa-save"></i> Save As...</button>
+                    <button class="btn btn-sec" id="btn-ipt-upload-conf"><i class="fas fa-upload"></i> Upload Config</button>
+                        <button class="btn btn-new-rule">+ Regola</button>
+                        <button class="action-btn btn-reload-iptables">Aggiorna</button>
+                    </div>
+                    <input type="file" id="ipt-import-file" style="display:none">
+                </div>
+                <table class="fw-table"><thead><tr><th>Chain</th><th>#</th><th>Proto</th><th>Src</th><th>Dst</th><th>Action</th><th>Opts</th><th></th></tr></thead><tbody class="iptables-body"></tbody></table>
+            </div>
+
+            <div id="sub-ipt-config" class="sub-content">
+                <div class="panel-header">
+                    <h3>Configurazioni Salvate (/etc/iptables)</h3>
+                    <div style="display:flex; gap:10px">
+                        <select class="action-btn ipt-config-select"></select>
+                        <button class="btn btn-sec" id="btn-ipt-restore-conf" title="Applica questa config"><i class="fas fa-play"></i> Restore Config</button>
+                        <button class="btn btn-save-ipt-conf">Salva</button>
+                        <button class="btn btn-danger" id="btn-del-ipt-conf"><i class="fas fa-trash"></i></button>
+                    </div>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="ipt-editor-div"></div></div>
+                <input type="file" id="ipt-upload-file" style="display:none">
+            </div>
+        </div>
+
+        <div id="view-ufw" class="main-content">
+            <div class="panel-header">
+                <h3>Uncomplicated Firewall (UFW)</h3>
+                <div style="display:flex; gap:10px; align-items:center">
+                    <span id="ufw-status-badge" class="status-badge">Checking...</span>
+                    <button class="btn btn-sec" onclick="ufwOp('enable')">Enable</button>
+                    <button class="btn btn-sec" onclick="ufwOp('disable')">Disable</button>
+                    <button class="btn btn-sec" onclick="ufwOp('reload')"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <div style="margin-bottom:15px; display:flex; gap:10px">
+                <input type="text" id="ufw-new-rule" placeholder="es. allow 22/tcp" style="flex:1; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;">
+                <button class="btn btn-primary" onclick="ufwAddRule()">Add Rule</button>
+            </div>
+            <table class="fw-table">
+                <thead><tr><th>ID</th><th>To</th><th>Action</th><th>From</th><th></th></tr></thead>
+                <tbody id="ufw-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="view-selinux" class="main-content">
+            <div class="panel-header">
+                <h3>SELinux Manager</h3>
+                <div style="display:flex; gap:10px; align-items:center">
+                    <span id="selinux-status-text" style="color:var(--text-dim)">Status: --</span>
+                    <button class="btn btn-sec" onclick="selinuxSetMode('Enforcing')">Enforce</button>
+                    <button class="btn btn-sec" onclick="selinuxSetMode('Permissive')">Permissive</button>
+                    <button class="btn btn-sec" onclick="selinuxSetMode('Disabled')" title="Richiede riavvio">Disable</button>
+                    <button class="btn btn-sec" onclick="loadSELinux()"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <div style="padding:10px; background:var(--bg-panel); border-bottom:1px solid var(--border)">
+                <input type="text" id="selinux-filter" placeholder="Filtra booleans..." style="width:100%; background:#0d1117; border:1px solid var(--border); color:white; padding:8px; border-radius:4px;">
+            </div>
+            <div style="flex:1; overflow:auto">
+                <table class="mon-table">
+                    <thead><tr><th>Boolean</th><th>State</th><th>Action</th></tr></thead>
+                    <tbody id="selinux-tbody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="terminal-panel" style="display:none;">
+             <div class="terminal-embed"></div>
+        </div>
+        <div class="editor-actions">
+            <button class="btn btn-cmd btn-toggle-term"><i class="fas fa-terminal"></i> CMD</button>
+        </div>
+
+    </div>
+
+    <div class="local-modal modal-iface">
+        <div class="modal-content">
+            <div class="modal-header">Configura <span class="modal-iface-name"></span></div>
+            <div class="modal-body">
+                <div class="traffic-box" style="background:#000; padding:10px; margin-bottom:15px; border:1px solid var(--border); border-radius:4px; font-family:monospace;">
+                    <div style="font-size:0.8em; color:var(--text-dim); margin-bottom:5px; display:flex; justify-content:space-between"><span>Live Traffic</span> <span id="traffic-status" style="font-size:0.8em"></span></div>
+                    <div style="display:flex; justify-content:space-between; align-items:center">
+                        <span style="color:var(--success)"><i class="fas fa-arrow-down"></i> RX: <span class="rx-speed">0 KB/s</span></span>
+                        <span style="color:var(--warning)"><i class="fas fa-arrow-up"></i> TX: <span class="tx-speed">0 KB/s</span></span>
+                    </div>
+                </div>
+                <div style="background:rgba(218, 54, 51, 0.15); border:1px solid var(--danger); color:var(--danger); padding:10px; border-radius:4px; margin-bottom:15px; font-size:0.85em;">
+                    <i class="fas fa-exclamation-triangle"></i> <b>ATTENZIONE:</b> Le modifiche effettuate qui sono <u>temporanee</u> (runtime) e andranno perse al riavvio.<br>
+                    Per modifiche persistenti, usa la scheda <b>Config (Netplan)</b>.
+                </div>
+                <div class="input-group"><label>IP (CIDR)</label><input type="text" class="conf-ip" placeholder="192.168.1.10/24"></div>
+                <div class="input-group"><label>IPv6 (CIDR)</label><input type="text" class="conf-ip6" placeholder="2001:db8::1/64"></div>
+                <div class="input-group"><label>Gateway</label><input type="text" class="conf-gw" placeholder="192.168.1.1"></div>
+                <div class="input-group"><label>DNS (resolvectl)</label><input type="text" class="conf-dns" placeholder="8.8.8.8 1.1.1.1"></div>
+            </div>
+            <div class="modal-footer"><button class="action-btn btn-close-modal">Annulla</button><button class="btn btn-apply-iface">Applica Runtime</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-bridge"><div class="modal-content"><div class="modal-header">Crea Virtual/Bridge</div><div class="modal-body"><div class="input-group"><label>Tipo</label><select class="virt-type"><option value="bridge">Bridge</option><option value="vlan">VLAN</option></select></div><div class="virt-grp-bridge"><div class="input-group"><label>Nome Bridge</label><input type="text" class="virt-br-name" placeholder="br0"></div></div><div class="virt-grp-vlan" style="display:none"><div class="input-group"><label>Parent</label><input type="text" class="virt-parent" placeholder="eth0"></div><div class="input-group"><label>ID</label><input type="text" class="virt-id" placeholder="10"></div></div></div><div class="modal-footer"><button class="action-btn btn-close-modal">Annulla</button><button class="btn btn-create-virt">Crea</button></div></div></div>
+    
+    <div class="local-modal modal-fw">
+        <div class="modal-content">
+            <div class="modal-header">Nuova Regola Firewall/NAT</div>
+            <div class="modal-body">
+                <div class="input-group"><label>Table</label><select class="fw-table-sel"><option value="filter">Filter (Default)</option><option value="nat">NAT</option></select></div>
+                <div class="input-group"><label>Chain</label><select class="fw-chain"><option>INPUT</option><option>OUTPUT</option><option>FORWARD</option><option>PREROUTING</option><option>POSTROUTING</option></select></div>
+                <div class="input-group"><label>Action</label><select class="fw-action"><option>ACCEPT</option><option>DROP</option><option>REJECT</option><option>MASQUERADE</option><option>SNAT</option><option>DNAT</option></select></div>
+                <div class="input-group"><label>Proto</label><select class="fw-proto"><option value="tcp">TCP</option><option value="udp">UDP</option><option value="all">ALL</option></select></div>
+                <div class="input-group"><label>Port (Dst)</label><input type="text" class="fw-port"></div>
+                <div class="input-group"><label>Src IP</label><input type="text" class="fw-src"></div>
+                <div class="input-group"><label>To (SNAT/DNAT IP:Port)</label><input type="text" class="fw-to" placeholder="es: 192.168.1.50:80"></div>
+            </div>
+            <div class="modal-footer"><button class="action-btn btn-close-modal">Annulla</button><button class="btn btn-apply-fw">Applica</button></div>
+        </div>
+    </div>
+
+    <div id="term-ctx-menu" class="context-menu">
+        <div class="ctx-item" data-action="copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="ctx-item" data-action="paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" style="color:#8b949e; font-size:0.8em; padding-left:10px; cursor:default">SCREEN</div>
+        <div class="ctx-item" data-action="screen-new"><i class="fas fa-plus-square"></i> New Screen</div>
+        <div class="ctx-item" data-action="screen-list"><i class="fas fa-list"></i> List Screens</div>
+        <div class="ctx-item" data-action="screen-resume"><i class="fas fa-play-circle"></i> Resume Screen</div>
+        <div class="ctx-item" data-action="screen-detach"><i class="fas fa-sign-out-alt"></i> Detach Screen</div>
+    </div>
+
+    <script>
+        (function(app) {
+            const appInstance = app;
+            if (!appInstance) { console.error("[Network] appInstance missing"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:net-` + Date.now();
+
+            const loadScript = (src) => new Promise((res) => {
+                if (document.querySelector(`script[src="${src}"]`)) return res();
+                const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                try {
+                    if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                    if (typeof Terminal === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js');
+                    if (typeof FitAddon === 'undefined') await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
+                } catch(e) { console.error(e); }
+
+                let netEditor, ifacesEditor, etcNetEditor, nmEditor, iptEditor, term, fitAddon;
+                let currentIface = "", globalRoutes = [], globalDns = "", ws = null;
+                let trafficInterval = null;
+                let lastTraffic = { rx: 0, tx: 0, time: 0 };
+                let allIfacesTraffic = {}; // Store last traffic for all ifaces
+
+                // UI Setup
+                if(typeof ace !== 'undefined') {
+                    netEditor = ace.edit(container.querySelector('#netplan-editor-div'));
+                    netEditor.setTheme("ace/theme/monokai"); netEditor.session.setMode("ace/mode/yaml");
+                    ifacesEditor = ace.edit(container.querySelector('#interfaces-editor-div'));
+                    ifacesEditor.setTheme("ace/theme/monokai"); ifacesEditor.session.setMode("ace/mode/sh");
+                    etcNetEditor = ace.edit(container.querySelector('#etcnet-editor-div'));
+                    etcNetEditor.setTheme("ace/theme/monokai"); etcNetEditor.session.setMode("ace/mode/sh");
+                    nmEditor = ace.edit(container.querySelector('#nm-editor-div'));
+                    nmEditor.setTheme("ace/theme/monokai"); nmEditor.session.setMode("ace/mode/ini");
+                    iptEditor = ace.edit(container.querySelector('#ipt-editor-div'));
+                    iptEditor.setTheme("ace/theme/monokai"); iptEditor.session.setMode("ace/mode/sh");
+                }
+
+                if(typeof Terminal !== 'undefined') {
+                    term = new Terminal({ cursorBlink: true, fontSize: 12, theme: { background: '#000', foreground: '#00ff00' }, rows: 10 });
+                    if(typeof FitAddon !== 'undefined') { fitAddon = new FitAddon.FitAddon(); term.loadAddon(fitAddon); }
+                    term.open(container.querySelector('.terminal-embed'));
+                }
+
+                // Resize Observer per il terminale
+                let resizeTimeout;
+                const resizeObserver = new ResizeObserver(() => {
+                    if (fitAddon && term) {
+                        clearTimeout(resizeTimeout);
+                        resizeTimeout = setTimeout(() => {
+                            if (container.querySelector('.terminal-embed').offsetParent === null) return;
+                            try { fitAddon.fit(); } catch(e){}
+                            if (ws && ws.readyState === WebSocket.OPEN && term.cols > 0 && term.rows > 0) {
+                                ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: termId, payload: { cols: term.cols, rows: term.rows } }));
+                            }
+                        }, 50);
+                    }
+                });
+                resizeObserver.observe(container.querySelector('.terminal-embed'));
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+                // Bindings
+                const bind = (sel, fn) => container.querySelector(sel)?.addEventListener('click', fn);
+                const bindChange = (sel, fn) => container.querySelector(sel)?.addEventListener('change', fn);
+
+                // Nav
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.main-content').forEach(c => c.classList.remove('active-view'));
+                        const viewId = item.dataset.view;
+                        container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                        
+                        if(viewId === 'interfaces') { loadInterfaces(); startGlobalTrafficMonitor(); if(ws) { ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_routes" } })); ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_dns" } })); } } else { stopGlobalTrafficMonitor(); }
+                        if(viewId === 'config') { loadNetplanList(); loadInterfacesFile(); loadEtcNetList(); loadNmList(); }
+                        if(viewId === 'hosts') loadAdminHostsModule();
+                        if(viewId === 'iptables') { loadIPTables(); loadIptConfigList(); }
+                        if(viewId === 'ufw') { loadUFW(); }
+                        if(viewId === 'selinux') { loadSELinux(); }
+                        if(viewId === 'monitoring') { loadMonitoringStatic(); if(ws) ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "mon_stream_start_ip" } })); }
+                    });
+                });
+
+                // Sub-tabs logic
+                container.querySelectorAll('.sub-tab').forEach(t => {
+                    t.addEventListener('click', () => {
+                        const parent = t.closest('.main-content');
+                        parent.querySelectorAll('.sub-tab').forEach(x => x.classList.remove('active'));
+                        t.classList.add('active');
+                        parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+                        parent.querySelector('#sub-'+t.dataset.sub).classList.add('active');
+                        if(t.dataset.sub === 'netplan' && netEditor) netEditor.resize();
+                        if(t.dataset.sub === 'interfaces' && ifacesEditor) ifacesEditor.resize();
+                        if(t.dataset.sub === 'etcnet' && etcNetEditor) etcNetEditor.resize();
+                        if(t.dataset.sub === 'nm' && nmEditor) nmEditor.resize();
+                        if(t.dataset.sub === 'ipt-config' && iptEditor) iptEditor.resize();
+                    });
+                });
+
+                // Interface & General
+                bind('.btn-refresh-iface', loadInterfaces);
+                bind('.btn-edit-hostname', editHostname);
+                bind('.btn-open-bridge-modal', () => container.querySelector('.modal-bridge').style.display='flex');
+                bind('.btn-apply-iface', applyIfaceConfig);
+                bindChange('.virt-type', () => {
+                    const t = container.querySelector('.virt-type').value;
+                    container.querySelector('.virt-grp-bridge').style.display = t==='bridge'?'block':'none';
+                    container.querySelector('.virt-grp-vlan').style.display = t==='vlan'?'block':'none';
+                });
+                bind('.btn-create-virt', createVirtual);
+
+                // Monitor
+                bind('.btn-refresh-mon', loadMonitoringStatic);
+                bind('.btn-dump-start', () => ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "mon_stream_start_tcpdump", filter: container.querySelector('.tcpdump-filter').value } })));
+                bind('.btn-dump-stop', () => ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "mon_stream_stop_tcpdump" } })));
+
+                // Tools
+                bind('.btn-run-tool', runTool);
+                bind('.btn-clear-tool', () => container.querySelector('.tool-output').innerText = "");
+
+                // Editors
+                bindChange('.netplan-file-select', loadNetplanFile);
+                bind('.btn-save-netplan', saveNetplan);
+                
+                bind('.btn-save-interfaces', saveInterfacesFile);
+                bindChange('.etcnet-file-select', loadEtcNetFile);
+                bind('.btn-save-etcnet', saveEtcNetFile);
+                bind('#btn-new-etcnet', createEtcNetFile);
+
+                bindChange('.nm-file-select', loadNmFile);
+                bind('.btn-save-nm', saveNmFile);
+
+                // FW
+                bind('.btn-new-rule', () => container.querySelector('.modal-fw').style.display='flex');
+                bind('.btn-reload-iptables', loadIPTables);
+                bind('.btn-apply-fw', addFirewallRule);
+                bind('#btn-ipt-export', () => ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "iptables_export" } })));
+                bind('#btn-ipt-import', () => container.querySelector('#ipt-import-file').click());
+                bind('#btn-ipt-saveas', () => { const p = prompt("Path assoluto (es. /etc/iptables/rules.v4):"); if(p) ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "iptables_save_file", path: p } })); });
+                
+                container.querySelector('#ipt-import-file').addEventListener('change', (e) => {
+                    const file = e.target.files[0]; if(!file) return;
+                    const r = new FileReader(); r.onload = (ev) => ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "iptables_import", content: ev.target.result } }));
+                    r.readAsText(file); e.target.value = '';
+                });
+
+                bind('#btn-ipt-upload-conf', () => container.querySelector('#ipt-upload-file').click());
+                container.querySelector('#ipt-upload-file').addEventListener('change', (e) => {
+                    const file = e.target.files[0]; if(!file) return;
+                    const name = prompt("Nome file di destinazione (in /etc/iptables/):", file.name);
+                    if(!name) return;
+                    const r = new FileReader(); r.onload = (ev) => ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_iptables_config", file: "/etc/iptables/"+name, content: ev.target.result } }));
+                    r.readAsText(file); e.target.value = '';
+                });
+                
+                bindChange('.ipt-config-select', loadIptConfigFile);
+                bind('.btn-save-ipt-conf', saveIptConfigFile);
+                bind('#btn-del-ipt-conf', deleteIptConfigFile);
+                bind('#btn-ipt-restore-conf', restoreIptConfigFile);
+
+                // Filter Bindings
+                container.querySelector('.filter-ss').addEventListener('keyup', (e) => filterTable(e.target, '.mon-ss-body'));
+                container.querySelector('.filter-route').addEventListener('keyup', (e) => filterTable(e.target, '.mon-route-body'));
+                container.querySelector('.filter-dev').addEventListener('keyup', (e) => filterTable(e.target, '.mon-dev-body'));
+                container.querySelector('#selinux-filter').addEventListener('keyup', (e) => filterTable(e.target, '#selinux-tbody'));
+
+                // Term & Modals
+                bind('.btn-toggle-term', toggleTerminal);
+                container.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => {
+                    container.querySelectorAll('.local-modal').forEach(m => m.style.display='none');
+                    // Stop traffic monitoring when modal closes
+                    if(trafficInterval) { clearInterval(trafficInterval); trafficInterval = null; }
+                }));
+
+                // Terminal Context Menu
+                const termEmbed = container.querySelector('.terminal-embed');
+                const ctxMenu = container.querySelector('#term-ctx-menu');
+                
+                termEmbed.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    ctxMenu.style.left = e.clientX + 'px';
+                    ctxMenu.style.top = e.clientY + 'px';
+                    ctxMenu.style.display = 'block';
+                });
+
+                document.addEventListener('click', (e) => { if(!e.target.closest('#term-ctx-menu')) ctxMenu.style.display = 'none'; });
+
+                ctxMenu.addEventListener('click', async (e) => {
+                    const item = e.target.closest('.ctx-item');
+                    if(!item) return;
+                    ctxMenu.style.display = 'none';
+                    const action = item.dataset.action;
+                    const send = (d) => { if(ws && termId) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: d })); };
+
+                    if(action === 'copy') {
+                        const sel = term.getSelection(); if(sel) navigator.clipboard.writeText(sel);
+                    } else if(action === 'paste') {
+                        const text = await navigator.clipboard.readText(); if(text) send(text);
+                    } else if(action === 'screen-new') {
+                        const n = prompt("Nome Screen:"); if(n) send(`screen -S ${n}\n`);
+                    } else if(action === 'screen-list') {
+                        send(`screen -ls\n`);
+                    } else if(action === 'screen-resume') {
+                        const n = prompt("Nome Screen:"); if(n) send(`screen -r ${n}\n`);
+                    } else if(action === 'screen-detach') {
+                        send('\x01d');
+                    }
+                });
+
+                // Dynamic Delegation
+                container.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if(!btn) return;
+                    if(btn.dataset.action === 'if-toggle') toggleInterface(btn.dataset.iface, btn.dataset.state === 'true');
+                    if(btn.dataset.action === 'if-config') openIfaceConfig(btn.dataset.iface, btn.dataset.ip, btn.dataset.ip6, btn.dataset.gw, btn.dataset.dns);
+                    if(btn.dataset.action === 'if-delete') deleteInterface(btn.dataset.iface);
+                    if(btn.dataset.action === 'fw-del') delRule(btn.dataset.table, btn.dataset.chain, btn.dataset.num);
+                    if(btn.dataset.action === 'selinux-toggle') selinuxSetBool(btn.dataset.key, btn.dataset.val);
+                });
+
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_hostname" } }));
+                        loadInterfaces();
+                        startGlobalTrafficMonitor();
+                        ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_routes" } }));
+                        ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_dns" } }));
+                    };
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.type === "hostname") container.querySelector('.disp-hostname').innerText = msg.payload;
+                        if(msg.type === "net_routes") { globalRoutes = msg.payload; loadInterfaces(); }
+                        if(msg.type === "net_dns_info") { globalDns = msg.payload; loadInterfaces(); }
+                        if(msg.type === "net_ifaces") renderInterfaces(msg.payload);
+                        if(msg.type === "netplan_files") populateNetplanSelect(msg.payload);
+                        if(msg.type === "netplan_content") netEditor.setValue(msg.payload, -1);
+                        if(msg.type === "root_file_content") {
+                            if(msg.payload.file === '/etc/network/interfaces') ifacesEditor.setValue(msg.payload.content, -1);
+                            else if(msg.payload.file.includes('/etc/network/')) etcNetEditor.setValue(msg.payload.content, -1);
+                            else if(msg.payload.file.includes('/etc/NetworkManager/')) nmEditor.setValue(msg.payload.content, -1);
+                        }
+                        if(msg.type === "etc_net_list") populateEtcNetSelect(msg.payload);
+                        if(msg.type === "nm_conn_list") populateNmSelect(msg.payload);
+                        
+                        if(msg.type === "iptables_list") renderIPTables(msg.payload);
+                        if(msg.type === "iptables_export_data") downloadFile("iptables.rules", msg.payload);
+                        if(msg.type === "iptables_config_list") populateIptConfigSelect(msg.payload);
+                        if(msg.type === "iptables_config_content") iptEditor.setValue(msg.payload.content, -1);
+
+                        if(msg.type === "ufw_status_info") renderUFWStatus(msg.payload);
+                        if(msg.type === "ufw_rules_list") renderUFWRules(msg.payload);
+                        if(msg.type === "selinux_info") renderSELinuxInfo(msg.payload);
+                        if(msg.type === "selinux_booleans") renderSELinuxBools(msg.payload);
+                        
+                        if(msg.type === "tool_output") { const b=container.querySelector('.tool-output'); b.innerText+=msg.payload+"\n"; b.scrollTop=b.scrollHeight; }
+                        if(msg.type === "ssh_output" && term) term.write(msg.payload);
+                        
+                        if(msg.type === "mon_ss") renderSS(msg.payload);
+                        if(msg.type === "mon_routes") renderRoutes(msg.payload);
+                        if(msg.type === "mon_netdev") { renderNetDev(msg.payload); updateCardsTraffic(msg.payload); }
+                        if(msg.type === "mon_iplink") container.querySelector('.mon-iplink-raw').innerText = msg.payload;
+                        if(msg.type === "stream_ipmonitor") { const b=container.querySelector('.stream-ipmon'); b.innerText+=msg.payload+"\n"; b.scrollTop=b.scrollHeight; }
+                        if(msg.type === "stream_tcpdump") { const b=container.querySelector('.stream-tcpdump'); b.innerText+=msg.payload+"\n"; b.scrollTop=b.scrollHeight; }
+                        if(msg.type === "iface_stats") updateIfaceTraffic(msg.payload);
+
+                        if(msg.type === "net_op_res") {
+                            if(msg.payload.status === "success") { alert("Successo!"); container.querySelectorAll('.local-modal').forEach(m => m.style.display='none'); loadInterfaces(); }
+                            else { alert("Errore: "+msg.payload.msg); } 
+                            
+                            // Refresh specific views based on context
+                            if(container.querySelector('#view-iptables').classList.contains('active-view')) { loadIPTables(); loadIptConfigList(); }
+                            if(container.querySelector('#view-ufw').classList.contains('active-view')) { loadUFW(); }
+                            if(container.querySelector('#view-selinux').classList.contains('active-view')) { loadSELinux(); }
+                        }
+                    };
+                    term.onData(d => ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: d })));
+                }
+
+                // Logic Functions
+                function loadInterfaces() { ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_interfaces" } })); }
+                function getGateway(ifName) { if(!globalRoutes) return "--"; const r = globalRoutes.find(r => r.dev === ifName && r.dst === "default"); return r ? r.gateway : "--"; }
+                
+                function getGateway6(ifName) { if(!globalRoutes) return "--"; const r = globalRoutes.find(r => r.dev === ifName && r.dst === "default" && r.family === "inet6"); return r ? r.gateway : "--"; }
+
+                function getDnsForIface(ifName) {
+                    // Parsing molto basilare di resolvectl status se presente in globalDns
+                    if(!globalDns) return "";
+                    if(globalDns.includes("Link")) {
+                        const parts = globalDns.split(/Link \d+/);
+                        for(let p of parts) {
+                            if(p.includes(`(${ifName})`) || p.includes(` ${ifName}`)) {
+                                const lines = p.split('\n');
+                                for(let l of lines) { 
+                                    if(l.trim().startsWith("DNS Servers:")) return l.replace("DNS Servers:", "").trim(); 
+                                    if(l.trim().startsWith("Current DNS Server:")) return l.replace("Current DNS Server:", "").trim();
+                                }
+                            }
+                        }
+                    } else if (globalDns.includes("GENERAL.DEVICE")) {
+                        // NMCLI output parsing
+                        const blocks = globalDns.split(/\n\s*\n/); // Split by empty lines
+                        for(let b of blocks) {
+                            if(b.includes(`GENERAL.DEVICE:`) && b.includes(ifName)) {
+                                const lines = b.split('\n');
+                                const dns = [];
+                                for(let l of lines) {
+                                    if(l.includes("IP4.DNS")) dns.push(l.split(":")[1].trim());
+                                }
+                                if(dns.length > 0) return dns.join(" ");
+                            }
+                        }
+                    }
+                    return ""; // Fallback o non trovato
+                }
+
+                function renderInterfaces(data) {
+                    const tbody = container.querySelector('.iface-tbody'); tbody.innerHTML = "";
+                    const toolSel = container.querySelector('.tool-iface-select');
+                    toolSel.innerHTML = '<option value="default">Default</option>';
+                    
+                    // Organizza gerarchia (Parent -> Children)
+                    const roots = [];
+                    const childrenMap = {};
+
+                    data.forEach(iface => {
+                        const opt = document.createElement('option'); opt.value = iface.ifname; opt.innerText = iface.ifname;
+                        toolSel.appendChild(opt);
+
+                        // Logica euristica per parent: se ha 'link' (vlan) o è membro di bridge (master)
+                        // Nota: 'link' in ip -j output spesso è l'indice o il nome del parent
+                        const parent = iface.link || iface.master; 
+                        // Attenzione: 'link' può essere presente anche per eth0 (link/ether), quindi controlliamo se il parent esiste nella lista
+                        const realParent = data.find(p => p.ifname === parent && p.ifname !== iface.ifname);
+                        
+                        if (realParent) {
+                            if (!childrenMap[realParent.ifname]) childrenMap[realParent.ifname] = [];
+                            childrenMap[realParent.ifname].push(iface);
+                        } else {
+                            roots.push(iface);
+                        }
+                    });
+
+                    const renderRow = (iface, isChild) => {
+                        let ip4="--", ip6="--";
+                        if(iface.addr_info) iface.addr_info.forEach(a => { 
+                            if(a.family==='inet') ip4=a.local+"/"+a.prefixlen; 
+                            if(a.family==='inet6' && a.scope==='global') ip6=a.local+"/"+a.prefixlen;
+                        });
+                        
+                        const isUp = iface.operstate === "UP";
+                        const gw4 = getGateway(iface.ifname);
+                        const gw6 = getGateway6(iface.ifname);
+                        const dns = getDnsForIface(iface.ifname);
+                        
+                        const tr = document.createElement('tr');
+                        if(isChild) tr.className = "child-row";
+                        
+                        const typeBadge = `<span style="font-size:0.7em; background:#21262d; padding:2px 4px; border-radius:3px; color:var(--text-dim)">${iface.link_type}</span>`;
+                        const statusIcon = isUp ? '<i class="fas fa-check-circle" style="color:var(--success)"></i>' : '<i class="fas fa-times-circle" style="color:var(--danger)"></i>';
+                        
+                        tr.innerHTML = `
+                            <td>
+                                <div style="display:flex; align-items:center; gap:8px">
+                                    <span style="font-weight:bold; color:white">${iface.ifname}</span>
+                                    ${typeBadge}
+                                </div>
+                            </td>
+                            <td>${statusIcon} <span style="font-size:0.8em">${iface.operstate}</span></td>
+                            <td class="traffic-cell" id="traffic-${CSS.escape(iface.ifname)}"><span style="color:var(--text-dim)">--</span></td>
+                            <td>
+                                <div style="font-size:0.9em">${ip4}</div>
+                                <div style="font-size:0.75em; color:var(--text-dim)">GW: ${gw4}</div>
+                            </td>
+                            <td>
+                                <div style="font-size:0.8em">${ip6}</div>
+                                <div style="font-size:0.75em; color:var(--text-dim)">GW: ${gw6}</div>
+                            </td>
+                            <td style="font-size:0.8em; max-width:150px; overflow:hidden; text-overflow:ellipsis" title="${dns}">${dns || '--'}</td>
+                            <td style="text-align:right">
+                                <button class="action-btn" data-action="if-config" data-iface="${iface.ifname}" data-ip="${ip4}" data-ip6="${ip6}" data-gw="${gw4}" data-dns="${dns}" title="Configura"><i class="fas fa-cog"></i></button>
+                                <button class="action-btn" data-action="if-toggle" data-iface="${iface.ifname}" data-state="${isUp}" title="${isUp?'Spegni':'Accendi'}"><i class="fas fa-power-off" style="color:${isUp?'var(--success)':'var(--danger)'}"></i></button>
+                                ${(iface.link_type !== 'ether' && iface.link_type !== 'loopback') ? `<button class="action-btn" data-action="if-delete" data-iface="${iface.ifname}" style="color:var(--danger)" title="Elimina"><i class="fas fa-trash"></i></button>` : ''}
+                            </td>
+                        `;
+                        tbody.appendChild(tr);
+                    };
+
+                    roots.forEach(root => {
+                        renderRow(root, false);
+                        if (childrenMap[root.ifname]) {
+                            childrenMap[root.ifname].forEach(child => renderRow(child, true));
+                        }
+                    });
+                }
+                function toggleInterface(n, u) { if(confirm("Confirm?")) ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: u?"if_down":"if_up", iface: n } })); }
+                function deleteInterface(n) { if(confirm("Delete?")) ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_iface", iface: n } })); }
+                function openIfaceConfig(n, i, i6, g, d) { 
+                    currentIface=n; 
+                    container.querySelector('.modal-iface-name').innerText=n; 
+                    container.querySelector('.conf-ip').value = (i === "--") ? "" : i; 
+                    container.querySelector('.conf-ip6').value = (i6 === "--") ? "" : i6;
+                    container.querySelector('.conf-gw').value = (g === "--") ? "" : g; 
+                    container.querySelector('.conf-dns').value = d;
+                    
+                    // Reset traffic stats
+                    container.querySelector('.rx-speed').innerText = "0 KB/s";
+                    container.querySelector('.tx-speed').innerText = "0 KB/s";
+                    container.querySelector('#traffic-status').innerText = "Connecting...";
+                    lastTraffic = { rx: 0, tx: 0, time: 0 };
+                    
+                    container.querySelector('.modal-iface').style.display='flex'; 
+                    
+                    // Start monitoring
+                    if(trafficInterval) clearInterval(trafficInterval);
+                    trafficInterval = setInterval(() => {
+                        if(ws && ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_iface_stats", iface: n } }));
+                        }
+                    }, 1000);
+                }
+
+                let globalTrafficInterval = null;
+                function startGlobalTrafficMonitor() {
+                    if(globalTrafficInterval) clearInterval(globalTrafficInterval);
+                    
+                    const fetch = () => {
+                        if(ws && ws.readyState === WebSocket.OPEN && container.querySelector('#view-interfaces').classList.contains('active-view')) {
+                            ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "mon_get_netdev" } }));
+                        }
+                    };
+                    
+                    fetch(); // Immediate call
+                    globalTrafficInterval = setInterval(fetch, 1000);
+                }
+                function stopGlobalTrafficMonitor() { if(globalTrafficInterval) clearInterval(globalTrafficInterval); }
+
+                function updateCardsTraffic(raw) {
+                    const lines = raw.trim().split('\n');
+                    const now = Date.now();
+                    // Skip header lines (usually 2)
+                    lines.slice(2).forEach(line => {
+                        // Robust parsing: split by colon first
+                        const parts = line.split(':');
+                        if(parts.length < 2) return;
+                        
+                        const name = parts[0].trim();
+                        const stats = parts[1].trim().split(/\s+/);
+                        
+                        if(stats.length < 9) return;
+                        
+                        let rxBytes = parseInt(stats[0]);
+                        let txBytes = parseInt(stats[8]);
+                        
+                        const cardTrafficEl = container.querySelector(`#traffic-${CSS.escape(name)}`);
+                        if(cardTrafficEl) {
+                            let speedRx = 0, speedTx = 0;
+                            if(allIfacesTraffic[name]) {
+                                const dt = (now - allIfacesTraffic[name].time) / 1000;
+                                if(dt > 0) {
+                                    speedRx = (rxBytes - allIfacesTraffic[name].rx) / dt;
+                                    speedTx = (txBytes - allIfacesTraffic[name].tx) / dt;
+                                }
+                            }
+                            allIfacesTraffic[name] = { rx: rxBytes, tx: txBytes, time: now };
+                            
+                            const fmt = (b) => { if(b > 1024*1024) return (b/(1024*1024)).toFixed(1) + " MB/s"; return (b/1024).toFixed(1) + " KB/s"; };
+                            cardTrafficEl.innerHTML = `<span style="color:var(--success)">↓ ${fmt(speedRx)}</span> <span style="color:var(--warning); margin-left:8px">↑ ${fmt(speedTx)}</span>`;
+                        }
+                    });
+                }
+
+                function updateIfaceTraffic(data) {
+                    if(data.iface !== currentIface) return;
+                    const now = Date.now();
+                    const rx = parseInt(data.rx);
+                    const tx = parseInt(data.tx);
+                    
+                    container.querySelector('#traffic-status').innerText = "● Live";
+                    container.querySelector('#traffic-status').style.color = "var(--success)";
+
+                    if(lastTraffic.time > 0) {
+                        const duration = (now - lastTraffic.time) / 1000;
+                        if(duration > 0) {
+                            const rxSpeed = (rx - lastTraffic.rx) / duration;
+                            const txSpeed = (tx - lastTraffic.tx) / duration;
+                            
+                            const fmt = (b) => {
+                                if(b > 1024*1024) return (b/(1024*1024)).toFixed(1) + " MB/s";
+                                return (b/1024).toFixed(1) + " KB/s";
+                            };
+                            
+                            container.querySelector('.rx-speed').innerText = fmt(rxSpeed);
+                            container.querySelector('.tx-speed').innerText = fmt(txSpeed);
+                        }
+                    }
+                    lastTraffic = { rx: rx, tx: tx, time: now };
+                }
+                function applyIfaceConfig() { 
+                    ws.send(JSON.stringify({ 
+                        type: "network_command", host_id: parseInt(currentId), term_id: termId,
+                        payload: { 
+                            action: "configure_iface", 
+                            iface: currentIface, 
+                            ip: container.querySelector('.conf-ip').value, 
+                            ip6: container.querySelector('.conf-ip6').value,
+                            gateway: container.querySelector('.conf-gw').value,
+                            dns: container.querySelector('.conf-dns').value
+                        } 
+                    })); 
+                }
+                function editHostname() { const n=prompt("Name:"); if(n) ws.send(JSON.stringify({ type: "network_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_hostname", hostname: n } })); }
+                function createVirtual() { const t=container.querySelector('.virt-type').value; if(t==='bridge') ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"create_bridge", name:container.querySelector('.virt-br-name').value}})); else ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"create_vlan", link:container.querySelector('.virt-parent').value, id:container.querySelector('.virt-id').value}})); }
+                function loadMonitoringStatic() { const cmds=["mon_get_ss","mon_get_routes","mon_get_netdev","mon_get_iplink"]; cmds.forEach(a=>ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:a}}))); }
+                
+                function loadSS() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"mon_get_ss"}})); }
+                function loadRoutes() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"mon_get_routes"}})); }
+                function loadNetDev() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"mon_get_netdev"}})); }
+
+                function renderSS(d) { 
+                    let h='<table class="mon-table"><thead><tr><th>Proto</th><th>State</th><th>Loc</th><th>Rem</th><th>Proc</th></tr></thead><tbody>'; 
+                    d.trim().split('\n').slice(1).forEach(l=>{
+                        let p=l.split(/\s+/); 
+                        if(p.length>5) h+=`<tr><td>${p[0]}</td><td>${p[1]}</td><td>${p[4]}</td><td>${p[5]}</td><td>${p.slice(6).join(' ')}</td></tr>`;
+                    }); 
+                    container.querySelector('.mon-ss-body').innerHTML=h+'</tbody></table>'; 
+                }
+                function renderRoutes(d) { let h='<table class="mon-table"><tbody>'; d.trim().split('\n').forEach(l=>h+=`<tr><td>${l}</td></tr>`); container.querySelector('.mon-route-body').innerHTML=h+'</tbody></table>'; }
+                function renderNetDev(d) { 
+                    let h=''; 
+                    d.trim().split('\n').slice(2).forEach(l=>{ let p=l.split(':'); if(p.length>1) { let s=p[1].trim().split(/\s+/); h+=`<tr><td>${p[0].trim()}</td><td>${s[0]}</td><td>${s[1]}</td><td>${s[2]}</td><td>${s[8]}</td><td>${s[9]}</td><td>${s[10]}</td></tr>`; }}); 
+                    container.querySelector('.mon-dev-body').innerHTML=h; 
+                }
+                
+                function filterTable(input, selector) {
+                    const q = input.value.toLowerCase();
+                    container.querySelectorAll(`${selector} tr`).forEach(r => {
+                        r.style.display = r.innerText.toLowerCase().includes(q) ? '' : 'none';
+                    });
+                };
+
+                function runTool() { const t=container.querySelector('.tool-select').value, a=container.querySelector('.tool-args').value, i=container.querySelector('.tool-iface-select').value; container.querySelector('.tool-output').innerHTML+=`\n$ ${t} ${i!=='default'?'-I '+i+' ':''}${a}\n`; ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"exec_net_tool", tool:t, args:a, iface:i}})); }
+                function loadNetplanList() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"get_netplan_files"}})); }
+                function populateNetplanSelect(f) { const s=container.querySelector('.netplan-file-select'); s.innerHTML='<option>Select...</option>'; f.forEach(x=>{let o=document.createElement('option');o.value=x;o.innerText=x;s.appendChild(o)}); if(f.length) { s.value=f[0]; loadNetplanFile(); } }
+                function loadNetplanFile() { const f=container.querySelector('.netplan-file-select').value; if(f) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"read_netplan", file:f}})); }
+                function saveNetplan() { if(confirm("Apply?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"save_netplan", file:container.querySelector('.netplan-file-select').value, content:netEditor.getValue()}})); }
+                
+                function loadInterfacesFile() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"read_root_file", file:"/etc/network/interfaces"}})); }
+                function saveInterfacesFile() { if(confirm("Save?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"save_root_file", file:"/etc/network/interfaces", content:ifacesEditor.getValue()}})); }
+                
+                function loadEtcNetList() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"list_etc_network"}})); }
+                function populateEtcNetSelect(f) { const s=container.querySelector('.etcnet-file-select'); s.innerHTML='<option>Select...</option>'; f.forEach(x=>{let o=document.createElement('option');o.value=x;o.innerText=x;s.appendChild(o)}); }
+                function loadEtcNetFile() { const f=container.querySelector('.etcnet-file-select').value; if(f) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"read_root_file", file:f}})); }
+                function saveEtcNetFile() { const f=container.querySelector('.etcnet-file-select').value; if(f && confirm("Save?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"save_root_file", file:f, content:etcNetEditor.getValue()}})); }
+                function createEtcNetFile() {
+                    const dir = prompt("Cartella (es. /etc/network/if-up.d):", "/etc/network/");
+                    const name = prompt("Nome file:");
+                    if(dir && name) {
+                        ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"create_root_file", path:dir, name:name}}));
+                        setTimeout(loadEtcNetList, 500);
+                    }
+                }
+
+                function loadNmList() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"list_nm_connections"}})); }
+                function populateNmSelect(f) { const s=container.querySelector('.nm-file-select'); s.innerHTML='<option>Select...</option>'; f.forEach(x=>{let o=document.createElement('option');o.value=x;o.innerText=x;s.appendChild(o)}); }
+                function loadNmFile() { const f=container.querySelector('.nm-file-select').value; if(f) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"read_root_file", file:f}})); }
+                function saveNmFile() { const f=container.querySelector('.nm-file-select').value; if(f && confirm("Save?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"save_root_file", file:f, content:nmEditor.getValue()}})); }
+
+                async function loadAdminHostsModule() {
+                    const target = container.querySelector('#view-hosts');
+                    target.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#666"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+                    try {
+                        const resp = await fetch(`/host/config/admin-hosts.html?id=${currentId}`);
+                        if(!resp.ok) throw new Error("Load failed");
+                        const html = await resp.text();
+                        target.innerHTML = html;
+                        const scripts = target.querySelectorAll('script');
+                        scripts.forEach(s => {
+                            try { (new Function('appInstance', s.textContent))(appInstance); } catch(e) { console.error(e); }
+                        });
+                    } catch(e) { target.innerHTML = "Error loading module: " + e.message; }
+                }
+
+                function loadIPTables() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"get_iptables"}})); }
+                
+                function renderIPTables(t) { 
+                    const b=container.querySelector('.iptables-body'); b.innerHTML=""; 
+                    let currentTable = "filter";
+                    let currentChain = "";
+                    
+                    t.split('\n').forEach(l=>{ 
+                        if(l.includes("=== NAT TABLE ===")) { currentTable = "nat"; return; }
+                        if(l.includes("=== FILTER TABLE ===")) { currentTable = "filter"; return; }
+                        
+                        if(l.startsWith("Chain")) currentChain=l.split(" ")[1]; 
+                        else if(l.trim() && !l.startsWith("num") && !l.startsWith("target")) { 
+                            const p=l.trim().split(/\s+/); 
+                            if(p.length>4) {
+                                b.innerHTML+=`<tr><td><span style="font-size:0.7em; color:#555">${currentTable.toUpperCase()}</span> ${currentChain}</td><td>${p[0]}</td><td>${p[2]}</td><td>${p[3]}</td><td>${p[4]}</td><td>${p[1]}</td><td>${p.slice(5).join(" ")}</td><td><button class="action-btn" data-action="fw-del" data-table="${currentTable}" data-chain="${currentChain}" data-num="${p[0]}">Del</button></td></tr>`; 
+                            }
+                        } 
+                    }); 
+                }
+
+                function addFirewallRule() { 
+                    ws.send(JSON.stringify({
+                        type:"network_command", host_id:parseInt(currentId), term_id: termId,
+                        payload:{
+                            action:"add_iptables", 
+                            table:container.querySelector('.fw-table-sel').value,
+                            chain:container.querySelector('.fw-chain').value, 
+                            target:container.querySelector('.fw-action').value, 
+                            proto:container.querySelector('.fw-proto').value, 
+                            port:container.querySelector('.fw-port').value, 
+                            src:container.querySelector('.fw-src').value,
+                            to:container.querySelector('.fw-to').value
+                        }
+                    })); 
+                }
+                function delRule(t, c, n) { if(confirm("Del?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"del_iptables", table:t, chain:c, num:n}})); }
+                
+                function loadIptConfigList() { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"list_iptables_configs"}})); }
+                function populateIptConfigSelect(f) { const s=container.querySelector('.ipt-config-select'); s.innerHTML='<option>Select...</option>'; f.forEach(x=>{let o=document.createElement('option');o.value=x;o.innerText=x;s.appendChild(o)}); }
+                function loadIptConfigFile() { const f=container.querySelector('.ipt-config-select').value; if(f) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"read_iptables_config", file:f}})); }
+                function saveIptConfigFile() { const f=container.querySelector('.ipt-config-select').value; if(f && confirm("Save?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"save_iptables_config", file:f, content:iptEditor.getValue()}})); }
+                function deleteIptConfigFile() { const f=container.querySelector('.ipt-config-select').value; if(f && confirm("Delete?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"delete_iptables_config", file:f}})); }
+                function restoreIptConfigFile() { const f=container.querySelector('.ipt-config-select').value; if(f && confirm("Restore rules from this file?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"restore_iptables_config", file:f}})); }
+
+                // --- UFW ---
+                function loadUFW() { 
+                    ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"ufw_status"}}));
+                    ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"ufw_rules"}}));
+                }
+                function ufwOp(op) { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"ufw_op", op:op}})); }
+                function ufwAddRule() { const r=container.querySelector('#ufw-new-rule').value; if(r) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"ufw_add_rule", rule:r}})); }
+                function ufwDelRule(n) { if(confirm("Delete rule "+n+"?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"ufw_delete_rule", num:n}})); }
+                
+                function renderUFWStatus(out) {
+                    const badge = container.querySelector('#ufw-status-badge');
+                    if(out.includes("Status: active")) { 
+                        badge.innerText = "ACTIVE"; badge.className = "status-badge bg-up"; 
+                    } else if (out.includes("not_installed")) {
+                        badge.innerText = "NOT INSTALLED"; badge.className = "status-badge bg-down";
+                    } else { 
+                        badge.innerText = "INACTIVE"; badge.className = "status-badge bg-down"; 
+                    }
+                }
+                function renderUFWRules(out) {
+                    const tbody = container.querySelector('#ufw-tbody'); tbody.innerHTML = "";
+                    const lines = out.split('\n');
+                    let start = false;
+                    lines.forEach(l => {
+                        if(l.includes("[") && l.includes("]")) {
+                            // Parse numbered output: [ 1] 22/tcp  ALLOW IN  Anywhere
+                            // Regex simple: \[(\d+)\] (.*?) (ALLOW|DENY|REJECT)(.*?) (.*)
+                            // Better split by multiple spaces
+                            const parts = l.trim().split(/\s{2,}/);
+                            if(parts.length >= 3) {
+                                const idMatch = parts[0].match(/\[\s*(\d+)\]/);
+                                const id = idMatch ? idMatch[1] : "?";
+                                const to = parts[0].replace(/\[\s*\d+\]/, "").trim();
+                                const action = parts[1];
+                                const from = parts[2];
+                                tbody.innerHTML += `<tr><td>${id}</td><td>${to}</td><td style="color:${action.includes('ALLOW')?'var(--success)':'var(--danger)'}">${action}</td><td>${from}</td><td><button class="action-btn" style="color:var(--danger)" onclick="ufwDelRule('${id}')"><i class="fas fa-trash"></i></button></td></tr>`;
+                            }
+                        }
+                    });
+                }
+
+                // --- SELINUX ---
+                function loadSELinux() {
+                    ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"selinux_status"}}));
+                    ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"selinux_get_booleans"}}));
+                }
+                function selinuxSetMode(m) { if(confirm("Set mode to "+m+"?")) ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"selinux_set_mode", mode:m}})); }
+                function selinuxSetBool(k, v) { ws.send(JSON.stringify({type:"network_command", host_id:parseInt(currentId), term_id: termId, payload:{action:"selinux_set_bool", key:k, value:v}})); }
+                
+                function renderSELinuxInfo(out) {
+                    container.querySelector('#selinux-status-text').innerText = out;
+                }
+                function renderSELinuxBools(out) {
+                    const tbody = container.querySelector('#selinux-tbody'); tbody.innerHTML = "";
+                    out.split('\n').forEach(l => {
+                        const parts = l.split('-->');
+                        if(parts.length === 2) {
+                            const k = parts[0].trim();
+                            const v = parts[1].trim(); // on or off
+                            const isOn = v === 'on';
+                            const toggleVal = isOn ? 'off' : 'on';
+                            tbody.innerHTML += `<tr><td>${k}</td><td style="color:${isOn?'var(--success)':'var(--text-dim)'}">${v}</td><td><button class="action-btn" data-action="selinux-toggle" data-key="${k}" data-val="${toggleVal}">Toggle</button></td></tr>`;
+                        }
+                    });
+                }
+
+                function toggleTerminal() {
+                    const tp = container.querySelector('.terminal-panel');
+                    if(tp.style.display==='block') { 
+                        tp.style.display='none'; container.querySelector('.btn-cmd').classList.remove('active'); 
+                    } else { 
+                        tp.style.display='block'; container.querySelector('.btn-cmd').classList.add('active'); 
+                        setTimeout(() => {
+                            fitAddon.fit(); term.focus(); 
+                            ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: termId, payload: { cols: term.cols, rows: term.rows } }));
+                            ws.send(JSON.stringify({type:"ssh_input", host_id:parseInt(currentId), term_id: termId, payload:"\n"})); 
+                        }, 50);
+                    }
+                }
+
+                function downloadFile(filename, content) {
+                    const element = document.createElement('a');
+                    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(content));
+                    element.setAttribute('download', filename);
+                    element.style.display = 'none';
+                    document.body.appendChild(element);
+                    element.click();
+                    document.body.removeChild(element);
+                }
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const mode = urlParams.get('mode');
+                if (mode) {
+                    const navItem = container.querySelector(`.nav-item[data-view="${mode}"]`);
+                    if (navItem) {
+                        navItem.click();
+                    }
+                }
+
+                appInstance.registerCleanup(() => { 
+                    if(ws) {
+                        if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: termId }));
+                        ws.close();
+                    }
+                    if(netEditor) netEditor.destroy(); if(ifacesEditor) ifacesEditor.destroy(); if(etcNetEditor) etcNetEditor.destroy(); if(nmEditor) nmEditor.destroy(); if(iptEditor) iptEditor.destroy(); if(term) term.dispose(); 
+                    stopGlobalTrafficMonitor();
+                    if(trafficInterval) clearInterval(trafficInterval);
+                });
+            })();
+        })(appInstance);
+    </script>
+</div>

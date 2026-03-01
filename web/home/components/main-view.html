@@ -1,0 +1,1497 @@
+<style>
+    /* --- LAYOUT CONTAINER (SCROLL FIX) --- */
+    .layout-container {
+        display: flex; flex-direction: column; height: 100%; width: 100%;
+        overflow: hidden; background: #0d1117; 
+    }
+
+    /* --- UTILITY BAR --- */
+    .utility-bar {
+        display: flex; justify-content: space-between; align-items: center; gap: 15px;
+        padding: 15px 20px; background: #0d1117; border-bottom: 1px solid #30363d; flex-shrink: 0;
+    }
+
+    /* Nuovo Quick Connect a 4 campi */
+    .quick-connect-wrapper {
+        display: flex; align-items: center; flex: 1; max-width: 600px; gap: 0;
+        background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0;
+        overflow: hidden;
+    }
+    .qc-input {
+        background: transparent; border: none; color: white; padding: 8px 10px; outline: none; font-size: 0.9em;
+    }
+    .qc-input::placeholder { color: #484f58; }
+    .qc-divider { width: 1px; height: 18px; background: #30363d; }
+    .quick-connect-btn { background: #21262d; border: none; border-left: 1px solid #30363d; color: #58a6ff; cursor: pointer; padding: 0 15px; height: 34px; transition: 0.2s; }
+    .quick-connect-btn:hover { background: #58a6ff; color: #0d1117; }
+
+    /* FILTRI PROTOCOLLO */
+    .proto-filters { display: flex; gap: 5px; margin: 0 auto; padding: 0 15px; border-left: 1px solid #30363d; border-right: 1px solid #30363d;}
+    .btn-proto { 
+        background: transparent; border: 1px solid transparent; padding: 4px 8px; border-radius: 4px; 
+        cursor: pointer; color: #8b949e; font-size: 0.85em; font-weight: bold; transition: 0.2s; 
+        display: flex; align-items: center; gap: 5px;
+    }
+    .btn-proto:hover { background: #21262d; color: #fff; }
+    .btn-proto.active { background: #21262d; border-color: #30363d; color: #fff; box-shadow: inset 0 -2px 0 var(--proto-color, #58a6ff); }
+    
+    /* Colori icone protocolli */
+    .c-ssh { color: #58a6ff; } 
+    .c-rdp { color: #da3633; } 
+    .c-vnc { color: #d2a8ff; } 
+    .c-web { color: #238636; } 
+    .c-ftp { color: #e3b341; }
+    .c-jump { color: #238636; }
+    .c-tunnel { color: #8957e5; }
+    .c-all { color: #c9d1d9; }
+
+    .search-wrapper { position: relative; width: 200px; }
+    .search-wrapper input {
+        width: 100%; background: #161b22; border: 1px solid #30363d;
+        color: #e6edf3; padding: 6px 10px 6px 30px; border-radius: 6px; font-size: 0.9em;
+    }
+    .search-wrapper input:focus { border-color: #58a6ff; outline: none; }
+    .search-wrapper i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: #8b949e; font-size: 0.8em; }
+
+    .view-toggles { display: flex; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 2px; }
+    .toggle-view-btn { background: transparent; border: none; color: #8b949e; padding: 4px 8px; cursor: pointer; border-radius: 4px; transition: 0.2s;}
+    .toggle-view-btn.active { background: #21262d; color: #e6edf3; }
+
+    /* --- BULK BAR --- */
+    .bulk-actions-bar {
+        background: rgba(56, 139, 253, 0.1); border-bottom: 1px solid #30363d;
+        padding: 10px 20px; display: none; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+
+    /* --- VIEW CONTAINER (MAIN CONTENT) --- */
+    .main-view-content { 
+        flex: 1; overflow-y: auto; padding: 20px; box-sizing: border-box; position: relative;
+    }
+
+    /* --- SECTIONS --- */
+    .nested-section { border-left: 1px dashed #30363d; padding-left: 20px; margin-top: 15px; }
+    details.section-collapsible { margin-top: 20px; }
+    details.section-collapsible:first-child { margin-top: 0; }
+    details.section-collapsible > summary { list-style: none; outline: none; cursor: pointer; margin-bottom: 10px; }
+    details.section-collapsible > summary::-webkit-details-marker { display: none; }
+    
+    .section-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 10px; border-bottom: 1px solid #30363d; user-select: none; border-radius: 4px; transition: background-color 0.3s; }
+    .section-title { font-size: 0.95em; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; display: flex; align-items: center; gap: 8px; transition: color 0.3s;}
+    .collapse-arrow { font-size: 0.8em; opacity: 0.7; transition: transform 0.2s ease; margin-right: 5px; }
+    details[open] > summary .collapse-arrow { transform: rotate(90deg); }
+    
+    .header-actions { display: flex; gap: 5px; align-items: center; }
+
+    /* Picker Colori Custom */
+    .color-picker-wrapper { position: relative; display: inline-flex; align-items: center; cursor: pointer; }
+    .color-picker-wrapper input[type="color"] { 
+        opacity: 0; position: absolute; width: 100%; height: 100%; cursor: pointer;
+    }
+    .color-picker-btn { 
+        color: #8b949e; background: transparent; border: none; font-size: 0.9em; padding: 4px; transition: 0.2s;
+    }
+    .color-picker-wrapper:hover .color-picker-btn { color: #e6edf3; }
+
+    /* --- HOST CARD --- */
+    .host-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; margin-bottom: 10px; }
+    .host-card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 15px; transition: all 0.2s ease; display: flex; flex-direction: column; gap: 12px; position: relative; }
+    .host-card:hover { border-color: #58a6ff; transform: translateY(-2px); background: #1c2128; }
+    
+    .card-header-row { display: flex; align-items: center; gap: 10px; padding-right: 30px; }
+    .host-icon-box { width: 32px; height: 32px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 1.2em; background: #0d1117; border: 1px solid #30363d; flex-shrink: 0; color: #e6edf3; }
+    .icon-ssh { background: #161b228f; border: 1px solid #58a6ff !important; color: #58a6ff !important; }
+    .icon-rdp { background: rgba(218, 54, 51, 0.15); border: 1px solid #da3633 !important; color: #da3633 !important; }
+    .icon-vnc { background: rgba(210, 168, 255, 0.15); border: 1px solid #d2a8ff !important; color: #d2a8ff !important; }
+    .icon-web { background: rgba(35, 134, 54, 0.15); border: 1px solid #238636 !important; color: #238636 !important; }
+    .icon-ftp { background: rgba(227, 179, 65, 0.15); border: 1px solid #e3b341 !important; color: #e3b341 !important; }
+    .icon-jump { background: rgba(35, 134, 54, 0.15); border: 1px solid #238636 !important; color: #238636 !important; }
+    .icon-tunnel { background: rgba(137, 87, 229, 0.15); border: 1px solid #8957e5 !important; color: #8957e5 !important; }
+    
+    .host-title-box { flex: 1; min-width: 0; }
+    .host-title-box h4 { margin: 0; font-size: 1.05em; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; transition: color 0.2s; }
+    .host-title-box h4:hover { color: #58a6ff; text-decoration: underline; }
+    .host-title-box span { font-size: 0.75em; color: #484f58; text-transform: uppercase; font-weight: bold; }
+    
+    .host-status-dot { width: 8px; height: 8px; border-radius: 50%; background: #238636; box-shadow: 0 0 5px #238636; position: absolute; top: 15px; right: 15px; display: none; }
+    
+    .host-details { display: grid; grid-template-columns: 1fr; gap: 4px; font-size: 0.85em; color: #8b949e; background: rgba(0,0,0,0.2); padding: 8px; border-radius: 4px; }
+    .detail-row { display: flex; justify-content: space-between; align-items: center; } 
+    .detail-val { font-family: monospace; color: #e6edf3; overflow: hidden; text-overflow: ellipsis; }
+    
+    .card-actions { display: flex; gap: 6px; margin-top: auto; }
+    .btn-card { padding: 6px; border-radius: 4px; font-size: 0.85em; font-weight: 600; border: 1px solid #30363d; background: transparent; color: #8b949e; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+    .btn-card:hover { border-color: #e6edf3; color: #e6edf3; background: #30363d; }
+    .btn-connect { background: rgba(35, 134, 54, 0.15); border-color: #238636; color: #238636; flex: 1; }
+    .btn-connect:hover { background: #238636; color: white; border-color: #238636; }
+    .btn-stop-tunnel { background: rgba(218, 54, 51, 0.15); border-color: #da3633; color: #da3633; flex: 1; }
+    .btn-stop-tunnel:hover { background: #da3633; color: white; border-color: #da3633; }
+    .btn-icon { width: 28px; }
+    .btn-danger-icon:hover { background: rgba(218, 54, 51, 0.2); color: #da3633; border-color: #da3633; }
+    
+    .card-fav-btn { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; color: #30363d; font-size: 1.1em; transition: 0.2s; z-index: 2; }
+    .card-fav-btn:hover { color: #e3b341; transform: scale(1.1); }
+    .card-fav-btn.active { color: #e3b341; }
+    
+    /* Nuovo: Bulk check su Card */
+    .card-bulk-check { position: absolute; top: 12px; left: -10px; transform: scale(1.1); cursor: pointer; z-index: 3; display: none;}
+    .host-card:hover .card-bulk-check, .card-bulk-check:checked { display: block; }
+
+    /* --- TABLE LAYOUT --- */
+    .host-table { width: 100%; border-collapse: collapse; font-size: 0.9em; margin-bottom: 10px; table-layout: fixed; }
+    .host-table th { text-align: left; padding: 10px; background: #21262d; color: #8b949e; border-bottom: 1px solid #30363d; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .host-table th:hover { color: #e6edf3; background: #2c333e; }
+    .host-table td { padding: 10px; border-bottom: 1px solid #30363d; color: #e6edf3; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: context-menu; }
+    .host-table tr:hover { background: #161b22; }
+    
+    .td-name-wrapper { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+    .td-name-text { font-weight: bold; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; cursor: pointer; transition: 0.2s;}
+    .td-name-text:hover { color: #58a6ff; text-decoration: underline; }
+
+    .table-actions { display: flex; gap: 5px; justify-content: flex-end; }
+    .bulk-check { transform: scale(1.2); cursor: pointer; accent-color: #238636; }
+    
+    .pass-container { display: flex; align-items: center; gap: 8px; justify-content: flex-start; }
+    .pass-toggle { cursor: pointer; color: #484f58; flex-shrink: 0; margin-left:5px; }
+    .pass-toggle:hover { color: #e6edf3; }
+    
+    .tbl-fav-btn { cursor: pointer; color: #30363d; font-size: 1.1em; transition: 0.2s; flex-shrink: 0; }
+    .tbl-fav-btn:hover { color: #e3b341; }
+    .tbl-fav-btn.active { color: #e3b341; }
+
+    /* --- STYLISH DROPDOWNS --- */
+    .stylish-select-wrapper { position: relative; display: flex; align-items: center; background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0 8px; height: 28px; transition: 0.2s; }
+    .stylish-select-wrapper:hover { border-color: #8b949e; }
+    .stylish-select { background: transparent; border: none; color: #e6edf3; font-size: 0.85em; outline: none; cursor: pointer; appearance: none; padding-right: 15px; }
+    .stylish-select option { background: #161b22; color: #e6edf3; }
+    .select-arrow { position: absolute; right: 8px; pointer-events: none; font-size: 0.7em; color: #8b949e; }
+    
+    .fav-ws-btn { color: #30363d; cursor: pointer; margin-left: 5px; transition: 0.2s; font-size: 0.9em; }
+    .fav-ws-btn:hover { color: #e3b341; transform: scale(1.1); }
+    .fav-ws-btn.active { color: #e3b341; }
+</style>
+
+<div class="layout-container">
+    <div class="utility-bar">
+        <div class="quick-connect-wrapper">
+            <div style="padding: 0 10px; color:#58a6ff"><i class="fas fa-bolt"></i></div>
+            <select id="main-qc-proto" class="qc-input" style="color:#8b949e; cursor:pointer;" onkeydown="window.handleMainQuickEnter(event)">
+                <option value="ssh">SSH</option>
+                <option value="sftp">SFTP</option>
+            </select>
+            <div class="qc-divider"></div>
+            <input type="text" id="main-qc-user" class="qc-input" placeholder="User" style="width:130px" onkeydown="window.handleMainQuickEnter(event)">
+            <div class="qc-divider"></div>
+            <input type="text" id="main-qc-ip" class="qc-input" placeholder="Host / IP" style="flex: 1;" onkeydown="window.handleMainQuickEnter(event)">
+            <div class="qc-divider"></div>
+            <input type="password" id="main-qc-pass" class="qc-input" placeholder="Pass" style="width:130px" onkeydown="window.handleMainQuickEnter(event)">
+            
+            <button class="quick-connect-btn" onclick="window.mainQuickConnect()"><i class="fas fa-arrow-right"></i></button>
+        </div>
+
+        <div class="proto-filters">
+            <button class="btn-proto active" style="--proto-color: #c9d1d9;" onclick="window.setProtoFilter('all', this)"><i class="fas fa-layer-group c-all"></i> ALL</button>
+            <button class="btn-proto" style="--proto-color: #58a6ff;" onclick="window.setProtoFilter('ssh', this)"><i class="fas fa-terminal c-ssh"></i> SSH</button>
+            <!--<button class="btn-proto" style="--proto-color: #da3633;" onclick="window.setProtoFilter('rdp', this)"><i class="fas fa-desktop c-rdp"></i> RDP</button> -->
+           <!-- <button class="btn-proto" style="--proto-color: #d2a8ff;" onclick="window.setProtoFilter('vnc', this)"><i class="fas fa-eye c-vnc"></i> VNC</button>-->
+            <button class="btn-proto" style="--proto-color: #238636;" onclick="window.setProtoFilter('web', this)"><i class="fas fa-globe c-web"></i> WEB</button>
+            <button class="btn-proto" style="--proto-color: #e3b341;" onclick="window.setProtoFilter('sftp', this)"><i class="fas fa-exchange-alt c-ftp"></i> SFTP</button>
+            <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+            <button class="btn-proto" style="--proto-color: #238636;" onclick="window.setProtoFilter('jumphost', this)"><i class="fas fa-route c-jump"></i> JUMPS</button>
+            <button class="btn-proto" style="--proto-color: #8957e5;" onclick="window.setProtoFilter('tunnel', this)"><i class="fas fa-project-diagram c-tunnel"></i> TUNNELS</button>
+            <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+            <button class="btn-proto" onclick="window.Tabs.openManager()"><i class="fas fa-cog"></i> CONFIG</button>
+            <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+            
+            <div class="stylish-select-wrapper">
+                <select class="stylish-select workspace-selector" onchange="window.openWorkspaceTab(this.value)"></select>
+                <i class="fas fa-chevron-down select-arrow"></i>
+            </div>
+            <i class="fas fa-star fav-ws-btn" id="ws-fav-btn" onclick="window.toggleWorkspaceFavorite()" title="Set as Default"></i>
+        </div>
+
+        <div style="display:flex; align-items:center; gap:10px;">
+            <div class="search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" class="search-input" placeholder="Search..." onkeyup="window.filterView(this)">
+            </div>
+            <div class="view-toggles">
+                <button class="toggle-view-btn btn-view-grid" onclick="window.setViewMode('grid', this)"><i class="fas fa-th-large"></i></button>
+                <button class="toggle-view-btn btn-view-list active" onclick="window.setViewMode('list', this)"><i class="fas fa-list"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <div class="bulk-actions-bar bulk-bar">
+        <div><span class="selected-count">0</span> items selected</div>
+        <div style="display:flex; gap:10px">
+            <button class="btn-pro" onclick="window.bulkCopy(this)"><i class="fas fa-copy"></i> Copy</button>
+            <button class="btn-pro" onclick="window.bulkMove(this)"><i class="fas fa-folder-open"></i> Move</button>
+            <button class="btn-pro" style="color:#da3633; border-color:#da3633" onclick="window.bulkDelete(this)"><i class="fas fa-trash"></i> Delete</button>
+        </div>
+    </div>
+
+    <div class="main-view-content"></div>
+</div>
+
+<script>
+    // --- INIT PERSISTENZA VISTA ---
+    (function initViewMode() {
+        if (!window.AppState) window.AppState = { currentProtocol: 'all' };
+        if (!window.AppState.currentProtocol) window.AppState.currentProtocol = 'all';
+
+        if (!window.AppState.viewModeInit) {
+            const savedMode = localStorage.getItem('jconman_view_mode');
+            if (savedMode) window.AppState.viewMode = savedMode;
+            
+            // Init active tunnels state
+            if (!window.AppState.activeTunnels) window.AppState.activeTunnels = new Set();
+            
+            window.AppState.viewModeInit = true;
+        }
+        
+        setTimeout(() => {
+            // Initial UI sync handled by render
+            if(window.AppState.viewMode === 'grid') {
+                const gb = document.querySelector('.btn-view-grid');
+                if(gb) gb.classList.add('active');
+            } else {
+                const lb = document.querySelector('.btn-view-list');
+                if(lb) lb.classList.add('active');
+            }
+        }, 100);
+    })();
+
+    // --- CREDENTIALS HELPER ---
+    window.getEffectiveUser = function(host) {
+        if (host.user) return host.user;
+        if (!window.AppState || !window.AppState.allGroups) return '';
+
+        let currentGroupId = host.group_id;
+        while(currentGroupId) {
+            const group = window.AppState.allGroups.find(g => g.id === currentGroupId);
+            if (!group) break;
+            if (group.user) return group.user;
+            currentGroupId = group.parent_id;
+        }
+        return '';
+    }
+
+    // --- FILTRI PROTOCOLLO ---
+    window.setProtoFilter = function(proto, el) {
+        window.AppState.currentProtocol = proto;
+        document.querySelectorAll('.btn-proto').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        window.renderActiveView();
+    }
+
+    // --- COLORI GRUPPO ---
+    window.updateGroupColor = async function(id, type, color) {
+        const grp = window.AppState.allGroups.find(g => g.id === id);
+        if(grp) {
+            if(type === 'bg') grp.bg_color = color;
+            if(type === 'text') grp.text_color = color;
+        }
+        window.renderActiveView();
+
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            await fetch(`/api/groups/${id}/color?workspace_id=${wsId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ type: type, color: color })
+            });
+        } catch(e) { console.error("Errore salvataggio colore", e); }
+    }
+
+    // --- PROTOCOL COLOR ---
+    window.getProtocolColor = function(proto) {
+        const colors = {
+            'ssh': '#58a6ff',      // Blue
+            'sftp': '#e3b341',     // Yellow
+            'ftp': '#e3b341',      // Yellow
+            'rdp': '#da3633',      // Red
+            'vnc': '#d2a8ff',      // Purple
+            'web': '#238636',      // Green
+            'jumphost': '#d29922', // Orange
+            'tunnel': '#8957e5'    // Violet
+        };
+        return colors[proto] || '#8b949e';  // Default gray
+    }
+
+    window.getProtocolBg = function(proto) {
+        const colors = {
+            'ssh': 'rgba(88, 166, 255, 0.15)',
+            'sftp': 'rgba(227, 179, 65, 0.15)',
+            'ftp': 'rgba(227, 179, 65, 0.15)',
+            'rdp': 'rgba(218, 54, 51, 0.15)',
+            'vnc': 'rgba(210, 168, 255, 0.15)',
+            'web': 'rgba(35, 134, 54, 0.15)',
+            'jumphost': 'rgba(210, 153, 34, 0.15)',
+            'tunnel': 'rgba(137, 87, 229, 0.15)'
+        };
+        return colors[proto] || 'transparent';
+    }
+
+    // --- AZIONI CARTELLA ---
+    window.renameGroup = function(id, e) {
+        if(e) e.stopPropagation();
+        window.editGroup(id, e);
+    }
+    
+    window.copyGroup = async function(id, e) {
+        if(e) e.stopPropagation();
+        if(!confirm("Duplicare questa cartella e il suo contenuto?")) return;
+
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            const res = await fetch(`/api/groups/${id}/copy?workspace_id=${wsId}`, { method: 'POST' });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(!res.ok) throw new Error(await res.text());
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) {
+            alert("Errore copia gruppo: " + e.message);
+        }
+    }
+
+    window.moveGroup = function(id, e) {
+        if(e) e.stopPropagation();
+        const grp = window.AppState.allGroups.find(g => g.id === id);
+        if(!grp) return;
+        
+        // Crea modale per scegliere il parent
+        const m = document.createElement('div');
+        m.className = 'modal active';
+        
+        // Genera opzioni delle cartelle (escludendo il gruppo stesso e i suoi figli)
+        const createOptions = (parentId, level, excludeId) => {
+            const groups = window.AppState.allGroups.filter(g => 
+                (parentId === null || parentId === undefined) ? 
+                    (g.parent_id === 0 || g.parent_id === null) : 
+                    g.parent_id === parentId
+            );
+            let opts = '';
+            groups.forEach(g => {
+                if(g.id !== excludeId) {
+                    const prefix = "\u00A0\u00A0\u00A0".repeat(level) + (level>0 ? "└─ " : "");
+                    opts += `<option value="${g.id}">${prefix}${g.name}</option>`;
+                    opts += createOptions(g.id, level + 1, excludeId);
+                }
+            });
+            return opts;
+        };
+        
+        let opts = `<option value="">/ (Root)</option>`;
+        opts += createOptions(null, 0, id);
+        
+        m.innerHTML = `
+            <div class="modal-content" style="width:400px">
+                <div class="modal-header">Move Group: ${grp.name}</div>
+                <div class="form-group">
+                    <label>New Parent Folder</label>
+                    <select id="move-group-target">${opts}</select>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-pro" onclick="this.closest('.modal').remove()">Cancel</button>
+                    <button class="btn-pro btn-primary" onclick="window.executeMoveGroup('${id}', this.closest('.modal'))">Move</button>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+    }
+
+    window.executeMoveGroup = async function(groupId, modalEl) {
+        const targetId = document.getElementById('move-group-target').value;
+        const parentId = targetId === '' ? null : parseInt(targetId);
+        
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            await fetch(`/api/groups/${groupId}/move?workspace_id=${wsId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ parent_id: parentId })
+            });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            modalEl.remove();
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) { 
+            alert("Errore spostamento cartella: " + e.message);
+        }
+    }
+
+    // --- SMART CONNECT & TAB MANAGER ---
+    // Open SFTP in a brand-new HostApp instance (always unique)
+    window.openSftpInNewTab = async function(hostId, event) {
+        if(event) event.stopPropagation();
+        const h = window.AppState && window.AppState.allHosts ? window.AppState.allHosts.find(x => x.id === hostId) : null;
+        if(!h) return;
+
+        const tabId = `tab-sftp-${hostId}-${Date.now()}`;
+        const viewId = `view-sftp-${hostId}-${Date.now()}`;
+
+        const tabEl = document.createElement('div'); tabEl.className = 'tab'; tabEl.id = tabId;
+        tabEl.onclick = () => { if(window.Tabs && window.Tabs.activate) window.Tabs.activate(tabId); };
+        tabEl.innerHTML = `<i class="fas fa-exchange-alt"></i> <span class="tab-title">SFTP: ${h.name || h.ip}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.closeCustom('${tabId}', '${viewId}', event)"></i>`;
+        document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+        const viewEl = document.createElement('div'); viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+        viewEl.innerHTML = '<div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+        document.getElementById('views-container').appendChild(viewEl);
+
+        if(!window.Tabs) window.Tabs = {}; if(!window.Tabs.openTabs) window.Tabs.openTabs = {};
+        const wsId = h.workspace_id || window.AppState.currentWorkspaceId || 0;
+        window.Tabs.openTabs[tabId] = { 
+            domTab: tabEl, domView: viewEl, instance: null,
+            type: 'host',
+            wsId: wsId,
+            navData: { allGroups: window.AppState.allGroups, allHosts: window.AppState.allHosts }
+        };
+        if(window.Tabs && window.Tabs.activate) window.Tabs.activate(tabId);
+
+        setTimeout(() => {
+            const closeBtn = tabEl.querySelector('.tab-close');
+            if(closeBtn) {
+                closeBtn.onclick = function(e) { e.stopPropagation(); try { if(window.Tabs.openTabs[tabId] && window.Tabs.openTabs[tabId].instance && window.Tabs.openTabs[tabId].instance.destroy) window.Tabs.openTabs[tabId].instance.destroy(); } catch(_){}; window.Tabs.closeCustom(tabId, viewId, e); };
+            }
+        }, 20);
+
+        try {
+            // Open SFTP as a standalone page inside an iframe (keeps it fully independent)
+            viewEl.innerHTML = `<iframe src="/host/sftp.html?id=${h.id}" style="width:100%; height:100%; border:none; background:#000"></iframe>`;
+            window.Tabs.openTabs[tabId].instance = null;
+        } catch(err) {
+            console.error('Failed to create SFTP tab:', err);
+            viewEl.innerHTML = `<div style="color:#da3633; padding:20px;">Error creating sftp tab: ${err.message}</div>`;
+        }
+    };
+
+    window.smartConnect = async function(id, protocol, address) {
+        console.log("Connessione avviata:", id, protocol, address);
+
+        // SFTP: always open an independent SFTP app instance/tab
+        if (protocol === 'sftp') {
+            if (window.openSftpInNewTab) { window.openSftpInNewTab(id); return; }
+            if (window.openHostInNewTab) { window.openHostInNewTab(id); return; }
+            if(window.Tabs && window.Tabs.openAppHost) { window.Tabs.openAppHost(id, "sftp.html", "fas fa-exchange-alt"); return; }
+            window.open(`/host/sftp.html?id=${id}`, '_blank');
+            return;
+        }
+
+        if (!protocol || protocol === 'ssh' || protocol === 'ftp' || protocol === 'tunnel') {
+            if(window.API && window.API.connectHost) window.API.connectHost(id);
+            else console.warn("window.API.connectHost non trovato");
+        } else if (protocol === 'web') {
+            let url = address;
+            if (!url.startsWith('http')) url = 'http://' + url;
+            
+            // Logica per passare username/pass nell'URL se è WEB
+            try {
+                const wsId = window.AppState.currentWorkspaceId || 0;
+                const res = await fetch(`/api/host-credentials/${id}?workspace_id=${wsId}`);
+                if (res.ok) {
+                    const creds = await res.json();
+                    if(creds.user && creds.password) {
+                        const urlObj = new URL(url);
+                        urlObj.username = creds.user;
+                        urlObj.password = creds.password;
+                        url = urlObj.toString();
+                    }
+                }
+            } catch(e) { console.warn("Impossibile recuparare credenziali WEB per auto-login"); }
+
+            window.open(url, '_blank');
+        } else if (protocol === 'rdp') {
+            if(window.Tabs) window.Tabs.openAppHost(id, "rdp.html", "fas fa-desktop");
+        } else if (protocol === 'vnc') {
+            if(window.Tabs) window.Tabs.openAppHost(id, "vnc.html", "fas fa-eye");
+        }
+    }
+
+    if (window.Tabs && !window.Tabs.openCustomTab) {
+        window.Tabs.openCustomTab = function(id, title, iconClass, contentHtml) {
+            const tabId = `tab-custom-${id}`; const viewId = `view-custom-${id}`;
+            if (document.getElementById(tabId)) { this.activate(tabId); return; }
+
+            const tabEl = document.createElement('div');
+            tabEl.className = 'tab'; tabEl.id = tabId;
+            tabEl.onclick = () => this.activate(tabId);
+            tabEl.innerHTML = `<i class="${iconClass}"></i> <span class="tab-title">${title}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.closeCustom('${tabId}', '${viewId}', event)"></i>`;
+            document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+            const viewEl = document.createElement('div');
+            viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+            viewEl.innerHTML = contentHtml;
+            document.getElementById('views-container').appendChild(viewEl);
+
+            const h = window.AppState.allHosts.find(x => x.id === id);
+            const wsId = h ? (h.workspace_id || window.AppState.currentWorkspaceId || 0) : (window.AppState.currentWorkspaceId || 0);
+            this.openTabs[tabId] = { 
+                domTab: tabEl, domView: viewEl,
+                wsId: wsId,
+                navData: { allGroups: window.AppState.allGroups, allHosts: window.AppState.allHosts }
+            }; 
+            this.activate(tabId);
+        };
+
+        window.Tabs.openAppHost = async function(hostId, pageFile, iconClass) {
+            const h = window.AppState.allHosts.find(x => x.id === hostId);
+            const tabId = `tab-app-${hostId}`; const viewId = `view-app-${hostId}`;
+            if (document.getElementById(tabId)) { this.activate(tabId); return; }
+
+            const tabEl = document.createElement('div');
+            tabEl.className = 'tab'; tabEl.id = tabId;
+            tabEl.onclick = () => this.activate(tabId);
+            tabEl.innerHTML = `<i class="${iconClass}"></i> <span class="tab-title">${h ? h.name : 'App'}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.closeCustom('${tabId}', '${viewId}', event)"></i>`;
+            document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+            const viewEl = document.createElement('div');
+            viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+            viewEl.innerHTML = '<div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+            document.getElementById('views-container').appendChild(viewEl);
+
+            const wsId = h ? (h.workspace_id || window.AppState.currentWorkspaceId || 0) : (window.AppState.currentWorkspaceId || 0);
+            this.openTabs[tabId] = { 
+                domTab: tabEl, domView: viewEl,
+                type: 'host',
+                wsId: wsId,
+                navData: { allGroups: window.AppState.allGroups, allHosts: window.AppState.allHosts }
+            };
+            this.activate(tabId);
+
+            try {
+                const resp = await fetch(`/host/${pageFile}?id=${hostId}`);
+                if(!resp.ok) throw new Error("Load failed");
+                const html = await resp.text();
+                viewEl.innerHTML = html;
+                const scripts = viewEl.querySelectorAll('script');
+                scripts.forEach(s => {
+                    const script = document.createElement('script');
+                    if (s.src) script.src = s.src;
+                    else script.textContent = s.textContent;
+                    viewEl.appendChild(script);
+                });
+            } catch(e) { 
+                viewEl.innerHTML = `<div style="color:#da3633; padding:20px;">Error loading app: ${e.message}</div>`; 
+            }
+        };
+
+        window.Tabs.closeCustom = function(tabId, viewId, e) {
+            if(e) e.stopPropagation();
+            const tab = document.getElementById(tabId); const view = document.getElementById(viewId);
+            if(tab) tab.remove(); if(view) view.remove();
+            delete this.openTabs[tabId];
+            this.activate('home');
+        };
+    }
+
+    // --- QUICK CONNECT AVANZATO ---
+    window.handleMainQuickEnter = function(e) { 
+        if(e.key === 'Enter') {
+            e.preventDefault();
+            window.mainQuickConnect(); 
+        }
+    }
+
+    window.mainQuickConnect = async function() {
+        const proto = document.getElementById('main-qc-proto').value;
+        const user = document.getElementById('main-qc-user').value.trim();
+        const ip = document.getElementById('main-qc-ip').value.trim();
+        const pass = document.getElementById('main-qc-pass').value;
+
+        if(!ip) { alert("Inserisci Host/IP"); return; }
+        
+        try {
+            const res = await fetch('/api/quickconnect', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ protocol: proto, ip: ip, user: user, password: pass })
+            });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(!res.ok) throw new Error(await res.text());
+            
+            const data = await res.json();
+            
+            const hostId = parseInt(data.host_id);
+            const newHost = {
+                id: hostId,
+                name: `Quick: ${ip}`,
+                ip: ip,
+                user: user,
+                protocol: proto,
+                has_key: false,
+                jump_ip: null,
+                favorite: 0,
+                group_id: null,
+                workspace_id: window.AppState.currentWorkspaceId || 0
+            };
+            if(!window.AppState.allHosts) window.AppState.allHosts = [];
+            window.AppState.allHosts.push(newHost);
+            
+            window.smartConnect(hostId, proto, ip);
+            
+            document.getElementById('main-qc-user').value = '';
+            document.getElementById('main-qc-ip').value = '';
+            document.getElementById('main-qc-pass').value = '';
+        } catch(e) {
+            alert("Errore Quick Connect: " + e.message);
+        }
+    }
+
+    // --- FAVORITES TOGGLE ---
+    window.toggleFavorite = async function(id, e) {
+        if(e) e.stopPropagation();
+        try {
+            const res = await fetch(`/api/hosts/${id}/favorite`, { method: 'POST' });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                if(window.API && window.API.loadData) window.API.loadData();
+            }
+        } catch(e) { console.error(e); }
+    }
+
+    window.filterView = function(inputEl) {
+        window.AppState.searchQuery = inputEl.value.toLowerCase();
+        window.renderActiveView();
+    }
+
+    window.setViewMode = function(mode, el) {
+        window.AppState.viewMode = mode;
+        localStorage.setItem('jconman_view_mode', mode);
+        
+        // Update buttons in the active view
+        const container = document.querySelector('.host-view-instance.active') || document.getElementById('home-view');
+        container.querySelectorAll('.toggle-view-btn').forEach(b => b.classList.remove('active'));
+        el.classList.add('active');
+        window.renderActiveView();
+    }
+
+    // --- DATA COLLECTION ---
+    function collectRecursive(parentId) {
+        if (!window.AppState || !window.AppState.allHosts) return { directHosts: [], subGroups: [] };
+
+        let hosts = window.AppState.allHosts.filter(h => {
+            const grpMatch = (parentId === null) ? (h.group_id === 0 || h.group_id === null) : (h.group_id === parentId);
+            const protoMatch = (window.AppState.currentProtocol === 'all') || (h.protocol === window.AppState.currentProtocol);
+            return grpMatch && protoMatch;
+        });
+        
+        hosts.sort((a, b) => {
+            let valA = a[window.AppState.sortField] || "", valB = b[window.AppState.sortField] || "";
+            if(typeof valA === 'string') valA = valA.toLowerCase();
+            if(typeof valB === 'string') valB = valB.toLowerCase();
+            if(valA < valB) return window.AppState.sortAsc ? -1 : 1;
+            if(valA > valB) return window.AppState.sortAsc ? 1 : -1;
+            return 0;
+        });
+
+        let result = { directHosts: hosts, subGroups: [] };
+        const childrenGroups = window.AppState.allGroups.filter(g => parentId === null ? (g.parent_id === 0 || g.parent_id === null) : g.parent_id === parentId);
+        childrenGroups.sort((a, b) => a.name.localeCompare(b.name));
+
+        childrenGroups.forEach(sub => {
+            const subResult = collectRecursive(sub.id);
+            if (subResult.directHosts.length > 0 || subResult.subGroups.length > 0) {
+                result.subGroups.push({ group: sub, data: subResult });
+            }
+        });
+        return result;
+    }
+
+    // --- RENDER MAIN ---
+    window.renderActiveView = function() {
+        const activeContainer = document.querySelector('.host-view-instance.active') || document.getElementById('home-view');
+        if(activeContainer) window.renderMainView(activeContainer, window.AppState.currentViewGroupId);
+    }
+
+    window.renderMainView = function(viewContainer, rootGroupId) {
+        const container = viewContainer.querySelector('.main-view-content');
+        if(!container) return;
+        container.innerHTML = '';
+        
+        if(window.AppState.searchQuery && window.AppState.searchQuery.length > 0) {
+            container.innerHTML = `<div class="section-header" style="border-bottom: 1px solid #30363d; padding:8px 10px"><div class="section-title" style="color:#e6edf3"><i class="fas fa-search"></i> Search Results</div></div>`;
+            const results = window.AppState.allHosts.filter(h => {
+                    const protoMatch = (window.AppState.currentProtocol === 'all') || (h.protocol === window.AppState.currentProtocol);
+                    const textMatch = h.name.toLowerCase().includes(window.AppState.searchQuery) || h.ip.toLowerCase().includes(window.AppState.searchQuery);
+                    return protoMatch && textMatch;
+            });
+            
+            if(results.length === 0) { container.innerHTML += `<div style="padding:20px; color:#666">No hosts found.</div>`; return; }
+            
+            // Raccogli i group_id degli host trovati
+            const hostGroupIds = new Set(results.map(h => h.group_id).filter(id => id !== null && id !== 0));
+            
+            // Funzione ricorsiva per costruire l'albero dei gruppi contenenti host trovati
+            const buildSearchTree = (parentId) => {
+                const groups = window.AppState.allGroups.filter(g => 
+                    (parentId === null || parentId === undefined || parentId === 0) ? 
+                        (g.parent_id === 0 || g.parent_id === null) : 
+                        g.parent_id === parentId
+                );
+                
+                let result = { hosts: [], subGroups: [] };
+                
+                // Aggiungi host direttamente in questo gruppo
+                if (parentId === null || parentId === undefined || parentId === 0) {
+                    result.hosts = results.filter(h => h.group_id === 0 || h.group_id === null);
+                } else {
+                    result.hosts = results.filter(h => h.group_id === parentId);
+                }
+                
+                // Ricersi nei sottogruppi
+                groups.forEach(group => {
+                    const subTree = buildSearchTree(group.id);
+                    if (subTree.hosts.length > 0 || subTree.subGroups.length > 0) {
+                        result.subGroups.push({ group: group, data: subTree });
+                    }
+                });
+                
+                return result;
+            };
+            
+            const searchTree = buildSearchTree(null);
+            
+            // Render root hosts trovati
+            if (searchTree.hosts.length > 0) {
+                const details = document.createElement('details');
+                details.className = 'section-collapsible';
+                details.open = true;
+                details.innerHTML = `
+                    <summary>
+                        <div class="section-header">
+                            <div class="section-title" style="color:#e6edf3"><span class="collapse-arrow">▶</span> <i class="fas fa-server"></i> Root Hosts</div>
+                        </div>
+                    </summary>
+                `;
+                const content = document.createElement('div');
+                if(window.AppState.viewMode === 'grid') {
+                    const grid = document.createElement('div'); grid.className = 'host-grid';
+                    searchTree.hosts.forEach(h => grid.appendChild(createHostCard(h)));
+                    content.appendChild(grid);
+                } else {
+                    content.appendChild(createHostTable(searchTree.hosts));
+                }
+                details.appendChild(content);
+                container.appendChild(details);
+            }
+            
+            // Render sottogruppi ricorsivamente
+            const renderSearchGroups = (subGroups, parentContainer, depth) => {
+                subGroups.forEach(item => {
+                    const group = item.group;
+                    const data = item.data;
+                    const nestedWrapper = document.createElement('div');
+                    if (depth > 0) nestedWrapper.className = 'nested-section';
+                    
+                    const details = document.createElement('details');
+                    details.className = 'section-collapsible';
+                    details.open = true;
+                    
+                    const bgColor = group.bg_color || 'transparent';
+                    const txtColor = group.text_color || '#e6edf3';
+                    const isCustomBg = bgColor !== 'transparent';
+                    
+                    details.innerHTML = `
+                        <summary>
+                            <div class="section-header" style="background-color: ${bgColor}; border: ${isCustomBg ? 'none' : '1px solid #30363d'}; border-bottom: 1px solid #30363d;" data-id="${group.id}" data-type="group">
+                                <div class="section-title" style="color: ${txtColor}">
+                                    <span class="collapse-arrow">▶</span> <i class="fas fa-folder-open"></i> ${group.name}
+                                </div>
+                                <div class="header-actions" style="color: ${txtColor}">
+                                    <button class="btn-icon-xs" onclick="window.openNewHostModalWithGroup(${group.id}, event)" title="New Host" style="color: ${txtColor}"><i class="fas fa-plus"></i></button>
+                                    <button class="btn-icon-xs" onclick="window.openGroupModalWithParent(${group.id}, event)" title="New Folder" style="color: ${txtColor}"><i class="fas fa-folder-plus"></i></button>
+                                    
+                                    <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+                                    
+                                    <button class="btn-icon-xs" onclick="window.editGroup(${group.id}, event)" title="Edit/Rename" style="color: ${txtColor}"><i class="fas fa-pencil-alt"></i></button>
+                                    <button class="btn-icon-xs" onclick="window.copyGroup(${group.id}, event)" title="Copy Group" style="color: ${txtColor}"><i class="fas fa-copy"></i></button>
+                                    <button class="btn-icon-xs" onclick="window.moveGroup(${group.id}, event)" title="Move Group" style="color: ${txtColor}"><i class="fas fa-arrows-alt"></i></button>
+                                    <button class="btn-icon-xs" onclick="window.deleteGroup(${group.id}, event)" title="Delete" style="color: ${txtColor}"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        </summary>
+                    `;
+                    
+                    const content = document.createElement('div');
+                    if(data.hosts.length > 0) {
+                        if(window.AppState.viewMode === 'grid') {
+                            const grid = document.createElement('div'); grid.className = 'host-grid';
+                            data.hosts.forEach(h => grid.appendChild(createHostCard(h)));
+                            content.appendChild(grid);
+                        } else {
+                            content.appendChild(createHostTable(data.hosts));
+                        }
+                    }
+                    
+                    renderSearchGroups(data.subGroups, content, depth + 1);
+                    details.appendChild(content);
+                    nestedWrapper.appendChild(details);
+                    parentContainer.appendChild(nestedWrapper);
+                });
+            };
+            
+            renderSearchGroups(searchTree.subGroups, container, 0);
+            return;
+        }
+
+        const treeData = collectRecursive(rootGroupId);
+        
+        if(window.AppState.viewMode === 'table' && rootGroupId === null) {
+            const favorites = window.AppState.allHosts.filter(h => h.favorite && (!window.AppState.searchQuery || h.name.toLowerCase().includes(window.AppState.searchQuery)));
+            if(favorites.length > 0) {
+                const favDetails = document.createElement('details');
+                favDetails.className = 'section-collapsible';
+                favDetails.open = true;
+                favDetails.innerHTML = `
+                    <summary>
+                        <div class="section-header">
+                            <div class="section-title" style="color:#e3b341"><span class="collapse-arrow">▶</span> <i class="fas fa-star"></i> Favorites</div>
+                        </div>
+                    </summary>
+                `;
+                const favContent = document.createElement('div');
+                favContent.appendChild(createHostTable(favorites));
+                favDetails.appendChild(favContent);
+                container.appendChild(favDetails);
+            }
+        }
+        
+        if (treeData.directHosts.length > 0) {
+            const sectionTitle = (rootGroupId === null) ? "Root Hosts" : "Hosts";
+            const details = document.createElement('details');
+            details.className = 'section-collapsible';
+            details.open = true;
+            details.innerHTML = `
+                <summary>
+                    <div class="section-header" style="border: 1px solid #30363d;" data-id="${rootGroupId || ''}" data-type="group">
+                        <div class="section-title" style="color:#e6edf3"><span class="collapse-arrow">▶</span> <i class="fas fa-server"></i> ${sectionTitle}</div>
+                        <div class="header-actions">
+                            <button class="btn-icon-xs" onclick="window.openNewHostModalWithGroup(${rootGroupId}, event)" title="Add Host"><i class="fas fa-plus"></i></button>
+                            <button class="btn-icon-xs" onclick="window.openGroupModalWithParent(${rootGroupId}, event)" title="Add Folder"><i class="fas fa-folder-plus"></i></button>
+                            ${rootGroupId === null ? '' : `
+                            <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+                            <button class="btn-icon-xs" onclick="window.editGroup(${rootGroupId}, event)" title="Edit/Rename"><i class="fas fa-pencil-alt"></i></button>
+                            <button class="btn-icon-xs" onclick="window.copyGroup(${rootGroupId}, event)" title="Copy Group"><i class="fas fa-copy"></i></button>
+                            <button class="btn-icon-xs" onclick="window.moveGroup(${rootGroupId}, event)" title="Move Group"><i class="fas fa-arrows-alt"></i></button>
+                            <button class="btn-icon-xs" onclick="window.deleteGroup(${rootGroupId}, event)" title="Delete"><i class="fas fa-trash"></i></button>
+                            `}
+                        </div>
+                    </div>
+                </summary>
+            `;
+            const content = document.createElement('div');
+            if(window.AppState.viewMode === 'grid') {
+                const grid = document.createElement('div'); grid.className = 'host-grid';
+                treeData.directHosts.forEach(h => grid.appendChild(createHostCard(h)));
+                content.appendChild(grid);
+            } else {
+                content.appendChild(createHostTable(treeData.directHosts));
+            }
+            details.appendChild(content);
+            container.appendChild(details);
+
+        } else if (treeData.subGroups.length === 0) {
+            if (rootGroupId !== null) {
+                container.innerHTML = `<div style="padding:40px; text-align:center; color:#444"><i style="display:block; margin-bottom:10px">Empty Folder.</i><button class="btn-pro" onclick="window.openNewHostModalWithGroup(${rootGroupId}, event)">+ Add Host Here</button></div>`;
+            } else {
+                container.innerHTML = `<div style="padding:40px; text-align:center; color:#444"><i>System Empty. Add your first host from the sidebar.</i></div>`;
+            }
+        }
+        
+        renderSubGroupsRecursive(treeData.subGroups, container, 0);
+    }
+
+    function renderSubGroupsRecursive(subGroups, container, depth) {
+        subGroups.forEach(item => {
+            const group = item.group;
+            const data = item.data;
+            const nestedWrapper = document.createElement('div');
+            if (depth > 0) nestedWrapper.className = 'nested-section';
+            
+            const details = document.createElement('details');
+            details.className = 'section-collapsible';
+            details.open = true; 
+            
+            const bgColor = group.bg_color || 'transparent';
+            const txtColor = group.text_color || '#e6edf3';
+            const isCustomBg = bgColor !== 'transparent';
+
+            details.innerHTML = `
+                <summary>
+                    <div class="section-header" style="background-color: ${bgColor}; border: ${isCustomBg ? 'none' : '1px solid #30363d'}; border-bottom: 1px solid #30363d;">
+                        <div class="section-title" style="color: ${txtColor}">
+                            <span class="collapse-arrow">▶</span> <i class="fas fa-folder-open"></i> ${group.name}
+                        </div>
+                        <div class="header-actions" style="color: ${txtColor}">
+                            <button class="btn-icon-xs" onclick="window.openNewHostModalWithGroup(${group.id}, event)" title="New Host" style="color: ${txtColor}"><i class="fas fa-plus"></i></button>
+                            <button class="btn-icon-xs" onclick="window.openGroupModalWithParent(${group.id}, event)" title="New Folder" style="color: ${txtColor}"><i class="fas fa-folder-plus"></i></button>
+                            
+                            <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+                            
+                            <button class="btn-icon-xs" onclick="window.editGroup(${group.id}, event)" title="Edit/Rename" style="color: ${txtColor}"><i class="fas fa-pencil-alt"></i></button>
+                            <button class="btn-icon-xs" onclick="window.copyGroup(${group.id}, event)" title="Copy Group" style="color: ${txtColor}"><i class="fas fa-copy"></i></button>
+                            <button class="btn-icon-xs" onclick="window.moveGroup(${group.id}, event)" title="Move Group" style="color: ${txtColor}"><i class="fas fa-arrows-alt"></i></button>
+                            <button class="btn-icon-xs" onclick="window.deleteGroup(${group.id}, event)" title="Delete" style="color: ${txtColor}"><i class="fas fa-trash"></i></button>
+                        </div>
+                    </div>
+                </summary>
+            `;
+
+            const content = document.createElement('div');
+            if(data.directHosts.length > 0) {
+                if(window.AppState.viewMode === 'grid') {
+                    const grid = document.createElement('div'); grid.className = 'host-grid';
+                    data.directHosts.forEach(h => grid.appendChild(createHostCard(h)));
+                    content.appendChild(grid);
+                } else {
+                    content.appendChild(createHostTable(data.directHosts));
+                }
+            }
+
+            renderSubGroupsRecursive(data.subGroups, content, depth + 1);
+            details.appendChild(content);
+            nestedWrapper.appendChild(details);
+            container.appendChild(nestedWrapper);
+        });
+    }
+
+    // --- CARD CREATION ---
+    function createHostCard(h) {
+        const card = document.createElement('div'); card.className = 'host-card'; card.dataset.id = h.id; card.dataset.type = 'host';
+        let iconClass='icon-ssh', iconCode='fas fa-terminal';
+        if(h.protocol==='rdp') { iconClass='icon-rdp'; iconCode='fas fa-desktop'; }
+        if(h.protocol==='vnc') { iconClass='icon-vnc'; iconCode='fas fa-eye'; }
+        if(h.protocol==='web') { iconClass='icon-web'; iconCode='fas fa-globe'; }
+        if(h.protocol==='ftp' || h.protocol==='sftp') { iconClass='icon-ftp'; iconCode='fas fa-exchange-alt'; }
+        if(h.protocol==='jumphost') { iconClass='icon-jump'; iconCode='fas fa-route'; }
+        if(h.protocol==='tunnel') { iconClass='icon-tunnel'; iconCode='fas fa-project-diagram'; }
+        
+        const passTextId = `pass-txt-${h.id}`;
+        const passIconId = `pass-icon-${h.id}`;
+        const favClass = h.favorite ? 'active' : '';
+        const favIcon = h.favorite ? 'fas' : 'far';
+        const hasJump = h.jump_ip || h.jump_host_id ? true : false;
+        const protoColor = window.getProtocolColor(h.protocol);
+        const protoBg = window.getProtocolBg(h.protocol);
+        const effectiveUser = window.getEffectiveUser(h);
+        
+        const isTunnel = h.protocol === 'tunnel';
+        const isJump = h.protocol === 'jumphost';
+        const isTunnelActive = isTunnel && window.AppState.activeTunnels && window.AppState.activeTunnels.has(h.id);
+        
+        card.innerHTML = `
+            <input type="checkbox" class="card-bulk-check bulk-check" data-id="${h.id}" onchange="window.updateBulkBar(this)">
+            <button class="card-fav-btn ${favClass}" onclick="window.toggleFavorite(${h.id}, event)">
+                <i class="${favIcon} fa-star"></i>
+            </button>
+            <div class="card-top">
+                <div class="card-header-row">
+                    <div class="host-icon-box ${iconClass}"><i class="${iconCode}"></i></div>
+                    <div class="host-title-box">
+                        <h4 onclick="window.smartConnect(${h.id}, '${h.protocol}', '${h.ip}')" title="Click to Connect">${h.name}</h4>
+                        <span style="color:${protoColor}; background:${protoBg}; padding:2px 6px; border-radius:3px; display:inline-block; font-size:0.8em;">${h.protocol.toUpperCase()}</span>
+                    </div>
+                    ${isTunnelActive ? '<div class="host-status-dot" style="display:block" title="Tunnel Active"></div>' : ''}
+                </div>
+            </div>
+            <div class="host-details">
+                <div class="detail-row"><span>Address:</span> <span class="detail-val" title="${h.ip}">${h.ip}</span></div>
+                <div class="detail-row"><span>User:</span> <span class="detail-val" title="${effectiveUser}">${effectiveUser}</span></div>
+                <div class="detail-row"><span>Jump:</span> <span style="color:${hasJump?'#238636':'#484f58'}">${hasJump ? 'Yes' : 'No'}</span></div>
+                <div class="detail-row"><span>Pass:</span> 
+                    <div class="pass-container">
+                        <span class="detail-val" id="${passTextId}">••••••</span> 
+                        <i id="${passIconId}" class="fas fa-eye pass-toggle" onclick="window.togglePass('${passTextId}', '${passIconId}', ${h.id})"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="card-actions">
+                ${isJump ? '' : (isTunnel ? 
+                    (isTunnelActive ? 
+                        `<button class="btn-card btn-stop-tunnel" onclick="window.toggleTunnel(${h.id}, false)"><i class="fas fa-stop"></i> STOP TUNNEL</button>` : 
+                        `<button class="btn-card btn-connect" onclick="window.toggleTunnel(${h.id}, true)"><i class="fas fa-play"></i> START TUNNEL</button>`) 
+                    : `<button class="btn-card btn-connect" onclick="window.smartConnect(${h.id}, '${h.protocol}', '${h.ip}')"><i class="fas fa-plug"></i> CONNECT</button>`)}
+                <button class="btn-card btn-icon" onclick="window.openSftpInNewTab(${h.id}, event)" title="Open SFTP"><i class="fas fa-folder-open"></i></button>
+                <button class="btn-card btn-icon" onclick='window.prepareEditHost(${h.id})'><i class="fas fa-pen"></i></button>
+                <button class="btn-card btn-icon" onclick='window.prepareCloneHost(${h.id})'><i class="fas fa-copy"></i></button>
+                <button class="btn-card btn-icon btn-danger-icon" onclick="window.deleteHost(${h.id})"><i class="fas fa-trash"></i></button>
+            </div>
+        `;
+        return card;
+    }
+
+    // --- TABLE CREATION ---
+    function createHostTable(hosts) {
+        const table = document.createElement('table'); table.className = 'host-table';
+        table.innerHTML = `<thead><tr><th style="width:30px"></th>
+            <th onclick="window.sortTable('name')" style="width:25%">Name <i class="fas fa-sort"></i></th>
+            <th onclick="window.sortTable('protocol')" style="width:80px">Proto <i class="fas fa-sort"></i></th>
+            <th onclick="window.sortTable('ip')" style="width:150px">Address <i class="fas fa-sort"></i></th>
+            <th style="width:60px">Jump</th>
+            <th style="width:100px">User</th>
+            <th style="width:120px">Pass</th>
+            <th style="width:60px; text-align:center">Key</th>
+            <th style="width:160px; text-align:right">Actions</th></tr></thead><tbody></tbody>`;
+        const tbody = table.querySelector('tbody');
+        
+        hosts.forEach(h => {
+            const passTextId = `tbl-pass-txt-${h.id}`;
+            const passIconId = `tbl-pass-icon-${h.id}`;
+            const tr = document.createElement('tr');
+            tr.dataset.id = h.id; tr.dataset.type = 'host';
+            const favClass = h.favorite ? 'active' : '';
+            const favIcon = h.favorite ? 'fas' : 'far';
+            const hasJump = h.jump_ip || h.jump_host_id ? true : false;
+            const hasKey = h.has_key ? 'Yes' : 'No';
+            const protoColor = window.getProtocolColor(h.protocol);
+            const protoBg = window.getProtocolBg(h.protocol);
+            const effectiveUser = window.getEffectiveUser(h);
+            
+            const isTunnel = h.protocol === 'tunnel';
+            const isJump = h.protocol === 'jumphost';
+            const isTunnelActive = isTunnel && window.AppState.activeTunnels && window.AppState.activeTunnels.has(h.id);
+
+            tr.innerHTML = `
+                <td><input type="checkbox" class="bulk-check" data-id="${h.id}" onchange="window.updateBulkBar(this)"></td>
+                <td>
+                    <div class="td-name-wrapper">
+                        <i class="${favIcon} fa-star tbl-fav-btn ${favClass}" onclick="window.toggleFavorite(${h.id}, event)"></i>
+                        <span class="td-name-text" title="${h.name}" onclick="window.smartConnect(${h.id}, '${h.protocol}', '${h.ip}')">${h.name}</span>
+                        ${isTunnelActive ? '<div class="host-status-dot" style="display:block; position:static; margin-left:5px;" title="Tunnel Active"></div>' : ''}
+                    </div>
+                </td>
+                <td><span style="font-family:monospace; background:${protoBg}; color:${protoColor}; padding:2px 5px; border-radius:3px; border:1px solid ${protoColor}">${h.protocol.toUpperCase()}</span></td>
+                <td style="font-family:monospace" title="${h.ip}">${h.ip}</td>
+                <td><span style="color:${hasJump?'#238636':'#484f58'}">${hasJump ? 'Yes' : 'No'}</span></td>
+                <td style="color:#8b949e" title="${effectiveUser}">${effectiveUser}</td>
+                <td>
+                    <div class="pass-container">
+                        <span style="font-family:monospace; color:#8b949e" id="${passTextId}">••••••</span>
+                        <i id="${passIconId}" class="fas fa-eye pass-toggle" onclick="window.togglePass('${passTextId}', '${passIconId}', ${h.id})"></i>
+                    </div>
+                </td>
+                <td style="text-align:center; color:${hasKey==='Yes'?'#58a6ff':'#484f58'}">${hasKey}</td>
+                <td>
+                    <div class="table-actions">
+                        ${isJump ? '' : (isTunnel ? 
+                            (isTunnelActive ? 
+                                `<button class="btn-pro" style="padding:4px 8px; font-size:0.8em; color:#da3633; border-color:#da3633" onclick="window.toggleTunnel(${h.id}, false)">Stop</button>` : 
+                                `<button class="btn-pro btn-primary" style="padding:4px 8px; font-size:0.8em" onclick="window.toggleTunnel(${h.id}, true)">Start</button>`) 
+                            : `<button class="btn-pro btn-primary" style="padding:4px 8px; font-size:0.8em" onclick="window.smartConnect(${h.id}, '${h.protocol}', '${h.ip}')">Connect</button>`)}
+                        <button class="btn-pro" style="padding:4px 8px; font-size:0.8em" onclick="window.openSftpInNewTab(${h.id}, event)" title="Open SFTP"><i class="fas fa-folder-open"></i></button>
+                        <button class="btn-pro" style="padding:4px 8px; font-size:0.8em" onclick='window.prepareEditHost(${h.id})'><i class="fas fa-pen"></i></button>
+                        <button class="btn-pro" style="padding:4px 8px; font-size:0.8em" onclick='window.prepareCloneHost(${h.id})' title="Duplicate"><i class="fas fa-copy"></i></button>
+                        <button class="btn-pro" style="padding:4px 8px; font-size:0.8em" onclick='window.deleteHost(${h.id})' style="color:#da3633"><i class="fas fa-trash"></i></button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        return table;
+    }
+
+    // --- ACTIONS ---
+    window.togglePass = async function(textId, iconId, hostId) {
+        const textEl = document.getElementById(textId);
+        const iconEl = document.getElementById(iconId);
+        
+        if (textEl.innerText.includes('•')) {
+            try {
+                const wsId = window.AppState.currentWorkspaceId || 0;
+                const res = await fetch(`/api/host-credentials/${hostId}?workspace_id=${wsId}`);
+                if (!res.ok) throw new Error("Err");
+                const data = await res.json();
+                
+                const pass = data.password ? data.password : "(No Password)";
+                
+                textEl.innerText = pass;
+                iconEl.classList.remove('fa-eye');
+                iconEl.classList.add('fa-eye-slash');
+            } catch (e) {
+                textEl.innerText = "Error";
+            }
+        } else {
+            textEl.innerText = '••••••';
+            iconEl.classList.remove('fa-eye-slash');
+            iconEl.classList.add('fa-eye');
+        }
+    }
+
+    window.updateBulkBar = function(el) {
+        let container = document;
+        if (el && el.closest) {
+            container = el.closest('.layout-container');
+        } else {
+            const active = document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+            if (active) container = active;
+        }
+        if (!container) return;
+
+        const checked = container.querySelectorAll('.bulk-check:checked');
+        const count = checked.length;
+        
+        const bar = container.querySelector('.bulk-bar');
+        const countSpan = container.querySelector('.selected-count');
+        if(countSpan) countSpan.innerText = count;
+        if(bar) bar.style.display = count > 0 ? 'flex' : 'none';
+    }
+
+    // --- BULK MOVE ---
+    window.getScopedSelection = function(btn) {
+        let container = document;
+        if (btn && btn.closest) {
+            container = btn.closest('.layout-container');
+        } else {
+            const active = document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+            if (active) container = active;
+        }
+        const checked = container.querySelectorAll('.bulk-check:checked');
+        const ids = new Set();
+        checked.forEach(c => ids.add(parseInt(c.dataset.id)));
+        return ids;
+    }
+
+    window.bulkMove = function(btn) {
+        const selection = window.getScopedSelection(btn);
+        if(selection.size === 0) return;
+
+        let container = btn.closest('.layout-container');
+        if (!container.id) container.id = 'layout-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        const containerId = container.id;
+        
+        const m = document.createElement('div');
+        m.className = 'modal active';
+        let opts = `<option value="">/ (Root)</option>`;
+        window.AppState.allGroups.forEach(g => { opts += `<option value="${g.id}">${g.name}</option>`; });
+        
+        m.innerHTML = `
+            <div class="modal-content" style="width:400px">
+                <div class="modal-header">Move ${selection.size} Hosts</div>
+                <div class="form-group">
+                    <label>Destination Folder</label>
+                    <select id="bulk-move-target">${opts}</select>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-pro" onclick="this.closest('.modal').remove()">Cancel</button>
+                    <button class="btn-pro btn-primary" onclick="window.executeBulkMove(this.closest('.modal'), '${Array.from(selection).join(',')}', '${containerId}')">Move</button>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+    }
+
+    window.executeBulkMove = async function(modalEl, idsStr, containerId) {
+        const targetId = document.getElementById('bulk-move-target').value;
+        const hostIds = idsStr.split(',').map(Number);
+        const wsId = window.AppState.currentWorkspaceId || 0;
+        
+        try {
+            const res = await fetch(`/api/hosts/bulk-move?workspace_id=${wsId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ host_ids: hostIds, target_group_id: targetId ? parseInt(targetId) : null })
+            });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            
+            // Optimistic Update: Rimuovi gli host spostati dalla vista corrente
+            hostIds.forEach(id => {
+                document.querySelectorAll(`.host-card[data-id="${id}"], tr[data-id="${id}"]`).forEach(el => el.remove());
+                
+                // Aggiorna AppState locale per evitare che ricompaiano al re-render
+                if(window.AppState && window.AppState.allHosts) {
+                    const host = window.AppState.allHosts.find(h => h.id === id);
+                    if(host) host.group_id = targetId ? parseInt(targetId) : null;
+                }
+            });
+            
+            // Forza un re-render della vista attiva per riflettere i cambiamenti
+            window.renderActiveView();
+            
+            // Reset UI selezione nel tab attivo
+            const activeContainer = document.getElementById(containerId) || document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+            if(activeContainer) {
+                const bar = activeContainer.querySelector('.bulk-bar');
+                if(bar) bar.style.display = 'none';
+                activeContainer.querySelectorAll('.bulk-check').forEach(c => c.checked = false);
+                const countSpan = activeContainer.querySelector('.selected-count');
+                if(countSpan) countSpan.innerText = '0';
+            }
+
+            modalEl.remove();
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) { alert("Errore durante lo spostamento: " + e.message); }
+    }
+
+    // --- BULK COPY ---
+    window.bulkCopy = function(btn) {
+        const selection = window.getScopedSelection(btn);
+        if(selection.size === 0) return;
+
+        let container = btn.closest('.layout-container');
+        if (!container.id) container.id = 'layout-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+        const containerId = container.id;
+        
+        const m = document.createElement('div');
+        m.className = 'modal active';
+        let opts = `<option value="">/ (Root)</option>`;
+        window.AppState.allGroups.forEach(g => { opts += `<option value="${g.id}">${g.name}</option>`; });
+        
+        m.innerHTML = `
+            <div class="modal-content" style="width:400px">
+                <div class="modal-header">Copy ${selection.size} Hosts</div>
+                <div class="form-group">
+                    <label>Destination Folder</label>
+                    <select id="bulk-copy-target">${opts}</select>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-pro" onclick="this.closest('.modal').remove()">Cancel</button>
+                    <button class="btn-pro btn-primary" onclick="window.executeBulkCopy(this.closest('.modal'), '${Array.from(selection).join(',')}', '${containerId}')">Copy</button>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+    }
+
+    window.executeBulkCopy = async function(modalEl, idsStr, containerId) {
+        const targetId = document.getElementById('bulk-copy-target').value;
+        const hostIds = idsStr.split(',').map(Number);
+        const wsId = window.AppState.currentWorkspaceId || 0;
+        
+        try {
+            const res = await fetch(`/api/hosts/bulk-copy?workspace_id=${wsId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ host_ids: hostIds, target_group_id: targetId ? parseInt(targetId) : null })
+            });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            
+            // Reset UI selezione nel tab attivo
+            const activeContainer = document.getElementById(containerId) || document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+            if(activeContainer) {
+                const bar = activeContainer.querySelector('.bulk-bar');
+                if(bar) bar.style.display = 'none';
+                activeContainer.querySelectorAll('.bulk-check').forEach(c => c.checked = false);
+                const countSpan = activeContainer.querySelector('.selected-count');
+                if(countSpan) countSpan.innerText = '0';
+            }
+            modalEl.remove();
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) { alert("Errore durante la copia: " + e.message); }
+    }
+
+    window.bulkDelete = async function(btn) {
+        const selection = window.getScopedSelection(btn);
+        if(!confirm(`Delete ${selection.size} hosts?`)) return;
+        for(let id of selection) { 
+            const res = await fetch('/api/hosts/'+id, {method:'DELETE'}); 
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                // Optimistic Update: Rimuovi dal DOM
+                document.querySelectorAll(`.host-card[data-id="${id}"], tr[data-id="${id}"]`).forEach(el => el.remove());
+                
+                // Rimuovi da AppState locale
+                if(window.AppState && window.AppState.allHosts) {
+                    const idx = window.AppState.allHosts.findIndex(h => h.id === id);
+                    if(idx !== -1) window.AppState.allHosts.splice(idx, 1);
+                }
+            }
+        }
+        
+        // Nascondi barra e resetta checkbox nel container corrente
+        let container = document;
+        if (btn && btn.closest) container = btn.closest('.layout-container');
+        if (!container) container = document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+        
+        const bar = container.querySelector('.bulk-bar');
+        if(bar) bar.style.display = 'none';
+        container.querySelectorAll('.bulk-check').forEach(c => c.checked = false);
+        const countSpan = container.querySelector('.selected-count');
+        if(countSpan) countSpan.innerText = '0';
+
+        if(window.API && window.API.loadData) window.API.loadData();
+    }
+    
+    window.sortTable = function(field) {
+        if(window.AppState.sortField === field) window.AppState.sortAsc = !window.AppState.sortAsc;
+        else { window.AppState.sortField = field; window.AppState.sortAsc = true; }
+        window.renderActiveView();
+    }
+
+    window.deleteHost = async function(hostId) {
+        const host = window.AppState.allHosts.find(h => h.id === hostId);
+        if(!host) return;
+        if(!confirm(`Delete host "${host.name}"?`)) return;
+        
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            const res = await fetch(`/api/hosts/${hostId}?workspace_id=${wsId}`, { method: 'DELETE' });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                if(window.API && window.API.loadData) window.API.loadData();
+            } else {
+                alert("Error deleting host: " + await res.text());
+            }
+        } catch(e) {
+            alert("Error: " + e.message);
+        }
+    }
+
+    window.deleteGroup = async function(groupId, e) {
+        if(e) e.stopPropagation();
+        const group = window.AppState.allGroups.find(g => g.id === groupId);
+        if(!group) return;
+        if(!confirm(`Delete folder "${group.name}" and all its contents?`)) return;
+        
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            const res = await fetch(`/api/groups/${groupId}?workspace_id=${wsId}`, { method: 'DELETE' });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                if(window.API && window.API.loadData) window.API.loadData();
+            } else {
+                alert("Error deleting group: " + await res.text());
+            }
+        } catch(e) {
+            alert("Error: " + e.message);
+        }
+    }
+
+    // --- TUNNEL MANAGEMENT ---
+    window.toggleTunnel = function(id, start) {
+        // Send command to bridge via a temporary websocket or existing mechanism?
+        // Since main view doesn't have a persistent WS, we use the API to trigger the bridge action via server?
+        // No, the server forwards WS messages. We need a WS connection here or use the one from a tab?
+        // Actually, main-view.html is loaded inside index.html which might not have a global WS.
+        // BUT, we can use a temporary WS just to send the command, or rely on the fact that the user likely has a dashboard open?
+        // Better: Open a short-lived WS to send the command.
+        
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+        const ws = new WebSocket(wsUrl);
+        
+        ws.onopen = () => {
+            const action = start ? "start" : "stop";
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            console.log(`[Tunnel] Sending ${action} for host ${id} in workspace ${wsId}`);
+            ws.send(JSON.stringify({ 
+                type: "tunnel_ctl", 
+                host_id: id, 
+                payload: { 
+                    action: action,
+                    workspace_id: wsId
+                } 
+            }));
+            setTimeout(() => ws.close(), 1000); // Close after sending
+        };
+        // Optimistic update handled by WS event listener below
+    }
+
+    // --- MAIN VIEW CONTEXT MENU ---
+    // Use global delegation to handle dynamic tabs/workspaces correctly
+    if (!window._mainViewCtxListenerAttached) {
+        window._mainViewCtxListenerAttached = true;
+        
+        document.addEventListener('contextmenu', function(e) {
+            const contentEl = e.target.closest('.layout-container');
+            if (!contentEl) return;
+
+            e.preventDefault();
+            e.stopPropagation();
+
+            // Check if we clicked on a host card/row or a group header
+            const hostEl = e.target.closest('.host-card') || e.target.closest('tr[data-type="host"]');
+            const groupEl = e.target.closest('.section-header');
+
+            // Use sidebar's context menu logic if available
+            if (window.showSidebarContextMenu) {
+                const x = e.clientX;
+                const y = e.clientY;
+                let items = [];
+
+                if (hostEl) {
+                    const id = parseInt(hostEl.dataset.id);
+                    const h = window.AppState.allHosts.find(x => x.id === id);
+                    if(h) {
+                        const parentGroup = h.group_id || null;
+                        items = [
+                            { label: 'Connect', icon: 'fas fa-plug', onClick: () => window.smartConnect(id, h.protocol, h.ip) },
+                            { label: 'Connect in New Tab', icon: 'fas fa-external-link-alt', onClick: () => window.openHostInNewTab(id) },
+                            { label: 'Open SFTP', icon: 'fas fa-folder-open', onClick: () => window.openSftpInNewTab(id) },
+                            { label: 'New Group', icon: 'fas fa-folder-plus', onClick: () => { if(window.openGroupModalWithParent) window.openGroupModalWithParent(parentGroup); } },
+                            { label: 'New Host', icon: 'fas fa-plus', onClick: () => { if(window.openNewHostModalWithGroup) window.openNewHostModalWithGroup(parentGroup); else if(window.openNewHostModal) window.openNewHostModal(); } },
+                            { label: 'Edit', icon: 'fas fa-pen', onClick: () => window.prepareEditHost(id) },
+                            { label: 'Copy Host', icon: 'fas fa-copy', onClick: () => { if(window.prepareCloneHost) window.prepareCloneHost(id); } },
+                            { label: 'Delete', icon: 'fas fa-trash', onClick: () => window.deleteHost(id) },
+                            { label: 'Toggle Favorite', icon: 'fas fa-star', onClick: () => window.toggleFavorite(id) }
+                        ];
+                    }
+                } else if (groupEl) {
+                    const idStr = groupEl.dataset.id;
+                    const groupId = (idStr && idStr !== "null") ? parseInt(idStr) : null;
+                    
+                    items = [
+                        { label: 'Open Group (select)', icon: 'fas fa-folder-open', onClick: () => window.selectGroup(groupId) },
+                        { label: 'New Host', icon: 'fas fa-plus', onClick: () => { if(window.openNewHostModalWithGroup) window.openNewHostModalWithGroup(groupId); } },
+                        { label: 'New Group', icon: 'fas fa-folder-plus', onClick: () => { if(window.openGroupModalWithParent) window.openGroupModalWithParent(groupId); } }
+                    ];
+                    
+                    if (groupId !== null) {
+                        items.push({ label: 'Edit Group', icon: 'fas fa-pen', onClick: () => window.editGroup(groupId) });
+                        items.push({ label: 'Copy Group', icon: 'fas fa-copy', onClick: () => window.copyGroup(groupId) });
+                        items.push({ label: 'Move Group', icon: 'fas fa-arrows-alt', onClick: () => window.moveGroup(groupId) });
+                        items.push({ label: 'Delete Group', icon: 'fas fa-trash', onClick: () => window.deleteGroup(groupId) });
+                    }
+                } else {
+                    // Empty space context menu
+                    const currentGroup = window.AppState.currentViewGroupId;
+                    items = [
+                        { label: 'New Host', icon: 'fas fa-plus', onClick: () => { if(window.openNewHostModalWithGroup) window.openNewHostModalWithGroup(currentGroup); } },
+                        { label: 'New Folder', icon: 'fas fa-folder-plus', onClick: () => { if(window.openGroupModalWithParent) window.openGroupModalWithParent(currentGroup); } },
+                        { label: 'Refresh', icon: 'fas fa-sync', onClick: () => { if(window.API && window.API.loadData) window.API.loadData(); } }
+                    ];
+                }
+
+                if (items.length > 0) {
+                    window.showSidebarContextMenu(x, y, items);
+                }
+            }
+        });
+    }
+    
+    // --- GLOBAL WS LISTENER FOR STATUS UPDATES ---
+    // We need a persistent WS in the main app to listen for status updates (tunnels, etc)
+    if (!window._statusWs) {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        window._statusWs = new WebSocket(`${protocol}//${window.location.host}/ws/client`);
+        
+        window._statusWs.onopen = () => {
+            window._statusWs.send(JSON.stringify({ type: "subscribe", host_id: 0 }));
+        };
+
+        window._statusWs.onmessage = (e) => {
+            try {
+                const msg = JSON.parse(e.data);
+                if (msg.type === "tunnel_status") {
+                    const hid = msg.payload.host_id || msg.host_id;
+                    if (window.AppState.connectingTunnels) {
+                        window.AppState.connectingTunnels.delete(hid);
+                    }
+                    if (msg.payload.error) {
+                        alert("Tunnel Error: " + msg.payload.error);
+                    }
+                    if (msg.payload.active) {
+                        window.AppState.activeTunnels.add(hid);
+                    } else {
+                        window.AppState.activeTunnels.delete(hid);
+                    }
+                    window.renderActiveView(); // Refresh UI
+                    if(window.renderSidebar) window.renderSidebar(); // Refresh Sidebar Dots
+                }
+                if (msg.type === "tunnel_list") {
+                    if (msg.payload.active_ids && Array.isArray(msg.payload.active_ids)) {
+                        msg.payload.active_ids.forEach(id => window.AppState.activeTunnels.add(id));
+                        window.renderActiveView();
+                        if(window.renderSidebar) window.renderSidebar();
+                    }
+                }
+            } catch(err) {}
+        };
+        // Reconnect logic could be added here
+    }
+</script>

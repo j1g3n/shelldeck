@@ -1,0 +1,720 @@
+<style>
+    /* MODAL STYLES */
+    .modal { 
+        display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; 
+        background: rgba(0,0,0,0.85); backdrop-filter: blur(4px); z-index: 2000; 
+        align-items: center; justify-content: center; 
+    }
+    .modal.active { display: flex; }
+    
+    .modal-content { 
+        background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px; 
+        padding: 30px; width: 600px; 
+        max-height: 85vh; overflow-y: auto; 
+        box-shadow: 0 20px 50px rgba(0,0,0,0.6); 
+        display: flex; flex-direction: column;
+    }
+
+    .modal-header { 
+        font-size: 1.3em; font-weight: 700; margin-bottom: 25px; 
+        color: var(--text-primary); border-bottom: 1px solid var(--border); 
+        padding-bottom: 15px; display: flex; justify-content: space-between; align-items: center;
+    }
+
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+    .form-group { margin-bottom: 15px; position: relative; }
+    
+    .form-group label { 
+        display: block; margin-bottom: 8px; color: var(--text-secondary); 
+        font-size: 0.85em; font-weight: 600; 
+    }
+    
+    .form-group input, .form-group select, .form-group textarea { 
+        width: 100%; padding: 10px 12px; background: #0d1117; 
+        border: 1px solid #30363d; color: var(--text-primary); border-radius: 6px; 
+        font-family: inherit; font-size: 0.95em; transition: border 0.2s; box-sizing: border-box;
+    }
+    .form-group textarea { height: 80px; font-family: monospace; font-size: 0.8em; resize: vertical; }
+    
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { 
+        outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(35, 134, 54, 0.2); 
+    }
+
+    .toggle-pass-icon {
+        position: absolute; right: 12px; top: 38px; cursor: pointer; color: var(--text-dim);
+    }
+    .toggle-pass-icon:hover { color: var(--text-primary); }
+
+    .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; border-top: 1px solid var(--border); padding-top: 20px; }
+    
+    .btn-pro { 
+        background: #21262d; border: 1px solid var(--border); color: var(--text-primary); 
+        padding: 8px 16px; border-radius: 6px; font-size: 12px; font-weight: 600; 
+        cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; gap: 8px; 
+    }
+    .btn-pro:hover { border-color: var(--text-secondary); background: #30363d; }
+    .btn-primary { background: var(--accent); border-color: rgba(255,255,255,0.1); color: white; }
+    .btn-primary:hover { background: #2ea043; }
+
+    /* Custom Sections */
+    .jump-host-section, .tunnel-section, .key-viewer-section {
+        background: rgba(255, 255, 255, 0.03); border: 1px solid #30363d; border-radius: 6px; padding: 15px; margin-top: 10px; display: none;
+    }
+    .active-section { display: block; }
+</style>
+
+<div class="modal" id="modal-host">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="modal-host-title">Host Configuration</span>
+            <i class="fas fa-times" style="cursor:pointer; font-size:0.8em" onclick="window.closeModal('modal-host')"></i>
+        </div>
+        
+        <input type="hidden" id="host-id-hidden">
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>Protocol</label>
+                <select id="host-proto" onchange="window.toggleWebFields()">
+                    <option value="ssh">SSH</option>
+                    <option value="sftp">SFTP</option>
+                    <option value="ftp">FTP</option>
+                    <option value="rdp">RDP</option>
+                    <option value="vnc">VNC</option>
+                    <option value="web">WEB (HTTP/S)</option>
+                    <option value="jumphost">JumpHost</option>
+                    <option value="tunnel">Tunnel</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target Group</label>
+                <select id="host-group"></select>
+            </div>
+        </div>
+        
+        <div class="form-row">
+            <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" id="host-name" placeholder="e.g. Prod-DB-01">
+            </div>
+            <div class="form-group">
+                <label id="lbl-ip">Address / IP</label>
+                <input type="text" id="host-ip" placeholder="10.0.0.50">
+            </div>
+        </div>
+
+        <div style="border-top:1px solid var(--border); padding-top:15px; margin-top:5px">
+            <label style="color:var(--accent); margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; font-size:0.9em">
+                <span><i class="fas fa-shield-alt"></i> Credentials & Security</span>
+                <span id="key-badge" style="display:none; background:#238636; color:white; padding:2px 8px; border-radius:10px; font-size:0.8em;"><i class="fas fa-key"></i> Key Configured</span>
+            </label>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="host-user" placeholder="root">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="host-pass" placeholder="••••••••">
+                    <i class="fas fa-eye toggle-pass-icon" onclick="window.toggleModalPass('host-pass', this)"></i>
+                </div>
+            </div>
+
+            <div id="ssh-fields">
+                <div style="margin-bottom: 15px;">
+                    <label style="display:flex; align-items:center; cursor:pointer; gap:10px; color:#58a6ff; font-weight:bold;">
+                        <input type="checkbox" id="host-auto-key" style="width:auto; margin:0;">
+                        <span><i class="fas fa-magic"></i> Auto-Setup SSH Key (ssh-copy-id)</span>
+                    </label>
+                </div>
+
+                <div class="form-group" id="ssh-key-group">
+                    <label>Private Key (PEM/PPK)</label>
+                    <textarea id="host-key" placeholder="-----BEGIN PRIVATE KEY----- ... (Lascia vuoto per generare in auto)"></textarea>
+                </div>
+
+                <div id="current-key-viewer" class="key-viewer-section">
+                    <label style="color:#d2a8ff"><i class="fas fa-lock"></i> Current Public Key in use</label>
+                    <div style="background:#000; padding:10px; border-radius:4px; font-family:monospace; font-size:0.75em; color:#8b949e; word-break:break-all;" id="current-key-val">ssh-rsa AAAAB3NzaC1...</div>
+                    <button class="btn-pro" style="margin-top:10px;" onclick="document.getElementById('host-key').value=''; alert('Inserisci o genera una nuova chiave e salva.');"><i class="fas fa-redo"></i> Replace Key</button>
+                </div>
+
+                <div class="form-group" style="margin-top:15px">
+                    <label>Passphrase</label>
+                    <input type="password" id="host-passphrase">
+                    <i class="fas fa-eye toggle-pass-icon" onclick="window.toggleModalPass('host-passphrase', this)"></i>
+                </div>
+
+                <div style="margin-top:15px;">
+                    <label style="display:flex; align-items:center; cursor:pointer; gap:10px;">
+                        <input type="checkbox" id="host-use-jump" onchange="window.toggleJumpHost(this.checked)" style="width:auto; margin:0;">
+                        <span>Use Jump Host (Bastion)</span>
+                    </label>
+                </div>
+
+                <div id="jump-host-config" class="jump-host-section">
+                    <div class="form-group">
+                        <label style="color:#d29922">Select Existing JumpHost</label>
+                        <select id="jump-predefined" onchange="window.handlePredefinedJump(this.value)">
+                            <option value="">-- Custom Manual Entry --</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Jump Address</label><input type="text" id="jump-ip" placeholder="jump.example.com"></div>
+                        <div class="form-group"><label>Jump Port</label><input type="text" id="jump-port" value="22"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Jump User</label><input type="text" id="jump-user" placeholder="root"></div>
+                        <div class="form-group"><label>Jump Password</label><input type="password" id="jump-pass"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tunnel-fields" class="tunnel-section">
+                <label style="color:#8957e5; margin-bottom:15px; display:block;"><i class="fas fa-project-diagram"></i> Tunnel Configuration</label>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Tunnel Type</label>
+                        <select id="tunnel-type">
+                            <option value="L">Local Forwarding (-L)</option>
+                            <option value="R">Remote Forwarding (-R)</option>
+                            <option value="D">Dynamic SOCKS (-D)</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>Local Port</label><input type="text" id="tunnel-lport" placeholder="8080"></div>
+                </div>
+                <div class="form-row" id="tunnel-remote-row">
+                    <div class="form-group"><label>Remote Host</label><input type="text" id="tunnel-rhost" placeholder="localhost or IP"></div>
+                    <div class="form-group"><label>Remote Port</label><input type="text" id="tunnel-rport" placeholder="80"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-pro" onclick="window.closeModal('modal-host')">Cancel</button>
+            <button class="btn-pro btn-primary" onclick="window.submitHost()"><i class="fas fa-save"></i> Save Host</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="modal-group">
+    <div class="modal-content">
+        <div class="modal-header">
+            <span id="modal-group-title">Folder Configuration</span>
+            <i class="fas fa-times" style="cursor:pointer; font-size:0.8em" onclick="window.closeModal('modal-group')"></i>
+        </div>
+        
+        <input type="hidden" id="group-id-hidden">
+
+        <div class="form-group"><label>Parent Folder</label><select id="new-group-parent"></select></div>
+        <div class="form-group"><label>Folder Name</label><input type="text" id="input-group-name"></div>
+        
+        <div class="form-row" style="margin-top:20px; border-top:1px solid #30363d; padding-top:15px;">
+            <div class="form-group">
+                <label>Label Text Color</label>
+                <select id="grp-color-txt">
+                    <option value="#e6edf3">Default (White/Gray)</option>
+                    <option value="#58a6ff">Blue</option>
+                    <option value="#3fb950">Green</option>
+                    <option value="#d29922">Yellow</option>
+                    <option value="#f85149">Red</option>
+                    <option value="#bc8cff">Purple</option>
+                    <option value="#000000">Black</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Label Background</label>
+                <select id="grp-color-bg">
+                    <option value="transparent">Transparent</option>
+                    <option value="#1f6feb">Solid Blue</option>
+                    <option value="#238636">Solid Green</option>
+                    <option value="#9e6a03">Solid Yellow</option>
+                    <option value="#da3633">Solid Red</option>
+                    <option value="#8957e5">Solid Purple</option>
+                    <option value="#ffffff">Solid White</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="margin-top:15px; border-top:1px solid #30363d; padding-top:15px;">
+            <label style="display:flex; align-items:center; cursor:pointer; gap:10px; color:#d29922;">
+                <input type="checkbox" id="grp-use-jump" onchange="window.toggleGroupJump(this.checked)" style="width:auto; margin:0;">
+                <span><i class="fas fa-route"></i> Enable Group JumpHost</span>
+            </label>
+        </div>
+
+        <div id="grp-jump-section" class="jump-host-section">
+            <div class="form-group">
+                <label style="color:#d29922">Select Existing JumpHost</label>
+                <select id="grp-jump-predefined" onchange="window.handleGroupPredefinedJump(this.value)">
+                    <option value="">-- Custom Manual Entry --</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Jump Address</label><input type="text" id="grp-jump-ip" placeholder="jump.example.com"></div>
+                <div class="form-group"><label>Jump Port</label><input type="text" id="grp-jump-port" value="22"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>Jump User</label><input type="text" id="grp-jump-user" placeholder="root"></div>
+                <div class="form-group"><label>Jump Password</label><input type="password" id="grp-jump-pass"></div>
+            </div>
+        </div>
+
+        <div style="margin-top:15px; border-top:1px solid #30363d; padding-top:15px;">
+            <label style="color:var(--accent); margin-bottom:15px; display:block; font-size:0.9em">
+                <i class="fas fa-shield-alt"></i> Inheritable Credentials (Optional)
+            </label>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="grp-user" placeholder="e.g. root">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="grp-pass" placeholder="Leave blank to keep unchanged">
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Private Key</label>
+                <textarea id="grp-key" placeholder="Leave blank to keep unchanged"></textarea>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn-pro" onclick="window.closeModal('modal-group')">Cancel</button>
+            <button class="btn-pro btn-primary" onclick="window.submitGroup()"><i class="fas fa-save"></i> Save Folder</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.openModal = function(id) { document.getElementById(id).classList.add('active'); }
+    window.closeModal = function(id) { document.getElementById(id).classList.remove('active'); }
+
+    window.toggleModalPass = function(inputId, iconEl) {
+        const input = document.getElementById(inputId);
+        if(input.type === 'password') {
+            input.type = 'text';
+            iconEl.classList.replace('fa-eye', 'fa-eye-slash');
+        } else {
+            input.type = 'password';
+            iconEl.classList.replace('fa-eye-slash', 'fa-eye');
+        }
+    }
+
+    window.populateSelects = function() {
+        const createOptions = (parentId, level) => {
+            const groups = window.AppState.allGroups.filter(g => (parentId===null ? (g.parent_id===0 || g.parent_id===null) : g.parent_id===parentId));
+            let opts = [];
+            groups.forEach(g => {
+                const prefix = "\u00A0\u00A0\u00A0".repeat(level) + (level>0 ? "└─ " : "");
+                const opt = document.createElement('option'); 
+                opt.value = g.id; opt.textContent = prefix + g.name; 
+                opts.push(opt);
+                opts = opts.concat(createOptions(g.id, level + 1));
+            });
+            return opts;
+        };
+
+        const selects = [document.getElementById('new-group-parent'), document.getElementById('host-group')];
+        selects.forEach(s => {
+            if(!s) return;
+            const currentVal = s.value;
+            s.innerHTML = '<option value="">/ (Root)</option>';
+            createOptions(null, 0).forEach(o => s.appendChild(o));
+            if(currentVal) s.value = currentVal;
+        });
+
+        const jumpSelect = document.getElementById('jump-predefined');
+        if(jumpSelect && window.AppState.allHosts) {
+            jumpSelect.innerHTML = '<option value="">-- Custom Manual Entry --</option>';
+            window.AppState.allHosts.filter(h => h.protocol === 'jumphost').forEach(j => {
+                jumpSelect.innerHTML += `<option value="${j.id}">${j.name} (${j.ip})</option>`;
+            });
+        }
+
+        const grpJumpSelect = document.getElementById('grp-jump-predefined');
+        if(grpJumpSelect && window.AppState.allHosts) {
+            grpJumpSelect.innerHTML = '<option value="">-- Custom Manual Entry --</option>';
+            window.AppState.allHosts.filter(h => h.protocol === 'jumphost').forEach(j => {
+                grpJumpSelect.innerHTML += `<option value="${j.id}">${j.name} (${j.ip})</option>`;
+            });
+        }
+    }
+
+    window.toggleWebFields = function() {
+        const proto = document.getElementById('host-proto').value;
+        const isWeb = proto === 'web';
+        document.getElementById('lbl-ip').innerText = isWeb ? "URL (http://...)" : "Address / Hostname";
+        
+        document.getElementById('ssh-fields').style.display = (proto === 'ssh' || proto === 'sftp' || proto === 'jumphost' || proto === 'tunnel') ? 'block' : 'none';
+        document.getElementById('tunnel-fields').style.display = (proto === 'tunnel') ? 'block' : 'none';
+    }
+
+    window.toggleJumpHost = function(checked) {
+        const section = document.getElementById('jump-host-config');
+        if(checked) section.classList.add('active-section');
+        else section.classList.remove('active-section');
+    }
+
+    // Per il Jump Host nella modale del Gruppo
+    window.toggleGroupJump = function(checked) {
+        const section = document.getElementById('grp-jump-section');
+        if(checked) section.classList.add('active-section');
+        else section.classList.remove('active-section');
+    }
+
+    window.handlePredefinedJump = function(val) {
+        const isCustom = val === "";
+        const inputs = ['jump-ip', 'jump-port', 'jump-user', 'jump-pass'];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            el.disabled = !isCustom;
+            if(!isCustom) el.style.opacity = 0.5; else el.style.opacity = 1;
+        });
+
+        if(!isCustom) {
+            const j = window.AppState.allHosts.find(x => x.id == val);
+            if(j) {
+                document.getElementById('jump-ip').value = j.ip;
+                document.getElementById('jump-user').value = j.user;
+            }
+        } else {
+            inputs.forEach(id => document.getElementById(id).value = "");
+            document.getElementById('jump-port').value = "22";
+        }
+    }
+
+    window.handleGroupPredefinedJump = function(val) {
+        const isCustom = val === "";
+        const inputs = ['grp-jump-ip', 'grp-jump-port', 'grp-jump-user', 'grp-jump-pass'];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            el.disabled = !isCustom;
+            if(!isCustom) el.style.opacity = 0.5; else el.style.opacity = 1;
+        });
+
+        if(!isCustom) {
+            const j = window.AppState.allHosts.find(x => x.id == val);
+            if(j) {
+                document.getElementById('grp-jump-ip').value = j.ip;
+                document.getElementById('grp-jump-user').value = j.user;
+            }
+        } else {
+            inputs.forEach(id => document.getElementById(id).value = "");
+            document.getElementById('grp-jump-port').value = "22";
+        }
+    }
+
+    document.getElementById('tunnel-type')?.addEventListener('change', function() {
+        document.getElementById('tunnel-remote-row').style.display = this.value === 'D' ? 'none' : 'grid';
+    });
+
+    window.openNewHostModal = function() {
+        window.populateSelects(); 
+        
+        document.getElementById('modal-host-title').innerText = "New Host / Service";
+        document.getElementById('host-id-hidden').value = ""; 
+        document.getElementById('host-name').value = ""; 
+        document.getElementById('host-ip').value = "";
+        document.getElementById('host-user').value = "";
+        document.getElementById('host-user').placeholder = "root (inherited if empty)";
+        document.getElementById('host-pass').value = "";
+        document.getElementById('host-pass').placeholder = "inherited if empty";
+        document.getElementById('host-key').value = ""; 
+        document.getElementById('host-key').placeholder = "inherited if empty";
+        document.getElementById('host-passphrase').value = "";
+        
+        document.getElementById('key-badge').style.display = 'none';
+        document.getElementById('current-key-viewer').classList.remove('active-section');
+        document.getElementById('host-auto-key').checked = false;
+
+        document.getElementById('host-use-jump').checked = false;
+        window.toggleJumpHost(false);
+        document.getElementById('jump-predefined').value = "";
+        window.handlePredefinedJump("");
+
+        document.getElementById('tunnel-type').value = "L";
+        document.getElementById('tunnel-lport').value = "";
+        document.getElementById('tunnel-rhost').value = "";
+        document.getElementById('tunnel-rport').value = "";
+
+        document.getElementById('host-proto').value = (window.AppState.currentProtocol === 'all') ? 'ssh' : window.AppState.currentProtocol;
+        document.getElementById('host-group').value = window.AppState.currentViewGroupId || "";
+        
+        window.toggleWebFields(); 
+        window.openModal('modal-host');
+    }
+
+    window.openNewHostModalWithGroup = function(groupId, e) {
+        if(e) e.stopPropagation();
+        window.openNewHostModal();
+        if(groupId) document.getElementById('host-group').value = groupId;
+    }
+    
+    window.prepareEditHost = async function(id) {
+        const h = window.AppState.allHosts.find(x => x.id === id); if(!h) return;
+        
+        window.populateSelects(); 
+        window.openModal('modal-host');
+        document.getElementById('modal-host-title').innerText = "Edit: " + h.name;
+        document.getElementById('host-id-hidden').value = h.id;
+        document.getElementById('host-group').value = (h.group_id && h.group_id !== 0) ? h.group_id : ""; 
+        document.getElementById('host-name').value = h.name;
+        document.getElementById('host-ip').value = h.ip;
+        document.getElementById('host-user').value = h.user;
+        document.getElementById('host-user').placeholder = "root (inherited if empty)";
+        document.getElementById('host-proto').value = h.protocol || 'ssh';
+        
+        document.getElementById('host-pass').value = ""; 
+        document.getElementById('host-pass').placeholder = "Leave blank to keep unchanged";
+        document.getElementById('host-key').value = "";
+        document.getElementById('host-key').placeholder = "Leave blank to keep unchanged";
+        document.getElementById('host-auto-key').checked = false;
+        
+        document.getElementById('tunnel-type').value = "L";
+        document.getElementById('tunnel-lport').value = "";
+        document.getElementById('tunnel-rhost').value = "";
+        document.getElementById('tunnel-rport').value = "";
+
+        try {
+            const res = await fetch(`/api/host-credentials/${id}`);
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                const data = await res.json();
+                if(data.key) {
+                    document.getElementById('key-badge').style.display = 'inline-block';
+                    document.getElementById('current-key-viewer').classList.add('active-section');
+                    document.getElementById('current-key-val').innerText = "ssh-rsa AAAAB3... (Present in DB)";
+                } else {
+                    document.getElementById('key-badge').style.display = 'none';
+                    document.getElementById('current-key-viewer').classList.remove('active-section');
+                }
+
+                if(data.passphrase) document.getElementById('host-passphrase').value = data.passphrase;
+                
+                if(data.jump_ip) {
+                    document.getElementById('host-use-jump').checked = true;
+                    window.toggleJumpHost(true);
+                    document.getElementById('jump-ip').value = data.jump_ip;
+                    document.getElementById('jump-port').value = data.jump_port || "22";
+                    document.getElementById('jump-user').value = data.jump_user || "";
+                } else {
+                    document.getElementById('host-use-jump').checked = false;
+                    window.toggleJumpHost(false);
+                }
+                
+                // Populate Tunnel Fields
+                if(data.tunnel_type) {
+                    document.getElementById('tunnel-type').value = data.tunnel_type;
+                    document.getElementById('tunnel-lport').value = data.tunnel_lport || "";
+                    document.getElementById('tunnel-rhost').value = data.tunnel_rhost || "";
+                    document.getElementById('tunnel-rport').value = data.tunnel_rport || "";
+                    document.getElementById('tunnel-type').dispatchEvent(new Event('change'));
+                }
+
+                if(data.has_password) document.getElementById('host-pass').placeholder = "(Encrypted stored)";
+            }
+        } catch(e) { console.error("Error fetching creds", e); }
+
+        window.toggleWebFields();
+    }
+    
+    window.prepareCloneHost = async function(id) {
+        const h = window.AppState.allHosts.find(x => x.id === id); if(!h) return;
+        window.openNewHostModal(); 
+        
+        document.getElementById('modal-host-title').innerText = "Clone Host";
+        document.getElementById('host-name').value = h.name + " (Clone)";
+        document.getElementById('host-ip').value = h.ip;
+        document.getElementById('host-user').value = h.user;
+        document.getElementById('host-proto').value = h.protocol || 'ssh';
+        document.getElementById('host-group').value = (h.group_id && h.group_id !== 0) ? h.group_id : "";
+
+        try {
+            const res = await fetch(`/api/host-credentials/${id}`);
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(res.ok) {
+                const data = await res.json();
+                if(data.password) document.getElementById('host-pass').value = data.password; 
+                if(data.key) document.getElementById('host-key').value = data.key;
+                if(data.passphrase) document.getElementById('host-passphrase').value = data.passphrase;
+                
+                if(data.jump_ip) {
+                    document.getElementById('host-use-jump').checked = true;
+                    window.toggleJumpHost(true);
+                    document.getElementById('jump-ip').value = data.jump_ip;
+                    document.getElementById('jump-user').value = data.jump_user;
+                }
+            }
+        } catch(e) {}
+        window.toggleWebFields();
+    }
+
+    window.submitHost = async function() {
+        try {
+            const idStr = document.getElementById('host-id-hidden').value;
+            const groupId = document.getElementById('host-group').value === "" ? null : parseInt(document.getElementById('host-group').value);
+            const useJump = document.getElementById('host-use-jump').checked;
+            const jumpPredefined = document.getElementById('jump-predefined').value;
+            
+            const payload = {
+                group_id: groupId, 
+                name: document.getElementById('host-name').value,
+                ip: document.getElementById('host-ip').value, 
+                user: document.getElementById('host-user').value,
+                password: document.getElementById('host-pass').value, 
+                protocol: document.getElementById('host-proto').value,
+                key: document.getElementById('host-key').value, 
+                passphrase: document.getElementById('host-passphrase').value,
+                
+                jump_host_id: (useJump && jumpPredefined !== "") ? parseInt(jumpPredefined) : null,
+                jump_ip: (useJump && jumpPredefined === "") ? document.getElementById('jump-ip').value : "",
+                jump_port: (useJump && jumpPredefined === "") ? document.getElementById('jump-port').value : "",
+                jump_user: (useJump && jumpPredefined === "") ? document.getElementById('jump-user').value : "",
+                jump_pass: (useJump && jumpPredefined === "") ? document.getElementById('jump-pass').value : "",
+
+                tunnel_type: document.getElementById('tunnel-type').value,
+                tunnel_lport: document.getElementById('tunnel-lport').value,
+                tunnel_rhost: document.getElementById('tunnel-rhost').value,
+                tunnel_rport: document.getElementById('tunnel-rport').value,
+
+                setup_auto_key: document.getElementById('host-auto-key').checked
+            };
+
+            if(!payload.name || !payload.ip) { alert("Name and IP/URL are required!"); return; }
+
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            const url = (idStr ? '/api/hosts/' + idStr : '/api/hosts') + `?workspace_id=${wsId}`;
+            const method = idStr ? 'PUT' : 'POST';
+            
+            const res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+            if(res.status === 401) { window.location.href = '/login.html'; return; }
+            if(!res.ok) throw new Error(await res.text());
+            
+            if(payload.setup_auto_key) {
+                if(idStr) {
+                    await fetch(`/api/hosts/${idStr}/setup-key`, { method: 'POST' });
+                    alert("Setup SSH Key automatico avviato sul Bridge.");
+                } else {
+                    alert("Host salvato. L'auto-setup della chiave al momento della creazione sarà implementato a breve.");
+                }
+            }
+
+            window.closeModal('modal-host'); 
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) { alert("Errore Salvataggio: " + e.message); }
+    }
+
+    // --- CARTELLA: CREATE / EDIT ---
+    window.openGroupModalWithParent = function(parentId, e) {
+        if(e) e.stopPropagation();
+        window.populateSelects();
+        
+        document.getElementById('modal-group-title').innerText = "New Folder";
+        document.getElementById('group-id-hidden').value = "";
+        document.getElementById('input-group-name').value = "";
+        document.getElementById('new-group-parent').value = (parentId === null) ? "" : parentId;
+        document.getElementById('grp-color-txt').value = "#e6edf3";
+        document.getElementById('grp-color-bg').value = "transparent";
+        
+        // Clear credential fields
+        document.getElementById('grp-user').value = "";
+        document.getElementById('grp-pass').value = "";
+        document.getElementById('grp-key').value = "";
+
+        // Gestione Jump Host (già esistente)
+        document.getElementById('grp-use-jump').checked = false;
+        window.toggleGroupJump(false);
+        document.getElementById('grp-jump-predefined').value = "";
+        document.getElementById('grp-jump-ip').value = "";
+        document.getElementById('grp-jump-port').value = "22";
+        document.getElementById('grp-jump-user').value = "";
+        document.getElementById('grp-jump-pass').value = "";
+
+        window.openModal('modal-group');
+    }
+
+    window.editGroup = function(id, e) {
+        if (e) e.stopPropagation();
+        const grp = window.AppState.allGroups.find(g => g.id === id);
+        if (!grp) return;
+
+        window.populateSelects();
+        
+        document.getElementById('modal-group-title').innerText = "Edit Folder: " + grp.name;
+        document.getElementById('group-id-hidden').value = grp.id;
+        document.getElementById('input-group-name').value = grp.name;
+        document.getElementById('new-group-parent').value = grp.parent_id || "";
+        document.getElementById('grp-color-txt').value = grp.text_color || "#e6edf3";
+        document.getElementById('grp-color-bg').value = grp.bg_color || "transparent";
+
+        // NOTA: Non pre-popoliamo le credenziali per sicurezza.
+        // L'utente le inserirà solo se vuole cambiarle.
+        document.getElementById('grp-user').value = grp.user || ""; // Mostra lo user se c'è
+        document.getElementById('grp-pass').value = "";
+        document.getElementById('grp-key').value = "";
+
+        // Gestione Jump Host (già esistente)
+        const hasJump = !!grp.jump_ip || !!grp.jump_host_id;
+        document.getElementById('grp-use-jump').checked = hasJump;
+        window.toggleGroupJump(hasJump);
+        
+        document.getElementById('grp-jump-predefined').value = grp.jump_host_id || "";
+        document.getElementById('grp-jump-ip').value = grp.jump_ip || "";
+        document.getElementById('grp-jump-port').value = grp.jump_port || "22";
+        document.getElementById('grp-jump-user').value = grp.jump_user || "";
+        document.getElementById('grp-jump-pass').value = "";
+        
+        window.handleGroupPredefinedJump(document.getElementById('grp-jump-predefined').value);
+
+        window.openModal('modal-group');
+    }
+
+    window.submitGroup = async function() {
+        const idStr = document.getElementById('group-id-hidden').value;
+        const name = document.getElementById('input-group-name').value;
+        const parentId = document.getElementById('new-group-parent').value === "" ? null : parseInt(document.getElementById('new-group-parent').value);
+        if(!name) { alert("Folder name is required"); return; }
+        
+        const useJump = document.getElementById('grp-use-jump').checked;
+        const jumpPredefined = document.getElementById('grp-jump-predefined').value;
+
+        const payload = {
+            name: name, 
+            parent_id: parentId,
+            bg_color: document.getElementById('grp-color-bg').value,
+            text_color: document.getElementById('grp-color-txt').value,
+            // Nuove credenziali
+            user: document.getElementById('grp-user').value,
+            password: document.getElementById('grp-pass').value,
+            key: document.getElementById('grp-key').value,
+            
+            // Jump Host
+            jump_host_id: (useJump && jumpPredefined !== "") ? parseInt(jumpPredefined) : null,
+            jump_ip: (useJump && jumpPredefined === "") ? document.getElementById('grp-jump-ip').value : "",
+            jump_port: (useJump && jumpPredefined === "") ? document.getElementById('grp-jump-port').value : "",
+            jump_user: (useJump && jumpPredefined === "") ? document.getElementById('grp-jump-user').value : "",
+            jump_pass: (useJump && jumpPredefined === "") ? document.getElementById('grp-jump-pass').value : "",
+        };
+
+        try {
+            const wsId = window.AppState.currentWorkspaceId || 0;
+            const url = (idStr ? `/api/groups/${idStr}` : '/api/groups') + `?workspace_id=${wsId}`;
+            const method = idStr ? 'PUT' : 'POST';
+
+            const res = await fetch(url, { 
+                method: method, 
+                headers: {'Content-Type':'application/json'}, 
+                body: JSON.stringify(payload) 
+            });
+
+            if (res.status === 401) { window.location.href = '/login.html'; return; }
+            if (!res.ok) throw new Error(await res.text());
+            
+            window.closeModal('modal-group'); 
+            if(window.API && window.API.loadData) window.API.loadData();
+        } catch(e) { alert("Error Saving Folder: " + e.message); }
+    }
+</script>

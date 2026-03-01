@@ -1,0 +1,215 @@
+<style>
+    .sudo-layout { display: flex; flex-direction: column; height: 100%; }
+    .sudo-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; }
+    .sudo-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; }
+    .sudo-tab.active { color: var(--accent); border-bottom-color: var(--accent); font-weight: bold; }
+    
+    .st-content { display: none; flex: 1; flex-direction: column; }
+    .st-content.active { display: flex; }
+
+    .sudo-editor { flex: 1; border: 1px solid var(--border); position: relative; min-height: 400px; }
+    .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+    
+    .sudo-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .sudo-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+    .sudo-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .sudo-table tr:hover { background: #21262d; }
+    
+    .local-modal { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; z-index: 100; }
+    .modal-box { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 450px; display:flex; flex-direction:column; gap:15px; }
+    .inp-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; }
+    .inp-group input { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; box-sizing: border-box; }
+</style>
+
+<div class="sudo-layout">
+    <div class="usr-header">
+        <div class="usr-title">Configurazione Sudoers (/etc/sudoers)</div>
+    </div>
+
+    <div class="sudo-tabs">
+        <div class="sudo-tab active" data-tab="visual">Visual Editor</div>
+        <div class="sudo-tab" data-tab="text">Text Editor</div>
+    </div>
+
+    <div id="tab-visual" class="st-content active" style="padding: 20px;">
+        <div style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
+            <button class="btn btn-primary" id="btn-add-rule"><i class="fas fa-plus"></i> Aggiungi Regola</button>
+        </div>
+        <div style="flex: 1; overflow-y: auto; border: 1px solid var(--border);">
+            <table class="sudo-table">
+                <thead><tr><th>Utente/Gruppo</th><th>Host</th><th>RunAs</th><th>Opzioni</th><th>Comando</th></tr></thead>
+                <tbody id="sudo-rules-body"></tbody>
+            </table>
+        </div>
+        <div style="margin-top:10px; text-align:right">
+            <button class="btn btn-primary" id="btn-apply-visual"><i class="fas fa-save"></i> Applica Modifiche</button>
+        </div>
+    </div>
+
+    <div id="tab-text" class="st-content" style="padding: 20px;">
+        <div class="sudo-editor">
+            <div class="ace-div" id="sudo-ace"></div>
+        </div>
+        <div style="margin-top:10px; color:var(--warning); font-size:0.9em;">
+            <i class="fas fa-exclamation-triangle"></i> Attenzione: Errori di sintassi in questo file possono bloccare l'accesso sudo.
+        </div>
+        <div style="margin-top:10px; text-align:right">
+            <button class="btn btn-primary" id="btn-save-sudo"><i class="fas fa-save"></i> Salva & Valida</button>
+        </div>
+    </div>
+</div>
+
+<div class="local-modal" id="modal-sudo-rule">
+    <div class="modal-box">
+        <h3>Nuova Regola Sudo</h3>
+        <div class="inp-group"><label>Utente o Gruppo (%group)</label><input type="text" id="rule-user" placeholder="es: jdoe o %admin"></div>
+        <div class="inp-group"><label>Host</label><input type="text" id="rule-host" value="ALL"></div>
+        <div class="inp-group"><label>Run As (User:Group)</label><input type="text" id="rule-runas" value="(ALL:ALL)"></div>
+        <div class="inp-group"><label>Comando</label><input type="text" id="rule-cmd" value="ALL"></div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <input type="checkbox" id="rule-nopass"> <label for="rule-nopass" style="margin:0">NOPASSWD</label>
+        </div>
+        <div style="display:flex; justify-content:flex-end; gap:10px;">
+            <button class="btn-action" id="btn-close-modal">Annulla</button>
+            <button class="btn btn-primary" id="btn-confirm-rule">Aggiungi</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if (!app) { console.error("AppInstance missing in admin-sudo"); return; }
+        const wrapper = app.container.querySelector('#admin-sub-view') || document.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-sudo-` + Date.now();
+        let ws = null;
+        let editor = null;
+
+        const loadScript = (src) => new Promise((resolve) => {
+            if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+            const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+        });
+
+        async function init() {
+            if(typeof ace === 'undefined') {
+                await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+            }
+
+            if(typeof ace !== 'undefined') {
+                const editorDiv = wrapper.querySelector('#sudo-ace');
+                if (editorDiv) {
+                    editor = ace.edit(editorDiv);
+                    editor.setTheme("ace/theme/monokai");
+                    editor.session.setMode("ace/mode/sh");
+                }
+            }
+
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_sudoers" } }));
+                };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if(msg.type === "sudoers_content" && editor) editor.setValue(msg.payload, -1);
+                    if(msg.type === "sudoers_content") parseSudoers(msg.payload);
+                    if(msg.type === "admin_op_res") alert(msg.payload.msg);
+                };
+            }
+
+            // Tabs Logic
+            wrapper.querySelectorAll('.sudo-tab').forEach(t => {
+                t.onclick = () => {
+                    wrapper.querySelectorAll('.sudo-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    wrapper.querySelectorAll('.st-content').forEach(c => c.classList.remove('active'));
+                    wrapper.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+                    
+                    if(t.dataset.tab === 'visual') parseSudoers(editor.getValue());
+                    if(t.dataset.tab === 'text') editor.resize();
+                };
+            });
+
+            // Visual Editor Logic
+            function parseSudoers(content) {
+                const tbody = wrapper.querySelector('#sudo-rules-body');
+                tbody.innerHTML = "";
+                const lines = content.split('\n');
+                lines.forEach(line => {
+                    line = line.trim();
+                    if(!line || line.startsWith('#') || line.startsWith('Defaults')) return;
+                    
+                    // Basic parsing: User Host=(RunAs) [Options:] Command
+                    // Regex semplificata
+                    const match = line.match(/^([^\s]+)\s+([^\s]+)=\(([^)]+)\)\s*(.*)$/);
+                    if(match) {
+                        const user = match[1];
+                        const host = match[2];
+                        const runas = match[3];
+                        let rest = match[4];
+                        let opts = "";
+                        let cmd = rest;
+                        
+                        if(rest.includes(':')) {
+                            const parts = rest.split(':');
+                            if(parts[0].trim() === 'NOPASSWD') {
+                                opts = 'NOPASSWD';
+                                cmd = parts.slice(1).join(':').trim();
+                            }
+                        }
+                        
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td style="font-weight:bold; color:white">${user}</td>
+                            <td>${host}</td>
+                            <td>${runas}</td>
+                            <td style="color:${opts==='NOPASSWD'?'var(--warning)':'var(--text-dim)'}">${opts}</td>
+                            <td style="font-family:monospace">${cmd}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    }
+                });
+            }
+
+            // Save Logic
+            const saveFn = () => {
+                if(editor && confirm("Salvare le modifiche a /etc/sudoers? Verrà eseguita una validazione (visudo -c).")) {
+                    ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_sudoers", content: editor.getValue() } }));
+                }
+            };
+
+            const btnSave = wrapper.querySelector('#btn-save-sudo'); // Text tab button
+            if (btnSave) btnSave.onclick = saveFn;
+            
+            const btnApply = wrapper.querySelector('#btn-apply-visual'); // Visual tab button
+            if (btnApply) btnApply.onclick = saveFn; // Visual edits update editor content, so we just save editor content
+
+            // Modal Logic
+            wrapper.querySelector('#btn-add-rule').onclick = () => wrapper.querySelector('#modal-sudo-rule').style.display = 'flex';
+            wrapper.querySelector('#btn-close-modal').onclick = () => wrapper.querySelector('#modal-sudo-rule').style.display = 'none';
+            
+            wrapper.querySelector('#btn-confirm-rule').onclick = () => {
+                const user = wrapper.querySelector('#rule-user').value;
+                const host = wrapper.querySelector('#rule-host').value;
+                const runas = wrapper.querySelector('#rule-runas').value;
+                const cmd = wrapper.querySelector('#rule-cmd').value;
+                const nopass = wrapper.querySelector('#rule-nopass').checked;
+                
+                if(!user || !cmd) return alert("Utente e Comando sono obbligatori");
+                
+                const opts = nopass ? "NOPASSWD: " : "";
+                const line = `${user} ${host}=${runas} ${opts}${cmd}`;
+                
+                editor.setValue(editor.getValue() + "\n" + line, 1);
+                parseSudoers(editor.getValue());
+                wrapper.querySelector('#modal-sudo-rule').style.display = 'none';
+            };
+        }
+
+        init();
+    })(arguments[0]);
+</script>

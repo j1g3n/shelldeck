@@ -1,0 +1,551 @@
+<div class="logs-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .logs-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #238636; --info: #2f81f7;
+        }
+
+        .logs-module-wrapper * { box-sizing: border-box; }
+        
+        /* Sidebar specifica per Logs */
+        .log-sidebar { 
+            width: 250px; min-width: 250px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .log-sidebar h2 { color: var(--accent); margin-top: 0; font-size: 1.2em; display: flex; align-items: center; gap: 10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: #238636; color: white; }
+
+        /* Main Content */
+        .main-wrapper { 
+            flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; 
+            min-width: 0;
+        }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 20px; overflow: hidden; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; flex-shrink: 0; }
+        .btn { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.9em; display: flex; align-items: center; gap: 5px; }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-sec:hover { background: #21262d; }
+        .btn-danger { background: var(--danger); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        /* Inputs */
+        .ctrl-bar { display: flex; gap: 10px; align-items: center; background: var(--bg-panel); padding: 10px; border-radius: 6px; border: 1px solid var(--border); margin-bottom: 10px; flex-wrap: wrap; flex-shrink: 0; }
+        .input-group { display: flex; align-items: center; gap: 5px; }
+        label { font-size: 0.8em; color: var(--text-dim); }
+        select, input { background: #0d1117; border: 1px solid #30363d; color: white; padding: 5px; border-radius: 4px; font-family: inherit; }
+
+        /* Log Viewer Area */
+        .log-container { flex: 1; background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 10px; overflow-y: auto; font-size: 0.85em; white-space: pre-wrap; position: relative; }
+        .log-line { border-bottom: 1px solid #111; padding: 2px 0; }
+        .log-line:hover { background: #111; }
+        
+        /* Highlighting */
+        .hl-date { color: #2f81f7; }
+        .hl-error { color: #ff5555; font-weight: bold; }
+        .hl-warn { color: #e3b341; }
+        .hl-info { color: #238636; }
+        .hl-proc { color: #d2a8ff; }
+
+        /* File Explorer (Nuovo Layout Albero) */
+        .file-browser { display: grid; grid-template-columns: 300px 1fr; gap: 15px; height: 100%; overflow: hidden; }
+        .file-list { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow-y: auto; padding: 10px 0; }
+        
+        /* Elementi dell'Albero */
+        .tree-item { cursor: pointer; font-size: 0.85em; display: flex; align-items: center; gap: 8px; padding: 4px 15px; transition: 0.1s; color: var(--text-dim); }
+        .tree-item:hover { background: #21262d; color: white; }
+        .tree-item.folder { font-weight: bold; color: var(--info); }
+        .tree-item.file.selected { background: rgba(35, 134, 54, 0.2); color: white; border-left: 3px solid var(--accent); }
+        .tree-indent { margin-left: 15px; border-left: 1px solid #333; }
+        .tree-meta { font-size: 0.75em; color: #555; margin-left: auto; }
+        .folder-icon { width: 14px; text-align: center; }
+
+        /* Tabs Styles */
+        .log-tabs-header { display: flex; background: #161b22; border-bottom: 1px solid var(--border); overflow-x: auto; }
+        .log-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); display: flex; align-items: center; gap: 8px; font-size: 0.85em; white-space: nowrap; user-select: none; }
+        .log-tab:hover { background: #21262d; color: white; }
+        .log-tab.active { background: #0d1117; color: var(--accent); font-weight: bold; border-top: 2px solid var(--accent); }
+        .log-tab-close { margin-left: 5px; opacity: 0.6; border-radius: 50%; padding: 2px; }
+        .log-tab-close:hover { opacity: 1; color: var(--danger); background: rgba(255,255,255,0.1); }
+        .log-tab-content { display: none; flex-direction: column; height: 100%; }
+        .log-tab-content.active { display: flex; }
+    </style>
+
+    <div class="log-sidebar">
+        <h2><i class="fas fa-scroll"></i> Log Center</h2>
+        <div class="nav-item active" data-view="journal"><i class="fas fa-book"></i> System Journal</div>
+        <div class="nav-item" data-view="files"><i class="fas fa-folder-open"></i> /var/log Explorer</div>
+        <div class="nav-item" data-view="stream"><i class="fas fa-satellite-dish"></i> Live Stream</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <div id="view-journal" class="view-panel active-view">
+            <div class="panel-header">
+                <h3><i class="fas fa-book"></i> Systemd Journal</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-journal"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+            
+            <div class="ctrl-bar">
+                <div class="input-group">
+                    <label>Righe:</label>
+                    <input type="number" class="j-lines" value="100" style="width:60px">
+                </div>
+                <div class="input-group">
+                    <label>Priorità:</label>
+                    <select class="j-prio">
+                        <option value="">Tutti</option>
+                        <option value="3">Error (3)</option>
+                        <option value="4">Warning (4)</option>
+                        <option value="6">Info (6)</option>
+                    </select>
+                </div>
+                <div class="input-group">
+                    <label>Unit (opz):</label>
+                    <input type="text" class="j-unit" placeholder="es: sshd">
+                </div>
+                <div class="input-group">
+                    <label>Dal Boot:</label>
+                    <select class="j-boot">
+                        <option value="0">Boot Corrente</option>
+                        <option value="-1">Boot Precedente</option>
+                    </select>
+                </div>
+                <div class="input-group" style="margin-left:auto">
+                    <label><i class="fas fa-filter"></i> Filtra Vista:</label>
+                    <input type="text" class="j-filter" placeholder="Regex...">
+                </div>
+            </div>
+
+            <div class="log-container j-output">Seleziona i filtri e premi Refresh...</div>
+        </div>
+
+        <div id="view-files" class="view-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-folder-open"></i> /var/log Explorer</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-files"><i class="fas fa-sync"></i> Ricarica Albero</button>
+                </div>
+            </div>
+            
+            <div class="file-browser">
+                <div class="file-list file-list-container"></div>
+                <div class="file-content-area" style="display:flex; flex-direction:column; overflow:hidden; flex:1; background:#000; border:1px solid var(--border); border-radius:6px;">
+                    <div class="log-tabs-header" id="file-tabs-header"></div>
+                    <div id="file-tabs-content" style="flex:1; overflow:hidden; position:relative">
+                         <div class="empty-tab-msg" style="padding:20px; color:var(--text-dim); text-align:center">Seleziona un file per visualizzarlo</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="view-stream" class="view-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-satellite-dish"></i> Live Log Stream (tail -f)</h3>
+                <button class="btn btn-sec btn-new-stream"><i class="fas fa-plus"></i> Nuovo Stream</button>
+            </div>
+            <div class="log-tabs-header" id="stream-tabs-header"></div>
+            <div id="stream-tabs-content" style="flex:1; overflow:hidden; position:relative; display:flex; flex-direction:column; background:#000; border:1px solid var(--border); border-radius:6px;"></div>
+        </div>
+
+    </div>
+
+    <script>
+        (function(app) {
+            // VERIFICA DI SICUREZZA
+            const appInstance = app || window.appInstance;
+            if (!appInstance) { console.error("[Logs] appInstance mancante."); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:logs-` + Date.now();
+
+            // STATE
+            let openFileTabs = [];
+            let activeFileTab = null;
+            let streamTabs = [];
+            let activeStreamTab = null;
+            let ws = null;
+
+            // INIT
+            (function init() {
+                // WebSocket Setup
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+                // --- EVENT BINDINGS ---
+                const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+                const bindInput = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('keyup', fn); };
+
+                // Nav
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                        const viewId = item.dataset.view;
+                        container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                    });
+                });
+
+                // Journal
+                bind('.btn-refresh-journal', loadJournal);
+                bindInput('.j-filter', (e) => filterContainer('.j-output', e.target.value));
+
+                // Journal Controls Bindings
+                const bindChange = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('change', fn); };
+                bindChange('.j-lines', loadJournal);
+                bindChange('.j-prio', loadJournal);
+                bindChange('.j-boot', loadJournal);
+                const unitInput = container.querySelector('.j-unit');
+                if(unitInput) unitInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loadJournal(); });
+
+                // Files
+                bind('.btn-refresh-files', loadFileList);
+
+                // Stream
+                bind('.btn-new-stream', createStreamTab);
+
+                // WS Logic
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        loadJournal();
+                        loadFileList();
+                    };
+
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.type === "log_journal") renderLogs(".j-output", msg.payload);
+                        if(msg.type === "log_file_list") buildFileTree(msg.payload);
+                        if(msg.type === "log_file_content") {
+                            // Payload is now map {filename, content}
+                            renderFileContent(msg.payload.filename, msg.payload.content);
+                        }
+                        if(msg.type === "log_stream_data") {
+                            // Route to correct stream tab based on term_id
+                            appendStreamLog(msg.term_id, msg.payload);
+                        }
+                        
+                        if(msg.type === "log_op_res" && msg.payload.status === "error") {
+                            alert("Errore: " + msg.payload.msg);
+                        }
+                    };
+                }
+
+                // --- FUNCTIONS ---
+                function loadJournal() {
+                    const p = {
+                        action: "get_journal",
+                        lines: container.querySelector('.j-lines').value,
+                        prio: container.querySelector('.j-prio').value,
+                        unit: container.querySelector('.j-unit').value,
+                        boot: container.querySelector('.j-boot').value
+                    };
+                    container.querySelector('.j-output').innerHTML = "Loading...";
+                    ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: termId, payload: p }));
+                }
+
+                function loadFileList() {
+                    container.querySelector('.file-list-container').innerHTML = "Loading...";
+                    ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_files" } }));
+                }
+
+                function buildFileTree(files) {
+                    const treeContainer = container.querySelector('.file-list-container');
+                    treeContainer.innerHTML = "";
+
+                    if (!files || !Array.isArray(files)) {
+                        treeContainer.innerHTML = '<div style="padding:10px; color:var(--text-dim)">Nessun file trovato o errore nel recupero.</div>';
+                        return;
+                    }
+                    
+                    const root = {};
+                    files.forEach(f => {
+                        const parts = f.path.replace('/var/log/', '').split('/');
+                        let current = root;
+                        parts.forEach((part, index) => {
+                            if (index === parts.length - 1) current[part] = f;
+                            else {
+                                if (!current[part]) current[part] = { _isDir: true };
+                                current = current[part];
+                            }
+                        });
+                    });
+
+                    function renderNode(node, parentElement) {
+                        const keys = Object.keys(node).filter(k => k !== "_isDir");
+                        keys.sort((a, b) => {
+                            if (node[a]._isDir && !node[b]._isDir) return -1;
+                            if (!node[a]._isDir && node[b]._isDir) return 1;
+                            return a.localeCompare(b);
+                        });
+
+                        keys.forEach(key => {
+                            const item = node[key];
+                            const itemDiv = document.createElement('div');
+                            
+                            if (item._isDir) {
+                                itemDiv.className = "tree-item folder";
+                                itemDiv.innerHTML = `<span class="folder-icon"><i class="fas fa-folder"></i></span> ${key}`;
+                                parentElement.appendChild(itemDiv);
+
+                                const childContainer = document.createElement('div');
+                                childContainer.className = "tree-indent";
+                                childContainer.style.display = "none";
+                                parentElement.appendChild(childContainer);
+
+                                itemDiv.onclick = (e) => {
+                                    e.stopPropagation();
+                                    const isHidden = childContainer.style.display === "none";
+                                    childContainer.style.display = isHidden ? "block" : "none";
+                                    itemDiv.querySelector('i').className = isHidden ? "fas fa-folder-open" : "fas fa-folder";
+                                };
+                                renderNode(item, childContainer);
+                            } else {
+                                itemDiv.className = "tree-item file";
+                                itemDiv.innerHTML = `<i class="far fa-file-alt"></i> ${key} <span class="tree-meta">${item.size}</span>`;
+                                parentElement.appendChild(itemDiv);
+
+                                itemDiv.onclick = (e) => {
+                                    e.stopPropagation();
+                                    container.querySelectorAll('.tree-item.file').forEach(el => el.classList.remove('selected'));
+                                    itemDiv.classList.add('selected');
+                                    openFileTab(item.path);
+                                };
+                            }
+                        });
+                    }
+                    renderNode(root, treeContainer);
+                }
+                
+                // --- FILE TABS ---
+                function openFileTab(path) {
+                    if(!openFileTabs.includes(path)) {
+                        openFileTabs.push(path);
+                        // Create Tab Header
+                        const tab = document.createElement('div');
+                        tab.className = 'log-tab';
+                        tab.dataset.file = path;
+                        tab.innerHTML = `<span>${path.split('/').pop()}</span><i class="fas fa-times log-tab-close"></i>`;
+                        tab.onclick = () => setActiveFileTab(path);
+                        tab.querySelector('.log-tab-close').onclick = (e) => { e.stopPropagation(); closeFileTab(path); };
+                        container.querySelector('#file-tabs-header').appendChild(tab);
+                        
+                        // Create Content
+                        const content = document.createElement('div');
+                        content.className = 'log-tab-content';
+                        content.dataset.file = path;
+                        content.innerHTML = `
+                            <div class="ctrl-bar" style="border-radius:0; border-left:0; border-right:0">
+                                <span style="font-weight:bold; color:var(--accent)">${path}</span>
+                                <div class="input-group" style="margin-left:auto">
+                                     <label>Righe:</label><input type="number" class="f-lines" value="500" style="width:70px">
+                                     <button class="btn btn-read-file">Ricarica</button>
+                                </div>
+                            </div>
+                            <div class="ctrl-bar" style="padding:5px; border-top:0; border-radius:0 0 6px 6px;">
+                                <input type="text" class="f-filter" style="width:100%" placeholder="Filtra contenuto file...">
+                            </div>
+                            <div class="log-container f-output">Loading...</div>
+                        `;
+                        container.querySelector('#file-tabs-content').appendChild(content);
+                        
+                        // Bind internal events
+                        content.querySelector('.btn-read-file').onclick = () => readFile(path);
+                        content.querySelector('.f-filter').addEventListener('keyup', (e) => filterContainer(content.querySelector('.f-output'), e.target.value));
+                        
+                        readFile(path);
+                    }
+                    setActiveFileTab(path);
+                }
+                
+                function closeFileTab(path) {
+                    openFileTabs = openFileTabs.filter(p => p !== path);
+                    container.querySelector(`.log-tab[data-file="${path}"]`).remove();
+                    container.querySelector(`.log-tab-content[data-file="${path}"]`).remove();
+                    if(activeFileTab === path) {
+                        if(openFileTabs.length > 0) setActiveFileTab(openFileTabs[openFileTabs.length-1]);
+                        else { activeFileTab = null; container.querySelector('.empty-tab-msg').style.display='block'; }
+                    }
+                }
+                
+                function setActiveFileTab(path) {
+                    activeFileTab = path;
+                    container.querySelector('.empty-tab-msg').style.display='none';
+                    container.querySelectorAll('#file-tabs-header .log-tab').forEach(t => t.classList.toggle('active', t.dataset.file === path));
+                    container.querySelectorAll('#file-tabs-content .log-tab-content').forEach(c => c.classList.toggle('active', c.dataset.file === path));
+                }
+
+                function readFile(path) {
+                    const contentDiv = container.querySelector(`.log-tab-content[data-file="${path}"]`);
+                    if(!contentDiv) return;
+                    contentDiv.querySelector('.f-output').innerHTML = "Loading...";
+                    ws.send(JSON.stringify({ 
+                        type: "log_command", host_id: parseInt(currentId), term_id: termId,
+                        payload: { action: "read_file", path: path, lines: contentDiv.querySelector('.f-lines').value } 
+                    }));
+                }
+                
+                function renderFileContent(path, text) {
+                    // Use Array.find for safer matching of paths with special chars
+                    const contentDiv = Array.from(container.querySelectorAll('.log-tab-content')).find(el => el.dataset.file === path);
+                    if(!contentDiv) return;
+                    renderLogs(contentDiv.querySelector('.f-output'), text);
+                }
+
+                // --- STREAM TABS ---
+                function createStreamTab() {
+                    const id = 'stream-' + Date.now();
+                    const streamTermId = `${wsId}:st-` + Math.random().toString(36).substring(2,9);
+                    streamTabs.push({ id, termId });
+                    
+                    const tab = document.createElement('div');
+                    tab.className = 'log-tab';
+                    tab.dataset.id = id;
+                    tab.innerHTML = `<span>Stream ${streamTabs.length}</span><i class="fas fa-times log-tab-close"></i>`;
+                    tab.onclick = () => setActiveStreamTab(id);
+                    tab.querySelector('.log-tab-close').onclick = (e) => { e.stopPropagation(); closeStreamTab(id); };
+                    container.querySelector('#stream-tabs-header').appendChild(tab);
+                    
+                    const content = document.createElement('div');
+                    content.className = 'log-tab-content';
+                    content.dataset.id = id;
+                    content.dataset.termid = streamTermId;
+                    content.innerHTML = `
+                        <div class="ctrl-bar">
+                            <div class="input-group" style="flex:1">
+                                <label>File Target:</label>
+                                <input type="text" class="stream-target" value="/var/log/syslog" style="width:100%">
+                            </div>
+                            <button class="btn btn-stream-start"><i class="fas fa-play"></i> Start</button>
+                            <button class="btn btn-danger btn-stream-stop" disabled><i class="fas fa-stop"></i> Stop</button>
+                            <button class="btn btn-sec btn-stream-clear"><i class="fas fa-trash"></i> Pulisci</button>
+                        </div>
+                        <div class="log-container s-output" style="font-family:monospace; color:#0f0;"></div>
+                    `;
+                    container.querySelector('#stream-tabs-content').appendChild(content);
+                    
+                    // Bindings
+                    content.querySelector('.btn-stream-start').onclick = () => toggleStream(id, true);
+                    content.querySelector('.btn-stream-stop').onclick = () => toggleStream(id, false);
+                    content.querySelector('.btn-stream-clear').onclick = () => content.querySelector('.s-output').innerHTML = '';
+                    
+                    setActiveStreamTab(id);
+                    
+                    // Subscribe for this stream termId
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: streamTermId }));
+                }
+                
+                function toggleStream(tabId, start) {
+                    const content = container.querySelector(`.log-tab-content[data-id="${tabId}"]`);
+                    const target = content.querySelector('.stream-target').value;
+                    const btnStart = content.querySelector('.btn-stream-start');
+                    const btnStop = content.querySelector('.btn-stream-stop');
+                    const streamTermId = content.dataset.termid;
+
+                    if(start) {
+                        if(!target) return alert("Specifica file");
+                        content.querySelector('.s-output').innerHTML = ">>> STREAM STARTED <<<\n";
+                        ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: streamTermId, payload: { action: "stream_start", path: target } }));
+                        btnStart.disabled = true; btnStop.disabled = false;
+                    } else {
+                        ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: streamTermId, payload: { action: "stream_stop" } }));
+                        btnStart.disabled = false; btnStop.disabled = true;
+                        content.querySelector('.s-output').innerHTML += "\n>>> STREAM STOPPED <<<";
+                    }
+                }
+                
+                function closeStreamTab(id) {
+                    const content = container.querySelector(`.log-tab-content[data-id="${id}"]`);
+                    if(content) {
+                        // Stop stream if running
+                        const streamTermId = content.dataset.termid;
+                        ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: streamTermId, payload: { action: "stream_stop" } }));
+                        content.remove();
+                    }
+                    container.querySelector(`.log-tab[data-id="${id}"]`).remove();
+                    streamTabs = streamTabs.filter(t => t.id !== id);
+                    if(activeStreamTab === id && streamTabs.length > 0) setActiveStreamTab(streamTabs[streamTabs.length-1].id);
+                }
+                
+                function setActiveStreamTab(id) {
+                    activeStreamTab = id;
+                    container.querySelectorAll('#stream-tabs-header .log-tab').forEach(t => t.classList.toggle('active', t.dataset.id === id));
+                    container.querySelectorAll('#stream-tabs-content .log-tab-content').forEach(c => c.classList.toggle('active', c.dataset.id === id));
+                }
+                
+                function appendStreamLog(termId, text) {
+                    const content = container.querySelector(`.log-tab-content[data-termid="${termId}"]`);
+                    if(content) appendLog(content.querySelector('.s-output'), text);
+                }
+
+                // --- SHARED RENDER ---
+                function renderLogs(containerEl, text) {
+                    const c = typeof containerEl === 'string' ? container.querySelector(containerEl) : containerEl;
+                    c.innerHTML = "";
+                    if (!text) return;
+                    const lines = text.split('\n');
+                    lines.forEach(l => {
+                        if(!l) return;
+                        const div = document.createElement('div');
+                        div.className = "log-line";
+                        div.innerHTML = colorizeLog(l);
+                        c.appendChild(div);
+                    });
+                    c.scrollTop = c.scrollHeight;
+                }
+
+                function appendLog(containerEl, text) {
+                    const c = typeof containerEl === 'string' ? container.querySelector(containerEl) : containerEl;
+                    if (!text) return;
+                    const div = document.createElement('div');
+                    div.className = "log-line";
+                    div.innerHTML = colorizeLog(text);
+                    c.appendChild(div);
+                    c.scrollTop = c.scrollHeight;
+                }
+
+                function colorizeLog(line) {
+                    if (!line) return "";
+                    let safe = line.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    safe = safe.replace(/(error|fail|failed|critical|fatal)/gi, '<span class="hl-error">$1</span>');
+                    safe = safe.replace(/(warn|warning)/gi, '<span class="hl-warn">$1</span>');
+                    safe = safe.replace(/(info|notice)/gi, '<span class="hl-info">$1</span>');
+                    safe = safe.replace(/^([A-M][a-z]{2}\s+\d+\s+\d{2}:\d{2}:\d{2}|^\d{4}-\d{2}-\d{2}.\d{2}:\d{2}:\d{2})/, '<span class="hl-date">$1</span>');
+                    return safe;
+                }
+
+                function filterContainer(containerEl, query) {
+                    const c = typeof containerEl === 'string' ? container.querySelector(containerEl) : containerEl;
+                    const lines = c.querySelectorAll('.log-line');
+                    if(!query) { lines.forEach(l => l.style.display = 'block'); return; }
+                    try {
+                        const regex = new RegExp(query, 'i');
+                        lines.forEach(l => { l.style.display = regex.test(l.innerText) ? 'block' : 'none'; });
+                    } catch(e) {
+                        const q = query.toLowerCase();
+                        lines.forEach(l => { l.style.display = l.innerText.toLowerCase().includes(q) ? 'block' : 'none'; });
+                    }
+                }
+
+                appInstance.registerCleanup(() => { if(ws) ws.close(); });
+            })();
+        })(arguments[0]);
+    </script>
+</div>

@@ -1,0 +1,151 @@
+<div class="admin-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .admin-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-dim: #8b949e; --danger: #da3633;
+        }
+
+        .admin-sidebar { 
+            width: 220px; flex-shrink: 0; background: var(--bg-panel); 
+            border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 20px; 
+        }
+        
+        .admin-sidebar h3 { 
+            color: var(--accent); font-size: 0.9em; text-transform: uppercase; 
+            letter-spacing: 1px; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;
+        }
+
+        .adm-nav-item { 
+            padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; 
+            color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; 
+        }
+        .adm-nav-item:hover { background: #21262d; color: white; }
+        .adm-nav-item.active { background: var(--accent); color: white; }
+
+        .admin-content-area { 
+            flex: 1; display: flex; flex-direction: column; 
+            overflow: hidden; position: relative; 
+        }
+        
+        /* Loader per i sottomoduli */
+        .module-loader {
+            display: flex; align-items: center; justify-content: center; height: 100%; color: var(--text-dim);
+        }
+    </style>
+
+    <div class="admin-sidebar">
+        <h3><i class="fas fa-tools"></i> System Settings</h3>
+        
+        <div class="adm-nav-item active" data-target="admin-users.html">
+            <i class="fas fa-users"></i> Utenti & Gruppi
+        </div>
+        <div class="adm-nav-item" data-target="admin-sudo.html">
+            <i class="fas fa-user-lock"></i> Sudoers
+        </div>
+        <div class="adm-nav-item" data-target="admin-passwd.html">
+            <i class="fas fa-id-card"></i> File Passwd
+        </div>
+        <div class="adm-nav-item" data-target="admin-sysctl.html">
+            <i class="fas fa-sliders-h"></i> Kernel Sysctl
+        </div>
+        <div class="adm-nav-item" data-target="admin-kernel.html">
+            <i class="fas fa-microchip"></i> Kernel & Boot
+        </div>
+        <div class="adm-nav-item" data-target="admin-hosts.html">
+            <i class="fas fa-network-wired"></i> Hostname & DNS
+        </div>
+        <div class="adm-nav-item" data-target="admin-lang.html">
+            <i class="fas fa-language"></i> Lingua & Locale
+        </div>
+        <div class="adm-nav-item" data-target="admin-time.html">
+            <i class="fas fa-clock"></i> Data & Time
+        </div>
+        <div class="adm-nav-item" data-target="admin-env.html">
+            <i class="fas fa-terminal"></i> Environment
+        </div>
+    </div>
+
+    <div class="admin-content-area" id="admin-sub-view">
+        </div>
+
+    <script>
+        (function() {
+            // VERIFICA: appInstance deve essere definito nello scope passato dal parent
+            if (typeof appInstance === 'undefined') {
+                console.error("[Admin] Critical: appInstance is not defined. Script execution scope is wrong.");
+                return;
+            }
+
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const contentArea = container.querySelector('#admin-sub-view');
+
+            // Funzione per caricare i sottomoduli
+            async function loadSubModule(fileName) {
+                contentArea.dispatchEvent(new CustomEvent('submodule_unload'));
+                contentArea.innerHTML = '<div class="module-loader"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+                
+                try {
+                    const resp = await fetch(`/host/config/${fileName}?id=${currentId}`);
+                    if(!resp.ok) throw new Error(`HTTP ${resp.status} - File non trovato`);
+                    
+                    const html = await resp.text();
+                    contentArea.innerHTML = html;
+
+                    // FIX CRITICO: Eseguiamo gli script passando appInstance
+                    const scripts = contentArea.querySelectorAll('script');
+                    scripts.forEach(scriptEl => {
+                        const code = scriptEl.textContent;
+                        try {
+                            // Rimuoviamo il vecchio script per evitare esecuzioni doppie o sporche
+                            scriptEl.remove();
+                            
+                            // Creiamo una funzione dinamica che accetta 'appInstance' come argomento
+                            // Questo inietta appInstance nello scope dello script figlio
+                            const dynamicFn = new Function('appInstance', code);
+                            dynamicFn(appInstance); 
+                        } catch(err) {
+                            console.error(`[Admin] Error executing script in ${fileName}:`, err);
+                        }
+                    });
+
+                } catch(e) {
+                    contentArea.innerHTML = `<div style="padding:20px; color:#da3633; text-align:center">
+                        <i class="fas fa-exclamation-triangle fa-2x" style="margin-bottom:10px"></i><br>
+                        Errore caricamento modulo: <b>${fileName}</b><br>
+                        <small>${e.message}</small>
+                    </div>`;
+                }
+            }
+
+            // Gestione Navigazione Sidebar
+            container.querySelectorAll('.adm-nav-item').forEach(item => {
+                item.addEventListener('click', () => {
+                    container.querySelectorAll('.adm-nav-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    loadSubModule(item.dataset.target);
+                });
+            });
+
+            // Carica il modulo in base al 'mode' o usa il default
+            const urlParams = new URLSearchParams(window.location.search);
+            const mode = urlParams.get('mode');
+            const targetFile = mode || 'admin-users.html';
+
+            const navItemToActivate = container.querySelector(`.adm-nav-item[data-target="${targetFile}"]`);
+            if (navItemToActivate) {
+                container.querySelectorAll('.adm-nav-item').forEach(i => i.classList.remove('active'));
+                navItemToActivate.classList.add('active');
+            }
+            
+            loadSubModule(targetFile);
+
+        })();
+    </script>
+</div>

@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title> ShellDeck (BETA)0.5</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-body: #0d1117; --bg-panel: #161b22; --bg-header: #21262d;     
+            --border: #30363d; --accent: #238636; --text-primary: #e6edf3; 
+            --text-secondary: #8b949e; --tab-active-bg: #1f2428;
+            /* La larghezza è gestita dalla sidebar interna, non qui */
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'JetBrains Mono', sans-serif; background-color: var(--bg-body); color: var(--text-primary);
+            margin: 0; display: flex; height: 100vh; overflow: hidden; font-size: 13px;
+        }
+        
+        /* FIX SIDEBAR CONTAINER: width auto per adattarsi alla sidebar interna che si riduce */
+        #sidebar-container { 
+            flex-shrink: 0; z-index: 20; width: auto; 
+            background-color: var(--bg-panel); /* Per evitare flash bianchi */
+        }
+        
+        #content-wrapper { flex: 1; display: flex; flex-direction: column; min-width: 0; background: var(--bg-body); }
+
+        /* --- BARRA DEI TAB --- */
+        #tabs-bar {
+            height: 35px; background: #010409; border-bottom: 1px solid var(--border);
+            display: flex; align-items: flex-end; padding: 0 10px; gap: 2px; overflow-x: auto;
+        }
+        
+        .tab {
+            height: 30px; padding: 0 15px; display: flex; align-items: center; gap: 8px;
+            background: #0d1117; border: 1px solid var(--border); border-bottom: none;
+            border-radius: 6px 6px 0 0; color: var(--text-secondary); cursor: pointer;
+            font-size: 0.85em; user-select: none; max-width: 200px;
+        }
+        .tab:hover { background: #161b22; color: var(--text-primary); }
+        .tab.active { 
+            background: var(--tab-active-bg); color: #fff; border-top: 2px solid var(--accent); 
+            height: 31px; /* Copre il bordo inferiore */
+            margin-bottom: -1px; font-weight: bold;
+        }
+        .tab-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tab-close { margin-left: 5px; border-radius: 50%; padding: 2px; font-size: 0.8em; }
+        .tab-close:hover { background: rgba(218, 54, 51, 0.4); color: #fff; }
+
+        /* --- AREE CONTENUTO --- */
+        #views-container { flex: 1; position: relative; overflow: hidden; }
+        
+        /* Dashboard Home (Griglia Server) */
+        #home-view { width: 100%; height: 100%; display: flex; flex-direction: column; }
+        
+        /* Contenitori per le sessioni Host (Tab) */
+        .host-view-instance { 
+            width: 100%; height: 100%; display: none; 
+            background: #0d1117; position: absolute; top: 0; left: 0; 
+        }
+        .host-view-instance.active { display: flex; z-index: 10; }
+    </style>
+</head>
+<body>
+
+    <div id="sidebar-container"></div>
+    
+    <div id="content-wrapper">
+        <div id="tabs-bar">
+            <div class="tab active" id="tab-home" onclick="window.Tabs.activate('home')">
+                <i class="fas fa-home"></i> <span class="tab-title">Dashboard</span>
+            </div>
+            <!-- Nuovi tab vengono inseriti qui -->
+            <div id="tabs-spacer" style="flex:1"></div>
+            <div onclick="window.logout()" style="height: 30px; padding: 0 15px; display: flex; align-items: center; cursor: pointer; color: #da3633;" title="Logout">
+                <i class="fas fa-sign-out-alt"></i>
+            </div>
+        </div>
+
+        <div id="views-container">
+            <div id="home-view">
+                <!-- Content injected via JS -->
+            </div>
+        </div>
+    </div>
+
+    <div id="modals-container"></div>
+
+    <script>
+        // Stato Globale
+        window.AppState = {
+            allGroups: [], allHosts: [], currentViewGroupId: null, currentProtocol: 'all',
+            viewMode: 'list', searchQuery: "", selectedHosts: new Set(),
+            currentUser: null, workspaces: [], currentWorkspaceId: null,
+            favoriteWorkspaceId: null
+        };
+
+        // --- SISTEMA A TAB ---
+        window.Tabs = {
+            activeTabId: 'home',
+            openTabs: {}, // hostId -> { instance, domTab, domView }
+
+            // Apre un Workspace in un Tab
+            openWorkspace: async function(wsId, wsName) {
+                const tabId = `tab-ws-${wsId}`;
+                const viewId = `view-ws-${wsId}`;
+
+                if (this.openTabs[tabId]) {
+                    this.activate(tabId);
+                    return;
+                }
+
+                // UI Tab
+                const tabEl = document.createElement('div');
+                tabEl.className = 'tab'; tabEl.id = tabId;
+                tabEl.onclick = () => this.activate(tabId);
+                tabEl.innerHTML = `<i class="fas fa-home"></i> <span class="tab-title">${wsName}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.close('${tabId}', event)"></i>`;
+                document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+                // View Container
+                const viewEl = document.createElement('div');
+                viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+                viewEl.innerHTML = window.MainViewTemplate; // Inject template
+                document.getElementById('views-container').appendChild(viewEl);
+
+                // FIX: Popola i menu a tendina nel nuovo tab
+                if(window.AppState.servers) {
+                    window.populateServerSelect(window.AppState.servers);
+                } else {
+                    viewEl.querySelectorAll('.server-selector').forEach(sel => {
+                        sel.innerHTML = '<option value="">localhost</option><option value="add_new">+ Add New Server</option>';
+                    });
+                }
+                window.API.loadWorkspaces();
+
+                // Fetch Data for this workspace
+                try {
+                    const res = await window.apiFetch(`/api/tree?workspace_id=${wsId}`);
+                    const data = await res.json();
+                    const hosts = (data.hosts || []).map(h => ({...h, workspace_id: wsId}));
+                    
+                    this.openTabs[tabId] = { 
+                        domTab: tabEl, domView: viewEl, 
+                        type: 'workspace',
+                        data: { allGroups: data.groups || [], allHosts: hosts, wsId: wsId }
+                    };
+                    
+                    this.activate(tabId);
+                } catch(e) {
+                    console.error(e);
+                    viewEl.innerHTML = `<div style="padding:20px; color:#da3633">Error loading workspace: ${e.message}</div>`;
+                }
+            },
+
+            // Apre un nuovo Host in un Tab
+            openHost: async function(hostId) {
+                const h = window.AppState.allHosts.find(x => x.id === hostId);
+                if (!h) return;
+
+                const wsId = h.workspace_id || window.AppState.currentWorkspaceId || 0;
+                // FIX: Usa chiave composita per evitare collisioni ID tra workspace diversi
+                const tabKey = `host-${wsId}-${h.id}`;
+
+                // 1. Se il tab esiste già, attivalo e basta
+                if (this.openTabs[tabKey]) {
+                    this.activate(tabKey);
+                    return;
+                }
+
+                // 2. Crea UI Tab
+                const tabId = `tab-${tabKey}`;
+                const viewId = `view-${tabKey}`;
+                
+                const tabEl = document.createElement('div');
+                tabEl.className = 'tab';
+                tabEl.id = tabId;
+                tabEl.onclick = () => this.activate(tabKey);
+                tabEl.innerHTML = `
+                    <i class="fas fa-terminal"></i> 
+                    <span class="tab-title">${h.name}</span>
+                    <i class="fas fa-times tab-close" onclick="window.Tabs.close('${tabKey}', event)"></i>
+                `;
+                document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+                // 3. Crea Contenitore Vista
+                const viewEl = document.createElement('div');
+                viewEl.className = 'host-view-instance';
+                viewEl.id = viewId;
+                viewEl.innerHTML = '<div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+                document.getElementById('views-container').appendChild(viewEl);
+
+                this.openTabs[tabKey] = { 
+                    domTab: tabEl, domView: viewEl, instance: null,
+                    type: 'host',
+                    wsId: wsId,
+                    navData: { allGroups: window.AppState.allGroups, allHosts: window.AppState.allHosts }
+                };
+                this.activate(tabKey); // Attiva subito per feedback visivo
+
+                // 4. Caricamento Modulo Host (Lazy Loading)
+                try {
+                    // Se non abbiamo ancora caricato il "Template" dell'app host, facciamolo
+                    if (!window.HostAppClass) {
+                        const resp = await fetch('/host/index.html');
+                        const html = await resp.text();
+                        
+                        const parser = new DOMParser();
+                        const doc = parser.parseFromString(html, 'text/html');
+                        
+                        // Inietta CSS Host (una volta sola per tutti i tab)
+                        doc.querySelectorAll('style').forEach(s => document.head.appendChild(s));
+
+                        // Esegui lo script che definisce la classe "HostAppClass"
+                        const scripts = doc.querySelectorAll('script');
+                        for (let s of scripts) {
+                            const script = document.createElement('script');
+                            script.textContent = s.textContent;
+                            document.body.appendChild(script);
+                        }
+                        
+                        // Salva il template HTML
+                        window.HostTemplate = doc.getElementById('host-module-template').innerHTML;
+                    }
+
+                    // 5. Istanzia la Classe Host dentro il nuovo div
+                    viewEl.innerHTML = window.HostTemplate;
+                    
+                    // Aspetta un istante che la classe sia definita dallo script appena iniettato
+                    setTimeout(() => {
+                        if (window.HostAppClass) {
+                            const appInstance = new window.HostAppClass(viewEl, h.id, h.name, wsId);
+                            this.openTabs[tabKey].instance = appInstance;
+                            appInstance.init(); // Avvia l'host
+                        } else {
+                            viewEl.innerHTML = "<div style='padding:20px;color:red'>Errore: Classe HostAppClass non caricata.</div>";
+                        }
+                    }, 50);
+
+                } catch (e) {
+                    console.error(e);
+                    viewEl.innerHTML = "<div style='padding:20px;color:red'>Errore caricamento modulo host.</div>";
+                }
+            },
+
+            openManager: async function() {
+                const tabId = 'manager';
+                if(document.getElementById('tab-manager')) { this.activate(tabId); return; }
+
+                const tabEl = document.createElement('div');
+                tabEl.className = 'tab'; tabEl.id = 'tab-manager';
+                tabEl.onclick = () => this.activate(tabId);
+                tabEl.innerHTML = `<i class="fas fa-cogs"></i> <span class="tab-title">Manager</span> <i class="fas fa-times tab-close" onclick="window.Tabs.close('manager', event)"></i>`;
+                document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+                const viewEl = document.createElement('div');
+                viewEl.className = 'host-view-instance'; viewEl.id = 'view-manager';
+                document.getElementById('views-container').appendChild(viewEl);
+
+                this.openTabs[tabId] = { domTab: tabEl, domView: viewEl };
+
+                // Carica il componente Manager
+                await loadComponent('components/manager.html', 'view-manager');
+                this.activate(tabId);
+            },
+
+            activate: function(targetId) {
+                // Rimuovi classe active da tutti
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.host-view-instance').forEach(v => v.classList.remove('active'));
+                document.getElementById('home-view').style.display = 'none';
+
+                this.activeTabId = targetId;
+
+                if (targetId === 'home') {
+                    document.getElementById('tab-home').classList.add('active');
+                    document.getElementById('home-view').style.display = 'flex';
+                    // Restore Home Data to AppState
+                    if(window.HomeData) {
+                        window.AppState.allGroups = window.HomeData.groups;
+                        window.AppState.allHosts = window.HomeData.hosts;
+                        window.AppState.currentWorkspaceId = window.HomeData.wsId;
+                        window.renderActiveView();
+                        if(window.renderSidebar) window.renderSidebar();
+                        if(window.renderFavorites) window.renderFavorites();
+                    } else {
+                        window.API.loadData();
+                    }
+                } else {
+                    const tabData = this.openTabs[targetId];
+                    if (tabData) {
+                        tabData.domTab.classList.add('active');
+                        tabData.domView.classList.add('active');
+                        
+                        // Context Switch for Workspace Tabs
+                        if(tabData.type === 'workspace') {
+                            window.AppState.allGroups = tabData.data.allGroups;
+                            window.AppState.allHosts = tabData.data.allHosts;
+                            window.AppState.currentWorkspaceId = tabData.data.wsId;
+                            window.renderActiveView();
+                            if(window.renderSidebar) window.renderSidebar();
+                            if(window.renderFavorites) window.renderFavorites();
+                        }
+                        // Restore workspace context for Host tabs
+                        else if (tabData.wsId !== undefined && tabData.navData) {
+                            if (window.AppState.currentWorkspaceId !== tabData.wsId) {
+                                window.AppState.allGroups = tabData.navData.allGroups;
+                                window.AppState.allHosts = tabData.navData.allHosts;
+                                window.AppState.currentWorkspaceId = tabData.wsId;
+                                if(window.renderSidebar) window.renderSidebar();
+                                if(window.renderFavorites) window.renderFavorites();
+                                if(window.updateFavBtn) window.updateFavBtn();
+                            }
+                        }
+                    }
+                }
+            },
+
+            close: function(key, event) {
+                if(event) event.stopPropagation();
+                
+                const tabData = this.openTabs[key];
+                if (!tabData) return;
+
+                // Chiudi WebSocket e pulisci
+                if (tabData.instance && tabData.instance.destroy) {
+                    tabData.instance.destroy();
+                }
+
+                tabData.domTab.remove();
+                tabData.domView.remove();
+                delete this.openTabs[key];
+
+                if (this.activeTabId === key) {
+                    this.activate('home');
+                }
+            }
+        };
+
+        // --- API CONDIVISE ---
+        window.logout = async function(force = false) {
+            if(!confirm("Are you sure you want to logout?")) return;
+            try {
+                await fetch('/api/logout', { method: 'POST' });
+            } catch(e) { console.error(e); }
+            window.location.href = '/login.html';
+        };
+
+        window.apiFetch = async function(url, options) {
+            const response = await fetch(url, options);
+            if (response.status === 401 || response.status === 403) {
+                const errorData = await response.json().catch(() => ({ msg: 'Authentication/Authorization failed.' }));
+                alert(errorData.msg || 'Session expired or invalid. Please log in again.');
+                try { await fetch('/api/logout', { method: 'POST' }); } catch(e) {}
+                window.location.href = '/login.html';
+                throw new Error(errorData.msg || 'Authentication failed');
+            }
+            return response;
+        };
+
+        window.handleServerSelect = function(val) {
+            if (val === "add_new") {
+                const url = prompt("Enter Server URL (e.g. localhost:3000):");
+                if (!url) return;
+                const user = prompt("Username:", "admin");
+                const pass = prompt("Password:");
+                
+                // Invia comando al bridge tramite il server attuale
+                // Nota: Usiamo una chiamata fittizia 'bridge_proxy' che il server inoltrerà
+                // In realtà il server inoltra tutto ciò che non è una sua API.
+                // Ma qui dobbiamo usare WebSocket per parlare col bridge.
+                // Poiché non abbiamo accesso diretto al WS del bridge dal browser, 
+                // dobbiamo implementare un meccanismo di relay o usare un endpoint del server che inoltra.
+                // Per semplicità, assumiamo che il bridge ascolti su un canale che possiamo raggiungere.
+                // Dato che il bridge è connesso al server, possiamo mandare un messaggio via WS client.
+                
+                // TODO: Implementare invio messaggio WS dal client JS
+                alert("Please use the Bridge CLI to add servers for now, or implement WS relay.");
+                return;
+            }
+            
+            if (confirm("Switching server will disconnect the current session. Continue?")) {
+                // Send switch command via WS
+                // window.wsClient.send(...) 
+                // Per ora simuliamo un reload o alert
+                alert("Switching to server ID " + val + ". The bridge will reconnect.");
+            }
+        };
+
+        // Setup WS Client per parlare col Bridge (via Server)
+        window.setupBridgeLink = function() {
+            const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+            const ws = new WebSocket(`${proto}://${location.host}/ws/client`);
+            
+            ws.onopen = () => {
+                // Iscriviti al canale di sistema (0) per ricevere le risposte del bridge
+                ws.send(JSON.stringify({ type: "subscribe", host_id: 0 }));
+                // Richiedi lista server
+                ws.send(JSON.stringify({ type: "server_list", host_id: 0 }));
+            };
+            
+            ws.onmessage = (evt) => {
+                const msg = JSON.parse(evt.data);
+                if (msg.type === "server_list_res") {
+                    window.populateServerSelect(msg.payload);
+                }
+            };
+            window.wsClient = ws;
+        };
+
+        window.populateServerSelect = function(servers) {
+            window.AppState.servers = servers; // Cache per i nuovi tab
+            const selects = document.querySelectorAll('.server-selector');
+            selects.forEach(sel => {
+                sel.innerHTML = '';
+
+                if (!servers || servers.length === 0) {
+                    const opt = document.createElement('option');
+                    opt.value = "";
+                    opt.text = "localhost";
+                    sel.appendChild(opt);
+                } else {
+                    servers.forEach(s => {
+                        const isDef = s.is_default ? ' ★' : '';
+                        const opt = document.createElement('option');
+                        opt.value = s.id;
+                        opt.text = `${s.url} (${s.username})${isDef}`;
+                        if(s.is_default) opt.selected = true;
+                        sel.appendChild(opt);
+                    });
+                }
+                const addOpt = document.createElement('option');
+                addOpt.value = "add_new";
+                addOpt.text = "+ Add New Server";
+                sel.appendChild(addOpt);
+            });
+        };
+
+        // Override handleServerSelect to use WS
+        window.handleServerSelect = function(val) {
+            if (!val) return;
+            if (val === "add_new") {
+                const url = prompt("Enter Server URL (e.g. localhost:3000):");
+                if (!url) { window.wsClient.send(JSON.stringify({ type: "server_list", host_id: 0 })); return; }
+                const user = prompt("Username:", "admin");
+                const pass = prompt("Password:");
+                
+                window.wsClient.send(JSON.stringify({
+                    type: "server_add",
+                    host_id: 0,
+                    payload: { url: url, username: user, password: pass }
+                }));
+                return;
+            }
+            
+            if (confirm("Switching server will disconnect this UI. You will need to open the new server URL.")) {
+                window.wsClient.send(JSON.stringify({
+                    type: "server_switch",
+                    host_id: 0,
+                    payload: { id: parseInt(val) }
+                }));
+            }
+        };
+
+        window.openWorkspaceTab = function(wsId) {
+            if(!wsId) return;
+            const ws = window.AppState.workspaces.find(w => w.id == wsId);
+            if(ws) window.Tabs.openWorkspace(ws.id, ws.name);
+            // Reset selector to avoid confusion
+            document.querySelectorAll('.workspace-selector').forEach(s => s.value = "");
+        };
+
+        window.toggleWorkspaceFavorite = async function() {
+            const currentId = window.AppState.currentWorkspaceId;
+            if(!currentId) return;
+            
+            try {
+                const res = await window.apiFetch('/api/workspace/switch', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ id: parseInt(currentId), save: true })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                
+                window.AppState.favoriteWorkspaceId = currentId;
+                window.updateFavBtn();
+                alert("Workspace set as Default/Favorite!");
+            } catch(e) { alert(e.message); }
+        };
+
+        window.updateFavBtn = function() {
+            const btn = document.getElementById('ws-fav-btn');
+            if(!btn) return;
+            if(window.AppState.currentWorkspaceId === window.AppState.favoriteWorkspaceId) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        };
+
+        // Simulazione Login Flow (da chiamare dopo il login reale)
+        window.handleLoginResponse = function(data) {
+            window.AppState.currentUser = data.user;
+            window.AppState.workspaces = data.workspaces;
+            
+            const selects = document.querySelectorAll('.workspace-selector');
+            selects.forEach(sel => {
+                sel.innerHTML = '';
+                data.workspaces.forEach(w => {
+                    sel.innerHTML += `<option value="${w.id}">${w.name}</option>`;
+                        }); 
+            });
+
+            if(data.workspaces.length > 0) window.AppState.currentWorkspaceId = data.workspaces[0].id;
+            window.API.loadData();
+        };
+
+        window.API = {
+            loadWorkspaces: async function() {
+                try {
+                    const res = await window.apiFetch(`/api/admin/groups?user_id=${window.AppState.currentUser.id}`);
+                    if(!res.ok) return;
+                    const workspaces = await res.json() || [];
+                    window.AppState.workspaces = workspaces;
+                    
+                    if (!window.AppState.currentWorkspaceId && workspaces.length > 0) {
+                        window.AppState.currentWorkspaceId = workspaces[0].id;
+                    }
+
+                    document.querySelectorAll('.workspace-selector').forEach(sel => {
+                        sel.innerHTML = '<option value="" disabled selected>Workspace</option>';
+                        workspaces.forEach(w => {
+                            sel.innerHTML += `<option value="${w.id}">${w.name}</option>`;
+                        });
+                    });
+                } catch(e) { console.error("Error loading workspaces:", e); }
+            },
+
+            loadData: async function() {
+                try {
+                    const wsId = window.AppState.currentWorkspaceId || 0;
+                    const res = await window.apiFetch(`/api/tree?workspace_id=${wsId}`);
+                    if(!res.ok) throw new Error("API Error");
+                    const data = await res.json();
+                    const hosts = (data.hosts || []).map(h => ({...h, workspace_id: wsId}));
+                    
+                    // Aggiorna AppState
+                    window.AppState.allGroups = data.groups || [];
+                    window.AppState.allHosts = hosts;
+                    
+                    // Aggiorna lo store persistente corretto (Home o Tab Workspace)
+                    const activeTabId = window.Tabs.activeTabId;
+                    if (activeTabId === 'home') {
+                        window.HomeData = { groups: data.groups || [], hosts: hosts, wsId: wsId };
+                    } else {
+                        const tab = window.Tabs.openTabs[activeTabId];
+                        if (tab && tab.type === 'workspace') {
+                            tab.data = { allGroups: data.groups || [], allHosts: hosts, wsId: wsId };
+                        } else if (tab && tab.navData && tab.wsId === wsId) {
+                            tab.navData = { allGroups: data.groups || [], allHosts: hosts };
+                        }
+                    }
+                    
+                    // Renderizza componenti se esistono
+                    if(window.renderSidebar) window.renderSidebar();
+                    if(window.renderFavorites) window.renderFavorites();
+                    if(window.renderActiveView) window.renderActiveView();
+                    
+                    window.updateFavBtn();
+                } catch(e) { console.error("LoadData Error:", e); }
+            },
+            
+            // Questo viene chiamato dalla Sidebar -> Apre il Tab
+            connectHost: function(id) {
+                window.Tabs.openHost(id);
+            },
+            
+            connectHostNewWindow: function(id) {
+                window.open('/host?id=' + id, '_blank');
+            }
+        };
+
+        // --- COMPONENT LOADER (ROBUSTO) ---
+        async function loadComponent(url, containerId) {
+            try {
+                const response = await fetch(url);
+                const html = await response.text();
+                const container = document.getElementById(containerId);
+                if(!container) return;
+
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = html;
+
+                // Sposta CSS
+                tempDiv.querySelectorAll('style').forEach(s => document.head.appendChild(s));
+
+                // Prepara Script
+                const scripts = tempDiv.querySelectorAll('script');
+                const scriptContents = [];
+                scripts.forEach(s => { scriptContents.push(s.textContent); s.remove(); });
+                
+                // Inserisci HTML
+                container.innerHTML = '';
+                while (tempDiv.firstChild) container.appendChild(tempDiv.firstChild);
+
+                // Esegui Script nel contesto globale
+                scriptContents.forEach(code => {
+                    const scriptEl = document.createElement('script');
+                    scriptEl.textContent = code;
+                    document.body.appendChild(scriptEl);
+                });
+                
+                return html; // Return raw html for templating
+            } catch(e) { console.error("Error loading component:", url, e); }
+        }
+
+        async function initApp() {
+            await loadComponent('components/sidebar.html', 'sidebar-container');
+            
+            // Load Main View Template and save it for new tabs
+            window.MainViewTemplate = await loadComponent('components/main-view.html', 'home-view');
+
+            await loadComponent('components/modals.html', 'modals-container');
+            
+            // Setup sidebar hover behavior
+            setTimeout(() => {
+                if(window.setupSidebarHoverBehavior) window.setupSidebarHoverBehavior();
+            }, 100);
+            
+            // FETCH CURRENT USER FROM SERVER
+            try {
+                const res = await window.apiFetch('/api/me');
+                if (res.ok) {
+                    window.AppState.currentUser = await res.json();
+                }
+            } catch (e) { 
+                /* apiFetch già gestisce il redirect, quindi qui possiamo ignorare l'errore */
+            }
+
+            if (!window.AppState.currentUser) {
+                window.AppState.currentUser = { id: 0, username: 'Guest', is_global_admin: false };
+            }
+
+            // Inizializza il selettore server con un valore di default in attesa del WebSocket
+            document.querySelectorAll('.server-selector').forEach(sel => {
+                sel.innerHTML = '<option value="">localhost</option><option value="add_new">+ Add New Server</option>';
+            });
+
+            await window.API.loadWorkspaces();
+            window.API.loadData();
+            window.setupBridgeLink();
+        }
+
+        initApp();
+    </script>
+</body>
+</html>

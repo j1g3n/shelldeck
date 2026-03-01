@@ -1,0 +1,604 @@
+<div class="terminal-wrapper" id="term-root-wrapper">
+    <style>
+        .terminal-wrapper {
+            width: 100%; height: 100%;
+            background-color: #0d1117;
+            overflow: hidden;
+            box-sizing: border-box;
+            position: relative;
+            display: flex;
+            flex-direction: column; /* Changed to column for tabs */
+        }
+        
+        /* --- TABS --- */
+        .term-tab-bar {
+            display: flex;
+            background: #010409;
+            border-bottom: 1px solid #30363d;
+            flex-shrink: 0;
+            padding: 5px 5px 0 5px;
+            gap: 2px;
+        }
+        .term-tab {
+            background: #161b22;
+            color: #8b949e;
+            padding: 8px 15px;
+            border: 1px solid #30363d;
+            border-bottom: none;
+            border-radius: 6px 6px 0 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.8em;
+        }
+        .term-tab.active {
+            background: #0d1117;
+            color: #c9d1d9;
+            font-weight: bold;
+        }
+        .term-tab .close-tab-btn {
+            font-size: 0.9em;
+            padding: 2px;
+            border-radius: 50%;
+        }
+        .term-tab .close-tab-btn:hover {
+            background: rgba(218, 54, 51, 0.4);
+        }
+        .new-tab-btn {
+            background: none;
+            border: none;
+            color: #8b949e;
+            font-size: 1.2em;
+            cursor: pointer;
+            padding: 0 10px;
+        }
+        .new-tab-btn:hover {
+            color: #fff;
+        }
+
+        .term-content-area {
+            flex: 1;
+            position: relative;
+            padding: 5px;
+            min-height: 0;
+        }
+        .term-tab-content {
+            width: 100%; height: 100%;
+            display: none; /* Hidden by default */
+        }
+        .term-tab-content.active {
+            display: flex; /* Flex for layout */
+        }
+
+        /* --- SPLIT LAYOUT CLASSES (unchanged) --- */
+        .term-split-row { display: flex; flex-direction: row; flex: 1; width: 100%; height: 100%; min-width: 0; min-height: 0; gap: 4px; }
+        .term-split-col { display: flex; flex-direction: column; flex: 1; width: 100%; height: 100%; min-width: 0; min-height: 0; gap: 4px; }
+        
+        .term-pane {
+            flex: 1; display: flex; flex-direction: column;
+            min-width: 0; min-height: 0;
+            background: #000; border: 1px solid #30363d;
+            border-radius: 4px; position: relative;
+        }
+        .term-pane.active-pane { border-color: #58a6ff; box-shadow: 0 0 5px rgba(88, 166, 255, 0.3); }
+
+        .xterm-container { flex: 1; width: 100%; height: 100%; padding: 5px; box-sizing: border-box; overflow: hidden; }
+        .terminal-wrapper ::-webkit-scrollbar { display: none; }
+        
+        .term-loading {
+            position: absolute; top:50%; left:50%; transform:translate(-50%, -50%);
+            color: #8b949e; font-family: 'JetBrains Mono', monospace; z-index: 10;
+        }
+
+        /* --- CONTEXT MENU STYLES (unchanged) --- */
+        .term-ctx-menu { display: none; position: fixed; z-index: 9999; background: rgba(22, 27, 34, 0.95); backdrop-filter: blur(10px); border: 1px solid #30363d; border-radius: 6px; padding: 5px 0; min-width: 220px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); font-family: 'Inter', sans-serif; color: #e6edf3; font-size: 0.9em; user-select: none; }
+        .term-ctx-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; justify-content: space-between; gap: 10px; transition: background 0.2s; position: relative; }
+        .term-ctx-item i:first-child { width: 20px; color: #8b949e; text-align: center; }
+        .term-ctx-item:hover { background: #21262d; color: #fff; }
+        .term-ctx-item:hover > i:first-child { color: #58a6ff; }
+        .term-ctx-divider { height: 1px; background: #30363d; margin: 4px 0; }
+        .term-ctx-submenu { display: none; position: absolute; left: 100%; top: -5px; background: rgba(22, 27, 34, 0.95); border: 1px solid #30363d; border-radius: 6px; min-width: 220px; padding: 5px 0; box-shadow: 0 5px 15px rgba(0,0,0,0.8); }
+        .term-ctx-item.has-sub:hover .term-ctx-submenu { display: block; }
+    </style>
+
+    <div class="term-tab-bar" id="term-tab-bar">
+        <!-- Tabs will be generated here -->
+        <button class="new-tab-btn" title="New Tab" id="btn-new-tab">+</button>
+    </div>
+
+    <div class="term-content-area" id="term-content-area">
+        <!-- Tab content with panes will be generated here -->
+    </div>
+    
+    <div class="term-loading" id="term-loader">Inizializzazione Xterm.js...</div>
+
+    <div id="term-context-menu" class="term-ctx-menu">
+        <div class="term-ctx-item" data-action="new-tab"><i class="fas fa-plus"></i> Nuovo Tab</div>
+        <div class="term-ctx-divider"></div>
+        <div class="term-ctx-item" data-action="split-v"><i class="fas fa-columns"></i> Split Verticale</div>
+        <div class="term-ctx-item" data-action="split-h"><i class="fas fa-window-maximize" style="transform: rotate(90deg)"></i> Split Orizzontale</div>
+        <div class="term-ctx-item" data-action="close" style="color: #da3633"><i class="fas fa-times" style="color: #da3633"></i> Chiudi Pannello</div>
+        <div class="term-ctx-divider"></div>
+        <div class="term-ctx-item" data-action="copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="term-ctx-item" data-action="paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="term-ctx-divider"></div>
+        <div class="term-ctx-item" style="color:#8b949e; font-size:0.8em; padding-left:10px; cursor:default">SCREEN</div>
+        <div class="term-ctx-item" data-action="screen-new"><i class="fas fa-plus-square"></i> New Screen</div>
+        <div class="term-ctx-item" data-action="screen-list"><i class="fas fa-list"></i> List Screens</div>
+        <div class="term-ctx-item" data-action="screen-resume"><i class="fas fa-play-circle"></i> Resume Screen</div>
+        <div class="term-ctx-item" data-action="screen-detach"><i class="fas fa-sign-out-alt"></i> Detach Screen</div>
+    </div>
+
+    <script>
+        /*
+            IMPORTANTE:
+            Dopo le recenti modifiche al backend (i file .go), è necessario ricompilare
+            le due applicazioni 'server' e 'bridge'.
+            
+            Esegui questi comandi dalla root del progetto:
+            1. cd cmd/server
+            2. go build
+            3. cd ../..
+            4. cd cmd/bridge
+            5. go build
+            6. cd ../..
+        
+            Assicurati di avviare i nuovi eseguibili generati.
+        */
+        if (typeof appInstance === 'undefined') {
+            console.error("[Terminal] Errore: appInstance non disponibile.");
+        } else {
+            const currentId = hostId || appInstance.hostId;  // Usa il parametro passato, fallback ad appInstance
+            const wsId = appInstance.workspaceId || 0;
+            
+            // FIX: Scope DOM queries to the current host container to avoid ID conflicts
+            const rootEl = appInstance.container;
+            const tabBar = rootEl.querySelector('#term-tab-bar');
+            const contentArea = rootEl.querySelector('#term-content-area');
+            const loader = rootEl.querySelector('#term-loader');
+            const ctxMenu = rootEl.querySelector('#term-context-menu');
+            const newTabBtn = rootEl.querySelector('#btn-new-tab');
+            const termWrapper = rootEl.querySelector('#term-root-wrapper');
+            
+            let terminals = {}; 
+            let termCounter = 0;
+            let activeTermId = null;
+            let activeTabId = null; 
+            const instanceSuffix = Math.random().toString(36).substring(2, 9);
+
+            const loadScript = (src) => new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) return resolve();
+                const s = document.createElement('script'); s.src = src;
+                s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+            });
+            const loadStyle = (href) => {
+                if (document.querySelector(`link[href="${href}"]`)) return;
+                const l = document.createElement('link'); l.rel = 'stylesheet'; l.href = href; document.head.appendChild(l);
+            };
+
+            const createTerminalPane = (parentWrapper, tabId) => {
+                const termId = `${wsId}:pane-${instanceSuffix}-${termCounter++}`;
+                
+                const pane = document.createElement('div');
+                pane.className = 'term-pane';
+                pane.dataset.id = termId;
+                
+                const xtermContainer = document.createElement('div');
+                xtermContainer.className = 'xterm-container';
+                pane.appendChild(xtermContainer);
+                parentWrapper.appendChild(pane);
+
+                const term = new Terminal({
+                    cursorBlink: true, cursorStyle: 'bar', fontSize: 14,
+                    fontFamily: '"JetBrains Mono", monospace', lineHeight: 1.2,
+                    theme: { background: '#000000', foreground: '#c9d1d9', cursor: '#238636', selectionBackground: 'rgba(56, 139, 253, 0.3)' },
+                    convertEol: true, scrollback: 5000,
+                });
+
+                // FitAddon: per xterm 4.x è FitAddon.FitAddon
+                const FitAddonCtor = (typeof window.FitAddon?.FitAddon === 'function') 
+                    ? window.FitAddon.FitAddon 
+                    : (typeof window.FitAddon === 'function' ? window.FitAddon : null);
+                
+                if (!FitAddonCtor) {
+                    throw new Error("FitAddon constructor not found");
+                }
+                
+                const fitAddon = new FitAddonCtor();
+                term.loadAddon(fitAddon);
+                term.open(xtermContainer);
+
+                pane.addEventListener('mousedown', () => {
+                    termWrapper.querySelectorAll('.term-pane').forEach(p => p.classList.remove('active-pane'));
+                    pane.classList.add('active-pane');
+                    activeTermId = termId;
+                });
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`);
+
+                ws.onopen = () => {
+                    term.writeln('\x1b[1;32mLink Established. Requesting Shell...\x1b[0m');
+                    const subMsg = { type: "subscribe", host_id: parseInt(currentId), term_id: termId };
+                    console.log("[Terminal] Sending subscribe message:", subMsg);
+                    ws.send(JSON.stringify(subMsg));
+
+                    // Initial resize
+                    setTimeout(() => {
+                        try { fitAddon.fit(); } catch(e){}
+                        
+                        // 1. Send input first to ensure session creation (with default size)
+                        if (window.AppState && window.AppState.terminalCommand) {
+                            const command = window.AppState.terminalCommand;
+                            delete window.AppState.terminalCommand;
+                            ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: command + "\r" }));
+                        } else {
+                            // Send a null byte or enter to trigger session creation
+                            ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: "\r" }));
+                        }
+
+                        // 2. Send resize shortly after to fix dimensions
+                        setTimeout(() => {
+                            if (terminals[termId]) {
+                                console.log("[Terminal] Sending initial resize:", term.cols, term.rows); 
+                                ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: termId, payload: { cols: term.cols, rows: term.rows } }));
+                                terminals[termId].lastCols = term.cols;
+                                terminals[termId].lastRows = term.rows;
+                            }
+                        }, 300);
+
+                    }, 200);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const msg = JSON.parse(event.data);
+                        if (msg.type === "ssh_output" && msg.host_id == currentId && msg.term_id == termId) {
+                             term.write(msg.payload);
+                        }
+                    } catch(e) {}
+                };
+                ws.onclose = () => term.writeln('\r\n\x1b[1;31m[CONNECTION CLOSED]\x1b[0m');
+
+                term.onData(data => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        // Safety check: never send empty data or weird loops
+                        if (!data) return;
+                        ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: data }));
+                    }
+                });
+
+                // Use ResizeObserver for robust resizing
+                let resizeTimeout;
+                const resizeObserver = new ResizeObserver(() => {
+                    // Debounce
+                    if (resizeTimeout) clearTimeout(resizeTimeout);
+                    
+                    resizeTimeout = setTimeout(() => {
+                        if (xtermContainer.offsetParent === null) return; // Skip if hidden
+                        try {
+                            fitAddon.fit();
+                            if (ws.readyState === WebSocket.OPEN && term.cols > 0 && term.rows > 0) {
+                                // Send resize if dimensions changed or force update
+                                const lastState = terminals[termId] || { lastCols: 0, lastRows: 0 };
+                                if (term.cols !== lastState.lastCols || term.rows !== lastState.lastRows) {
+                                    ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: termId, payload: { cols: term.cols, rows: term.rows } }));
+                                    if (terminals[termId]) {
+                                        terminals[termId].lastCols = term.cols;
+                                        terminals[termId].lastRows = term.rows;
+                                    }
+                                }
+                            }
+                        } catch (e) {}
+                    }, 50);
+                });
+                resizeObserver.observe(xtermContainer);
+
+                terminals[termId] = { id: termId, tabId: tabId, term, ws, fitAddon, pane, resizeObserver, lastCols: 0, lastRows: 0 };
+                setActivePane(termId);
+                return termId;
+            };
+
+            const addNewTab = () => {
+                const tabId = `tab-${currentId}-${instanceSuffix}-${termCounter}`; // Unique ID per host & instance
+                console.log("Adding new tab:", tabId);
+                
+                const tab = document.createElement('div');
+                tab.className = 'term-tab';
+                tab.dataset.id = tabId;
+                tab.innerHTML = `<span>Terminale ${termCounter + 1}</span><i class="fas fa-times close-tab-btn"></i>`;
+                tabBar.insertBefore(tab, newTabBtn);
+
+                const content = document.createElement('div');
+                content.className = 'term-tab-content';
+                content.id = tabId;
+                contentArea.appendChild(content);
+
+                tab.querySelector('.close-tab-btn').onclick = (e) => { e.stopPropagation(); closeTab(tabId); };
+                tab.onclick = () => switchTab(tabId);
+
+                switchTab(tabId);
+                const termId = createTerminalPane(content, tabId);
+                terminals[termId].isRootOfTab = true; // Mark this as the first pane in the tab
+            };
+
+            const switchTab = (tabId) => {
+                activeTabId = tabId;
+                console.log("Switching to tab:", tabId);
+                tabBar.querySelectorAll('.term-tab').forEach(t => t.classList.remove('active'));
+                const tabBtn = tabBar.querySelector(`.term-tab[data-id="${tabId}"]`);
+                if(tabBtn) tabBtn.classList.add('active');
+
+                contentArea.querySelectorAll('.term-tab-content').forEach(c => c.classList.remove('active'));
+                const tabContent = document.getElementById(tabId); // ID is now unique
+                if(tabContent) tabContent.classList.add('active');
+
+                const firstTermId = Object.keys(terminals).find(id => terminals[id].tabId === tabId);
+                if (firstTermId) {
+                    setActivePane(firstTermId);
+                }
+                
+                // Force resize update on tab switch to ensure nano/vim render correctly
+                setTimeout(() => {
+                    Object.values(terminals).filter(t => t.tabId === tabId).forEach(t => {
+                        t.lastCols = 0; // Force resend
+                    });
+                    resizeAllTerminalsInActiveTab();
+                }, 100);
+                
+                resizeAllTerminalsInActiveTab();
+            };
+
+            const closeTab = (tabId) => {
+                console.log("Closing tab:", tabId);
+                Object.values(terminals).filter(t => t.tabId === tabId).forEach(t => {
+                    if (t.ws && t.ws.readyState === WebSocket.OPEN) {
+                        t.ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: t.id }));
+                    }
+                    if (t.ws) t.ws.close();
+                    if (t.term) t.term.dispose();
+                    if (t.resizeObserver) t.resizeObserver.disconnect();
+                    delete terminals[t.id];
+                });
+
+                const tabBtn = tabBar.querySelector(`.term-tab[data-id="${tabId}"]`);
+                if(tabBtn) tabBtn.remove();
+                const tabContent = document.getElementById(tabId);
+                if(tabContent) tabContent.remove();
+
+                if (activeTabId === tabId) {
+                    const firstTab = tabBar.querySelector('.term-tab');
+                    if (firstTab) {
+                        switchTab(firstTab.dataset.id);
+                    }
+                }
+            };
+            
+            const setActivePane = (termId) => {
+                 activeTermId = termId;
+                 console.log("Setting active pane:", termId);
+                 termWrapper.querySelectorAll('.term-pane').forEach(p => p.classList.remove('active-pane'));
+                 if(terminals[termId]) {
+                    terminals[termId].pane.classList.add('active-pane');
+                    terminals[termId].term.focus();
+                 }
+            }
+
+            const splitPane = (sourceId, direction) => {
+                if (!sourceId) {
+                    console.error("splitPane called with no sourceId");
+                    return;
+                }
+                const source = terminals[sourceId];
+                if(!source) return;
+
+                console.log(`Splitting pane ${sourceId} ${direction}`);
+
+                const sourcePane = source.pane;
+                const parent = sourcePane.parentElement;
+                const newParentClass = direction === 'vertical' ? 'term-split-row' : 'term-split-col';
+
+                if (parent.classList.contains(newParentClass)) {
+                    createTerminalPane(parent, source.tabId);
+                } else {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = newParentClass;
+                    parent.insertBefore(wrapper, sourcePane);
+                    wrapper.appendChild(sourcePane); 
+                    createTerminalPane(wrapper, source.tabId);
+                }
+                resizeAllTerminalsInActiveTab();
+            };
+
+            const closePane = (id) => {
+                if (!id) {
+                    console.error("closePane called with no id");
+                    return;
+                }
+                console.log("Closing pane:", id);
+                const termToClose = terminals[id];
+                if (!termToClose) return;
+
+                const countInTab = Object.values(terminals).filter(t => t.tabId === termToClose.tabId).length;
+                if(countInTab <= 1) {
+                    closeTab(termToClose.tabId);
+                    return;
+                }
+
+                if (termToClose.ws && termToClose.ws.readyState === WebSocket.OPEN) {
+                    termToClose.ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: termToClose.id }));
+                }
+                if (termToClose.ws) termToClose.ws.close();
+                if (termToClose.term) termToClose.term.dispose();
+                if (termToClose.resizeObserver) termToClose.resizeObserver.disconnect();
+                
+                const parent = termToClose.pane.parentElement;
+                termToClose.pane.remove();
+                delete terminals[id];
+                
+                if(parent && parent.children.length === 1 && parent !== document.getElementById(termToClose.tabId)) {
+                    const sibling = parent.children[0];
+                    parent.parentElement.insertBefore(sibling, parent);
+                    parent.remove();
+                }
+                
+                const remainingTerm = Object.values(terminals).find(t => t.tabId === termToClose.tabId);
+                if(remainingTerm) setActivePane(remainingTerm.id);
+
+                resizeAllTerminalsInActiveTab();
+            };
+
+            const resizeAllTerminalsInActiveTab = () => {
+                if(!activeTabId) return;
+                Object.values(terminals).filter(t => t.tabId === activeTabId).forEach(t => {
+                    try { 
+                        t.fitAddon.fit();
+                        if(t.ws && t.ws.readyState === WebSocket.OPEN) {
+                            if (t.term.cols !== t.lastCols || t.term.rows !== t.lastRows) {
+                                console.log("Resizing terminal:", t.id);
+                                t.ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: t.id, payload: { cols: t.term.cols, rows: t.term.rows } }));
+                                t.lastCols = t.term.cols;
+                                t.lastRows = t.term.rows;
+                            }
+                        }
+                    } catch(e) {}
+                });
+            };
+
+            const init = async () => {
+                console.log("[Terminal] Init started.");
+                try {
+                    console.log("[Terminal] Loading xterm scripts...");
+                    loadStyle('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css');
+                    
+                    // Carica Terminal PRIMA
+                    await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js');
+                    console.log("[Terminal] Terminal.js loaded.");
+                    
+                    // Poi carica FitAddon
+                    await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js');
+                    console.log("[Terminal] FitAddon script loaded.");
+                    
+                } catch(e) {
+                    if (loader) loader.innerText = "Error: Failed to load terminal libraries.";
+                    console.error("Failed to load terminal libraries:", e);
+                    return;
+                }
+
+                let attempts = 0;
+                while (typeof Terminal === 'undefined' || typeof window.FitAddon === 'undefined') {
+                    if (attempts === 0) {
+                        console.log(`[Terminal] Waiting for globals...`);
+                    }
+                    if (attempts++ > 100) {
+                        if (loader) loader.innerText = "Error: Libraries not fully loaded.";
+                        console.error(`Globals not loaded. Terminal: ${typeof Terminal}, FitAddon: ${typeof window.FitAddon}`);
+                        return;
+                    }
+                    await new Promise(res => setTimeout(res, 100));
+                }
+                
+                console.log("[Terminal] All globals ready!");
+                try {
+                    if (loader) loader.style.display = 'none';
+                    addNewTab();
+                    newTabBtn.onclick = addNewTab;
+                } catch (err) {
+                    if (loader) loader.innerText = "Errore: " + err.message;
+                    console.error("Xterm Init Error:", err);
+                }
+            };
+            
+            const docClickHandler = (e) => {
+                if(ctxMenu && !e.target.closest('.term-ctx-menu')) ctxMenu.style.display = 'none';
+            };
+            const ctxMenuHandler = (e) => {
+                e.preventDefault();
+                const clickedPane = e.target.closest('.term-pane');
+                if(clickedPane) setActivePane(clickedPane.dataset.id);
+
+                if(ctxMenu) {
+                    ctxMenu.style.display = 'block';
+                    let x = e.clientX; let y = e.clientY;
+                    if (x + 220 > window.innerWidth) x -= 220;
+                    if (y + 350 > window.innerHeight) y -= 350;
+                    ctxMenu.style.left = `${x}px`;
+                    ctxMenu.style.top = `${y}px`;
+                }
+            };
+            termWrapper.addEventListener('contextmenu', ctxMenuHandler);
+            document.addEventListener('click', docClickHandler);
+
+            ctxMenu.addEventListener('click', async (e) => {
+                const item = e.target.closest('.term-ctx-item');
+                if (!item) return;
+                ctxMenu.style.display = 'none';
+
+                const action = item.dataset.action;
+                const rawCmd = item.dataset.cmd;
+
+                if (action) {
+                    switch(action) {
+                        case 'new-tab': addNewTab(); break;
+                        case 'split-v': splitPane(activeTermId, 'vertical'); break;
+                        case 'split-h': splitPane(activeTermId, 'horizontal'); break;
+                        case 'close': closePane(activeTermId); break;
+                        case 'screen-new':
+                            const name = prompt("Nome nuova sessione Screen:");
+                            if(name) sendInputToActive(`screen -S ${name}\n`);
+                            break;
+                        case 'screen-list':
+                            sendInputToActive(`screen -ls\n`);
+                            break;
+                        case 'screen-resume':
+                            const rName = prompt("Nome sessione da riprendere:");
+                            if(rName) sendInputToActive(`screen -r ${rName}\n`);
+                            break;
+                        case 'screen-detach':
+                            // Send Ctrl+A (0x01) then 'd'
+                            sendInputToActive('\x01d');
+                            break;
+                        case 'copy':
+                            const sel = terminals[activeTermId]?.term.getSelection();
+                            if(sel) navigator.clipboard.writeText(sel);
+                            break;
+                        case 'paste':
+                            const text = await navigator.clipboard.readText();
+                            if(text) sendInputToActive(text);
+                            break;
+                    }
+                } else if (rawCmd) {
+                    const cmd = rawCmd.replace(/\\n/g, '\r');
+                    const t = terminals[activeTermId];
+                    if(t && t.ws && t.ws.readyState === WebSocket.OPEN) {
+                        if(cmd.includes('clear')) t.term.clear();
+                        t.ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: t.id, payload: cmd }));
+                    }
+                }
+            });
+
+            const sendInputToActive = (data) => {
+                const t = terminals[activeTermId];
+                if(t && t.ws && t.ws.readyState === WebSocket.OPEN) {
+                    t.ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: t.id, payload: data }));
+                }
+            };
+
+            appInstance.registerCleanup(() => {
+                termWrapper.removeEventListener('contextmenu', ctxMenuHandler);
+                document.removeEventListener('click', docClickHandler);
+                Object.values(terminals).forEach(t => {
+                    if (t.ws && t.ws.readyState === WebSocket.OPEN) {
+                        t.ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: t.id }));
+                    }
+                    if (t.ws) t.ws.close();
+                    if (t.term) t.term.dispose();
+                    if (t.resizeObserver) t.resizeObserver.disconnect();
+                });
+            });
+
+            init();
+        }
+    </script>
+</div>

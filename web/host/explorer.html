@@ -1,0 +1,1955 @@
+<div class="explorer-module-wrapper">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+
+    <style>
+        .explorer-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --folder-color: #e3b341; --file-color: #58a6ff; --danger: #da3633; --warning: #d29922;
+        }
+
+        .explorer-side { width: 400px; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--bg-panel); }
+        
+        /* TABS SIDEBAR */
+        .sidebar-tabs-header { display: flex; background: #010409; border-bottom: 1px solid var(--border); padding: 5px 5px 0 5px; gap: 2px; flex-shrink: 0; overflow-x: auto; scrollbar-width: none; }
+        .sidebar-tab { padding: 6px 12px; background: #161b22; color: var(--text-dim); border: 1px solid var(--border); border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 0.8em; display: flex; align-items: center; gap: 5px; min-width: 80px; max-width: 140px; white-space: nowrap; position: relative; }
+        .sidebar-tab.active { background: var(--bg-panel); color: var(--text-main); font-weight: bold; border-bottom: 1px solid var(--bg-panel); margin-bottom: -1px; z-index: 1; }
+        .sidebar-tab-close { margin-left: auto; font-size: 0.9em; opacity: 0.6; padding: 2px; border-radius: 50%; }
+        .sidebar-tab-close:hover { opacity: 1; color: var(--danger); background: rgba(255,255,255,0.1); }
+        .btn-add-tab { background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0 8px; font-size: 1.1em; }
+        .btn-add-tab:hover { color: var(--text-main); }
+
+        .tab-pane { display: none; flex-direction: column; height: 100%; width: 100%; }
+        .tab-pane.active { display: flex; }
+
+        .path-row { display: flex; align-items: center; gap: 5px; padding: 8px; border-bottom: 1px solid var(--border); background: var(--bg-panel); position: relative; }
+        .current-path-input { flex: 1; background: #0d1117; border: 1px solid var(--border); color: var(--accent); font-family: inherit; font-size: 0.8em; padding: 5px 10px; border-radius: 4px; outline: none; }
+        
+        .search-bar-container { padding: 5px 8px; background: #161b22; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+        .search-input { flex: 1; background: #0d1117; border: 1px solid var(--border); color: var(--text-main); font-family: inherit; font-size: 0.8em; padding: 4px 10px; border-radius: 4px; outline: none; }
+        .search-input::placeholder { color: var(--text-dim); }
+        .btn-clear-search { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 0.7em; }
+        .btn-clear-search:hover { color: var(--warning); border-color: var(--warning); }
+        
+        .fm-toolbar { display: flex; flex-direction: column; gap: 5px; padding: 10px; background: #161b22; border-bottom: 1px solid var(--border); }
+        .toolbar-row { display: flex; gap: 5px; width: 100%; }
+        .tool-btn { flex: 1; background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 6px; border-radius: 4px; cursor: pointer; font-size: 0.7em; display: flex; align-items: center; justify-content: center; gap: 5px; }
+        .tool-btn:hover { background: #21262d; border-color: var(--text-dim); }
+        .tool-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .tool-btn.active-clip { border-color: var(--warning); color: var(--warning); }
+        .tool-btn.half-btn { flex: 0.5; }
+        .tool-btn.btn-danger:hover { border-color: var(--danger); color: var(--danger); }
+        
+        .file-list { flex: 1; overflow-y: auto; padding: 0; }
+        .item { cursor: pointer; padding: 10px 15px; font-size: 0.85em; display: flex; align-items: center; border-left: 3px solid transparent; transition: 0.1s; position: relative; border-bottom: 1px solid #21262d; }
+        .item:hover { background: #21262d; border-left-color: var(--file-color); }
+        .item i { margin-right: 12px; width: 20px; text-align: center; font-size: 1.2em; }
+        .item-checkbox { margin-right: 10px; cursor: pointer; width: 16px; height: 16px; }
+        .item-info { display: flex; flex-direction: column; flex: 1; overflow: hidden; }
+        .item-name { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #fff; }
+        .item-meta { font-size: 0.7em; color: var(--text-dim); margin-top: 2px; display: flex; align-items: center; }
+        .item.dir i { color: var(--folder-color); }
+        .item.file i { color: var(--file-color); }
+        .item.parent { color: var(--accent); background: rgba(35, 134, 54, 0.05); border-bottom: 2px solid var(--border); }
+        .item.link i { color: var(--text-dim); }
+        .search-result-item .item-meta { font-size: 0.8em; color: var(--accent); }
+        
+        /* MAIN BROWSER VIEW (Grid) */
+        .browser-toolbar { display: flex; align-items: center; gap: 10px; padding: 8px 15px; background: #161b22; border-bottom: 1px solid var(--border); }
+        .browser-sort-btn { background: transparent; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 0.8em; }
+        .browser-sort-btn:hover, .browser-sort-btn.active { background: #21262d; color: white; border-color: var(--text-dim); }
+        .browser-sort-btn.active { color: var(--accent); border-color: var(--accent); }
+
+        .browser-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; padding: 15px; overflow-y: auto; height: 100%; align-content: start; }
+        .browser-list-container { overflow-y: auto; height: 100%; }
+        .browser-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .browser-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border); cursor: pointer; }
+        .browser-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-main); white-space: nowrap; }
+        .browser-table tr:hover { background: #21262d; }
+        .browser-table tr.selected { background: rgba(35, 134, 54, 0.15); }
+
+        .browser-item { display: flex; flex-direction: column; align-items: center; padding: 10px; border-radius: 6px; cursor: pointer; transition: 0.2s; text-align: center; border: 1px solid transparent; }
+        .browser-item:hover { background: #21262d; border-color: #30363d; }
+        .browser-item.selected { background: rgba(35, 134, 54, 0.15); border-color: var(--accent); }
+        .browser-icon { font-size: 2.5em; margin-bottom: 8px; }
+        .browser-name { font-size: 0.85em; word-break: break-word; line-height: 1.2; max-width: 100%; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+        .browser-meta { font-size: 0.7em; color: var(--text-dim); margin-top: 4px; }
+        
+        .browser-item.dir .browser-icon { color: var(--folder-color); }
+        .browser-item.file .browser-icon { color: var(--file-color); }
+        .browser-item.link .browser-icon { color: var(--text-dim); }
+        .browser-item.zip .browser-icon { color: var(--warning); }
+        .browser-item.img .browser-icon { color: #d2a8ff; }
+
+        /* HEX EDITOR */
+        .hex-view { font-family: 'JetBrains Mono', monospace; font-size: 13px; height: 100%; overflow: auto; background: #0d1117; padding: 10px; color: #c9d1d9; }
+        .hex-row { display: flex; }
+        .hex-offset { color: var(--accent); margin-right: 15px; user-select: none; }
+        .hex-bytes { color: #a5d6ff; margin-right: 15px; }
+        .hex-ascii { color: #c9d1d9; opacity: 0.8; }
+
+        .actions-overlay { position: absolute; right: 10px; display: none; gap: 8px; background: #21262d; padding: 5px 10px; border-radius: 4px; border: 1px solid var(--border); }
+        .item:hover .actions-overlay { display: flex; }
+        .action-icon { cursor: pointer; font-size: 0.9em; color: var(--text-dim); transition: 0.2s; }
+        .action-icon:hover { color: var(--warning); transform: scale(1.1); }
+        
+        /* Editor & Bottom Panels */
+        .editor-container { flex: 1; display: flex; flex-direction: column; position: relative; height: 100%; overflow: hidden; }
+        
+        /* RIGHT TABS */
+        .rt-tabs { display: flex; background: #010409; border-bottom: 1px solid var(--border); }
+        .rt-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); font-size: 0.85em; border-right: 1px solid var(--border); display: flex; align-items: center; gap: 6px; }
+        .rt-tab:hover { background: #161b22; color: white; }
+        .rt-tab.active { background: var(--bg-panel); color: var(--accent); font-weight: bold; border-top: 2px solid var(--accent); }
+        
+        .rt-content { display: none; flex: 1; min-height: 0; flex-direction: column; overflow: hidden; position: relative; }
+        .rt-content.active { display: flex; }
+        
+        .bottom-panel { height: 350px; background: #000; border-top: 2px solid var(--border); display: none; box-sizing: border-box; }
+        .terminal-embed { width: 100%; height: 100%; padding: 5px; }
+
+        /* SFTP DUAL PANE STYLES */
+        .sftp-container { display: flex; width: 100%; height: 100%; background: #0d1117; }
+        .sftp-pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid var(--border); }
+        .sftp-pane-header { padding: 8px; background: #161b22; border-bottom: 1px solid var(--border); display: flex; gap: 5px; align-items: center; }
+        .sftp-pane-header input { flex: 1; background: #000; border: 1px solid var(--border); color: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace; font-size: 0.8em; }
+        .sftp-list { flex: 1; overflow-y: auto; padding: 5px; }
+        
+        .sftp-item { padding: 6px 10px; font-size: 0.8em; cursor: pointer; display: flex; align-items: center; gap: 10px; border-radius: 4px; color: #c9d1d9; }
+        .sftp-item:hover { background: #21262d; }
+        .sftp-item.selected { background: rgba(88, 166, 255, 0.2); border: 1px solid #58a6ff; }
+        .sftp-item i { width: 15px; text-align: center; }
+        .sftp-item.dir i { color: var(--folder-color); }
+        .sftp-item.file i { color: var(--file-color); }
+
+        .sftp-item input[type="checkbox"] {
+            appearance: none; -webkit-appearance: none;
+            width: 16px; height: 16px;
+            border: 1px solid var(--border);
+            border-radius: 3px;
+            background-color: #0d1117;
+            cursor: pointer;
+            position: relative;
+            margin-right: 10px;
+        }
+        .sftp-item input[type="checkbox"]:checked {
+            background-color: var(--accent);
+            border-color: var(--accent);
+        }
+        .sftp-item input[type="checkbox"]:checked::after {
+            content: '\f00c';
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            color: #fff;
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 10px;
+        }
+
+        .sftp-controls { width: 60px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; background: #161b22; }
+
+        .sftp-btn { background: #21262d; border: 1px solid var(--border); color: #fff; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; font-size: 1.2em; }
+        .sftp-btn:hover { background: var(--accent); border-color: var(--accent); transform: scale(1.1); }
+
+        /* Editor Actions */
+        .editor-actions { height: 60px; padding: 0 20px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-shrink: 0; }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; font-family: inherit; display: flex; align-items: center; gap: 8px; }
+        .btn-cmd { background: #444; } .btn-cmd.active { background: var(--warning); color: #000; }
+        .btn-sftp { background: #444; } .btn-sftp.active { background: #58a6ff; color: #fff; }
+        .btn-trans { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-search { background: #444; } .btn-search.active { background: #58a6ff; color: #fff;}
+        .btn-diff { background: #444; } .btn-diff.active { background: #d29922; color: #fff; }
+
+        .search-panel { display: none; flex-direction: column; }
+        .search-panel-container { display: flex; flex-direction: column; width: 100%; height: 100%; }
+        .search-panel-header { display: flex; padding: 10px; background: #161b22; border-bottom: 1px solid var(--border); gap: 10px; }
+        .search-content-query-input, .search-content-path-input { flex: 1; background: #0d1117; border: 1px solid var(--border); color: var(--text-main); font-family: inherit; font-size: 0.9em; padding: 6px 10px; border-radius: 4px; outline: none; }
+        .btn-apply-search { background: var(--accent); color: white; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .search-results-container { flex: 1; overflow-y: auto; }
+        
+        /* Modal Styles */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); display: flex; flex-direction: column; max-height: 80vh;}
+        .modal-header { margin-bottom: 15px; font-weight: bold; color: var(--warning); border-bottom: 1px solid var(--border); padding-bottom: 10px; display:flex; justify-content:space-between; align-items: center; }
+        .modal-body label { display: block; font-size: 0.8em; margin-bottom: 5px; color: var(--text-dim); }
+        .modal-body input, .modal-body select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-family: inherit; box-sizing: border-box; }
+
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px; }
+        .status-badge { padding: 4px 10px; border-radius: 4px; background: #0d1117; font-size: 0.85em; border: 1px solid var(--border); }
+        .root-tag { color: var(--danger); font-weight: bold; margin-right: 10px; }
+
+        /* Transfer Queue UI */
+        .transfer-queue { position: absolute; bottom: 70px; right: 20px; width: 350px; background: #161b22; border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100; display: none; flex-direction: column; overflow: hidden; }
+        .queue-header { background: #0d1117; padding: 10px; font-size: 0.85em; font-weight: bold; display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); }
+        .queue-list { max-height: 200px; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+        .q-item { font-size: 0.8em; }
+        .q-bar-bg { width: 100%; height: 6px; background: #30363d; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .q-bar-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.2s; }
+
+        /* Context Menu */
+        .context-menu, .editor-context-menu { 
+            position: fixed; 
+            background: var(--bg-panel); 
+            border: 1px solid var(--border); 
+            border-radius: 4px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.8); 
+            z-index: 10000; 
+            display: none; 
+            min-width: 180px;
+            overflow: hidden;
+        }
+        .context-menu-item {
+            padding: 8px 15px; cursor: pointer; color: var(--text-main); font-size: 0.85em; border-bottom: 1px solid #30363d; display: flex; align-items: center; gap: 8px; transition: 0.1s;
+        }
+        .context-menu-item:hover { background: #21262d; color: var(--accent); }
+        .context-menu-item:last-child { border-bottom: none; }
+        .context-menu-item i { width: 16px; text-align: center; }
+        .context-menu-divider { height: 1px; background: #30363d; margin: 3px 0; }
+
+        /* Compact Priv Button */
+        .btn-priv-toggle { width: 28px; height: 28px; border-radius: 4px; border: 1px solid var(--border); background: #161b22; color: var(--text-dim); cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; flex-shrink: 0; }
+        .btn-priv-toggle:hover { background: #21262d; color: #fff; }
+        .btn-priv-toggle.root { background: rgba(218, 54, 51, 0.2); border-color: var(--danger); color: var(--danger); }
+        .btn-priv-toggle.root:hover { background: var(--danger); color: white; }
+
+        /* Autocomplete */
+        .autocomplete-suggestions { position: absolute; top: 100%; left: 40px; right: 10px; background: #161b22; border: 1px solid var(--border); border-radius: 0 0 4px 4px; z-index: 100; max-height: 200px; overflow-y: auto; display: none; box-shadow: 0 5px 15px rgba(0,0,0,0.5); }
+        .suggestion-item { padding: 6px 10px; cursor: pointer; font-size: 0.85em; color: var(--text-dim); border-bottom: 1px solid #21262d; }
+        .suggestion-item:hover { background: #21262d; color: white; }
+        .suggestion-item.selected { background: var(--accent); color: white; }
+
+        .editor-toolbar {
+            display: flex;
+            gap: 10px;
+            padding: 8px;
+            background: #161b22;
+            border-bottom: 1px solid var(--border);
+            align-items: center;
+        }
+        .editor-tabs {
+            display: flex;
+            background: #0d1117;
+            border-bottom: 1px solid var(--border);
+            overflow-x: auto;
+            scrollbar-width: thin;
+        }
+        .editor-tab {
+            background: #161b22;
+            padding: 8px 15px;
+            cursor: pointer;
+            border-right: 1px solid var(--border);
+            color: var(--text-dim);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+            white-space: nowrap;
+        }
+        .editor-tab.active {
+            background: var(--bg-panel);
+            color: var(--text-main);
+            font-weight: bold;
+        }
+        .tab-close {
+            margin-left: 10px;
+            color: var(--text-dim);
+            cursor: pointer;
+            font-size: 1.1em;
+        }
+        .tab-close:hover { color: var(--danger); }
+        .file-dirty-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--warning);
+            margin-left: 8px;
+            display: none;
+        }
+        .editor-tab.dirty .file-dirty-indicator { display: inline-block; }
+
+        .btn-path-action {
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 8px;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-path-action:hover {
+            background: #21262d;
+            border-color: var(--text-dim);
+        }
+
+        /* Quick Host Table */
+        .qh-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .qh-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); position: sticky; top: 0; z-index: 1; border-bottom: 1px solid var(--border); }
+        .qh-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); color: var(--text-main); }
+        .qh-table tr:hover { background: #21262d; }
+        .qh-table tr { cursor: pointer; }
+
+    </style>
+
+    <div class="local-modal modal-perm">
+        <div class="modal-content">
+            <div class="modal-header"><i class="fas fa-shield-alt"></i> Permessi: <span class="modal-target-name"></span></div>
+            <div class="modal-body">
+                <label>CHMOD (es: 755)</label>
+                <input type="text" class="chmod-val" placeholder="755">
+                <label>CHOWN (utente:gruppo)</label>
+                <input type="text" class="chown-val" placeholder="root:root">
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-apply-perms" style="padding: 5px 15px;">Applica</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-link">
+        <div class="modal-content">
+            <div class="modal-header"><i class="fas fa-link"></i> Crea Collegamento</div>
+            <div class="modal-body">
+                <label>Nome del collegamento</label>
+                <input type="text" class="link-name" placeholder="nome_link">
+                <label>Tipo</label>
+                <select class="link-type">
+                    <option value="-s">Simbolico (ln -s)</option>
+                    <option value="">Hard Link (ln)</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-apply-link">Crea</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-wget">
+        <div class="modal-content">
+            <div class="modal-header"><i class="fas fa-download"></i> Remote Download (wget)</div>
+            <div class="modal-body">
+                <label>Incolla URL del file</label>
+                <input type="text" class="wget-url" placeholder="https://example.com/file.zip">
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-apply-wget" style="padding: 5px 15px;">Scarica</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-compress">
+        <div class="modal-content">
+            <div class="modal-header"><i class="fas fa-file-archive"></i> Comprimi File/Cartelle</div>
+            <div class="modal-body">
+                <label>Nome Archivio (senza estensione)</label>
+                <input type="text" class="compress-name" placeholder="backup_file">
+                <label>Formato</label>
+                <select class="compress-format">
+                    <option value="tar.gz">TAR.GZ (Linux Standard)</option>
+                    <option value="zip">ZIP (Universale)</option>
+                </select>
+            </div>
+            <div class="modal-footer">
+                <button class="tool-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-apply-compress" style="padding: 5px 15px;">Comprimi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-quick-host">
+        <div class="modal-content" style="width: 700px; max-height: 80vh; height: 80vh;">
+            <div class="modal-header">
+                <span>Seleziona Host</span>
+                <i class="fas fa-times btn-close-modal" style="cursor:pointer"></i>
+            </div>
+            <div class="modal-body" style="padding: 0; display: flex; flex-direction: column; flex: 1; overflow: hidden;">
+                <div style="padding: 10px; border-bottom: 1px solid var(--border); background: var(--bg-panel);">
+                    <input type="text" class="quick-host-search" placeholder="Cerca host, ip, user..." style="width: 100%; margin: 0;">
+                </div>
+                <div style="flex: 1; overflow-y: auto;">
+                    <table class="qh-table">
+                        <thead>
+                            <tr><th>Name</th><th>IP</th><th>User</th><th>Folder</th></tr>
+                        </thead>
+                        <tbody class="quick-host-tbody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="context-menu">
+        <div class="context-menu-item cm-new-file"><i class="fas fa-file-medical"></i> Nuovo File</div>
+        <div class="context-menu-item cm-new-dir"><i class="fas fa-folder-plus"></i> Nuova Cartella</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item cm-upload"><i class="fas fa-upload"></i> Upload Qui</div>
+        <div class="context-menu-item cm-wget"><i class="fas fa-globe"></i> Wget Qui</div>
+        <div class="context-menu-item cm-download"><i class="fas fa-download"></i> Download</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item cm-copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="context-menu-item cm-cut"><i class="fas fa-cut"></i> Taglia</div>
+        <div class="context-menu-item cm-paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item cm-link"><i class="fas fa-link"></i> Crea Collegamento</div>
+        <div class="context-menu-item cm-rename"><i class="fas fa-edit"></i> Rinomina</div>
+        <div class="context-menu-item cm-perms"><i class="fas fa-shield-alt"></i> Permessi</div>
+        <div class="context-menu-item cm-compress"><i class="fas fa-compress"></i> Comprimi</div>
+        <div class="context-menu-item cm-delete"><i class="fas fa-trash-alt"></i> Elimina</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item cm-search-content"><i class="fas fa-search-plus"></i> Cerca nel contenuto</div>
+    </div>
+
+    <div class="context-menu" id="sftpc-remote-context-menu">
+        <div class="context-menu-item" id="sftpc-cm-new-dir"><i class="fas fa-folder-plus"></i> New Folder</div>
+        <div class="context-menu-item" id="sftpc-cm-rename"><i class="fas fa-edit"></i> Rename</div>
+        <div class="context-menu-item" id="sftpc-cm-delete"><i class="fas fa-trash-alt"></i> Delete</div>
+    </div>
+    <div class="editor-context-menu">
+        <div class="context-menu-item ec-copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="context-menu-item ec-cut"><i class="fas fa-cut"></i> Taglia</div>
+    </div>
+
+    <div class="context-menu" id="term-context-menu">
+        <div class="context-menu-item" data-action="copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="context-menu-item" data-action="paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="context-menu-divider"></div>
+        <div class="context-menu-item" style="color:#8b949e; font-size:0.8em; padding-left:10px; cursor:default">SCREEN</div>
+        <div class="context-menu-item" data-action="screen-new"><i class="fas fa-plus-square"></i> New Screen</div>
+        <div class="context-menu-item" data-action="screen-list"><i class="fas fa-list"></i> List Screens</div>
+        <div class="context-menu-item" data-action="screen-resume"><i class="fas fa-play-circle"></i> Resume Screen</div>
+        <div class="context-menu-item" data-action="screen-detach"><i class="fas fa-sign-out-alt"></i> Detach Screen</div>
+    </div>
+
+    <div class="explorer-side">
+        <input type="file" id="context-upload-input" style="display: none;" multiple>
+        
+        <!-- Tab Header -->
+        <div class="sidebar-tabs-header">
+            <button class="btn-add-tab" title="Nuovo Tab">+</button>
+        </div>
+        
+        <!-- Tab Contents Container -->
+        <div class="sidebar-tabs-container" style="flex:1; position:relative; overflow:hidden; display:flex; flex-direction:column;"></div>
+    </div>
+
+    <div class="editor-container">
+        <div class="rt-tabs">
+            <div class="rt-tab active" data-target="browser"><i class="fas fa-th"></i> Browser</div>
+            <div class="rt-tab" data-target="editor"><i class="fas fa-code"></i> Editor</div>
+            <div class="rt-tab" data-target="hex"><i class="fas fa-binary"></i> Hex View</div>
+        </div>
+
+        <div id="rt-browser" class="rt-content active">
+            <div class="browser-toolbar">
+                <span style="font-size:0.8em; color:var(--text-dim); margin-right:10px">Ordina per:</span>
+                <button class="browser-sort-btn active" data-sort="name">Nome</button>
+                <button class="browser-sort-btn" data-sort="size">Dimensione</button>
+                <button class="browser-sort-btn" data-sort="date">Data</button>
+                <div class="view-toggles">
+                    <button class="view-btn active" data-view="grid" title="Griglia"><i class="fas fa-th-large"></i></button>
+                    <button class="view-btn" data-view="list" title="Elenco Dettagli"><i class="fas fa-list"></i></button>
+                </div>
+            </div>
+            <div class="browser-grid"></div>
+            <div class="browser-list-container">
+                <table class="browser-table">
+                    <thead>
+                        <tr>
+                            <th data-sort="name">Nome / Cartella</th>
+                            <th data-sort="date">Data Modifica</th>
+                            <th data-sort="owner">Owner</th>
+                            <th data-sort="perms">Permessi</th>
+                            <th data-sort="size">Dimensione</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="rt-editor" class="rt-content">
+            <div class="editor-toolbar">
+                <button class="btn btn-save" disabled><i class="fas fa-save"></i> SALVA</button>
+                <button class="tool-btn editor-tool-btn" data-command="undo" title="Undo"><i class="fas fa-undo"></i></button>
+                <button class="tool-btn editor-tool-btn" data-command="redo" title="Redo"><i class="fas fa-redo"></i></button>
+            </div>
+            <div class="editor-tabs"></div>
+            <div class="ace-editor-div" style="flex:1; width:100%"></div>
+        </div>
+
+        <div id="rt-hex" class="rt-content">
+            <div class="editor-toolbar">
+                <span class="hex-filename" style="font-weight:bold; color:var(--accent)"></span>
+            </div>
+            <div class="hex-view"></div>
+        </div>
+        
+        <div class="bottom-panel terminal-panel">
+            <div class="terminal-embed"></div>
+        </div>
+				
+
+        <div class="bottom-panel sftp-panel">
+            <div class="sftp-pane">
+                <div class="sftp-pane-header">
+                    <span style="font-weight:bold; color:var(--warning); width:100px"><i class="fas fa-laptop-code"></i> Bridge</span>
+										<button class="tool-btn half-btn sftp-local-up"><i class="fas fa-level-up-alt"></i></button>
+										<button class="tool-btn half-btn sftp-new-dir" title="Nuova Cartella"><i class="fas fa-folder-plus"></i></button>
+                    <input type="text" id="sftp-local-path" readonly>
+                </div>
+                <div class="sftp-list" id="sftp-local-list"></div>
+            </div>
+
+            <div class="sftp-controls">
+                <button class="sftp-btn sftp-upload" title="Upload (Bridge -> Host)"><i class="fas fa-chevron-right"></i></button>
+                <button class="sftp-btn sftp-download" title="Download (Host -> Bridge)"><i class="fas fa-chevron-left"></i></button>
+            </div>
+
+            <div class="sftp-pane">
+                <div class="sftp-pane-header">
+                    <span style="font-weight:bold; color:var(--file-color); width:100px"><i class="fas fa-server"></i> Host</span>
+                    <button class="tool-btn half-btn sftp-remote-up"><i class="fas fa-level-up-alt"></i></button>
+										<button class="tool-btn half-btn sftp-new-dir" title="Nuova Cartella"><i class="fas fa-folder-plus"></i></button>
+                    <input type="text" id="sftp-remote-path" readonly>
+                </div>
+                <div class="sftp-list" id="sftp-remote-list"></div>
+            </div>
+        </div>
+
+        <div class="bottom-panel sftpc-panel" style="flex-direction: column;">
+            <div class="sftpc-connection-bar" style="display: flex; align-items: center; padding: 10px; background: #0d1117; border-bottom: 1px solid var(--border); gap: 10px;">
+                <button id="btn-sftpc-quick" class="btn" style="background: #161b22; border: 1px solid var(--border); padding: 8px; max-width: 150px; justify-content: center;">Quick Select...</button>
+                <input type="text" id="sftpc-ip" placeholder="IP Address" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit;">
+                <input type="text" id="sftpc-username" placeholder="Username" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit;">
+                <input type="password" id="sftpc-password" placeholder="Password" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit;">
+                <select id="sftpc-connection-type" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit;">
+                    <option value="direct">Direct</option>
+                    <option value="bridge">Bridge</option>
+                </select>
+                <button class="btn" id="sftpc-connect-main" style="background: var(--accent); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;"><i class="fas fa-plug"></i> Connect</button>
+            </div>
+            <div class="sftp-container" style="flex: 1;">
+						<div class="sftp-pane">
+								<div class="sftp-pane-header">
+										<span style="font-weight:bold; color:var(--warning); width:100px"><i class="fas fa-laptop-code"></i> Local</span>
+										<button class="tool-btn half-btn sftpc-local-up"><i class="fas fa-level-up-alt"></i></button>
+										<input type="text" id="sftpc-local-path-main" readonly>
+								</div>
+								<div class="sftp-list" id="sftpc-local-list-main"></div>
+						</div>
+
+						<div class="sftp-pane">
+								<div class="sftp-pane-header">
+										<span style="font-weight:bold; color:var(--file-color); width:100px"><i class="fas fa-server"></i> Remote</span>
+                    <button class="tool-btn half-btn sftpc-remote-up"><i class="fas fa-level-up-alt"></i></button>
+										<input type="text" id="sftpc-remote-path-main" readonly>
+								</div>
+								<div class="sftp-list" id="sftpc-remote-list-main"></div>
+						</div>
+            </div>
+				</div>
+
+                    <div class="bottom-panel search-panel">
+                        <div class="search-panel-container">
+                        <div class="search-panel-header">
+                <input type="text" class="search-content-query-input" placeholder="Testo da cercare...">
+                <input type="text" class="search-content-path-input" placeholder="Percorso...">
+                <button class="btn btn-apply-search">Cerca</button>
+            </div>
+            <div class="search-results-container"></div>
+        </div>
+    </div>
+
+    <div class="bottom-panel diff-panel" style="flex-direction: column; height: auto !important; min-height: 0; background: transparent; border: none;">
+        <div class="search-panel-header" style="background: #161b22; border-bottom: 1px solid var(--border); padding: 10px; gap: 10px; align-items: center;">
+            <div style="display:flex; flex-direction:column; flex:1; gap:5px;">
+                 <div style="display:flex; gap:5px;">
+                    <button class="btn-path-action btn-get-sel-a" title="Usa file selezionato"><i class="fas fa-arrow-down"></i></button>
+                    <input type="text" class="diff-path-a" placeholder="File Originale (Path A)" style="flex:1; background:#0d1117; border:1px solid var(--border); color:#c9d1d9; padding:5px; border-radius:4px;" autocomplete="off">
+                    <button class="btn-path-action btn-swap-diff" title="Scambia"><i class="fas fa-exchange-alt"></i></button>
+                    <input type="text" class="diff-path-b" placeholder="File Modificato (Path B)" style="flex:1; background:#0d1117; border:1px solid var(--border); color:#c9d1d9; padding:5px; border-radius:4px;" autocomplete="off">
+                    <button class="btn-path-action btn-get-sel-b" title="Usa file selezionato"><i class="fas fa-arrow-down"></i></button>
+                 </div>
+                 <div style="display:flex; gap:15px; font-size:0.8em; color:var(--text-dim);">
+                     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="diff-opt-w"> Ignora Spazi Bianchi (-w)</label>
+                     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="diff-opt-i"> Ignora Maiuscole (-i)</label>
+                     <label style="display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" class="diff-opt-B"> Ignora Righe Vuote (-B)</label>
+                     <label style="display:flex;align-items:center;gap:5px;cursor:pointer; margin-left: 10px; color: var(--accent);"><input type="checkbox" class="diff-opt-save"> Salva su file</label>
+                 </div>
+            </div>
+            <button class="btn btn-run-diff" style="background:var(--warning); color:#000;">Confronta</button>
+        </div>
+    </div>
+        
+        <div class="transfer-queue">
+            <div class="queue-header">Trasferimenti in corso <i class="fas fa-times" style="cursor:pointer" onclick="this.parentElement.parentElement.style.display='none'"></i></div>
+            <div class="queue-list" id="transfer-queue-list"></div>
+        </div>
+        
+        <div class="editor-actions">
+            <div class="file-info">
+                <span class="root-tag" style="display:none">ROOT MODE</span>
+                <span class="status-badge status-text">Seleziona un file per iniziare</span>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button class="btn btn-sftp btn-toggle-sftp">
+                    <i class="fas fa-exchange-alt"></i> SFTP
+                </button>
+                <button class="btn btn-sftp btn-toggle-sftpc">
+                    <i class="fas fa-network-wired"></i> SFTPC
+                </button>
+                <button class="btn btn-search btn-toggle-search">
+                    <i class="fas fa-search"></i> SEARCH
+                </button>
+                <button class="btn btn-diff btn-toggle-diff">
+                    <i class="fas fa-columns"></i> DIFF
+                </button>
+                <button class="btn btn-cmd btn-toggle-term">
+                    <i class="fas fa-terminal"></i> CMD
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("[Explorer] appInstance mancante."); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+
+            let editor = null;
+            let term = null;
+            let fitAddon = null;
+            let ws = null;
+            const explorerTermId = `${wsId}:explorer_` + Math.random().toString(36).substring(2, 9);
+            let sshTermId = null; // Will be generated for the terminal
+            
+            let clipboardSources = [];
+            let isCutOperation = false;
+            let searchActive = false;
+            let selectedContextItem = null;
+            let targetLineToGo = null;
+
+            let openFiles = new Map();
+            let activeFile = null;
+
+            let sftpLocalPath = ".";
+            let sftpLocalSelection = [];
+            let sftpRemoteSelection = [];
+
+            let sftpcLocalPath = "";
+            let sftpcRemotePath = "/";
+            let sftpcLocalSelection = [];
+            let sftpcRemoteSelection = [];
+            let selectedSftpcRemoteItem = null;
+            let sftpcPrivateKey = "";
+
+            // Cache for quick select
+            let allHostsCache = [];
+            let allGroupsCache = [];
+
+            // --- TABS STATE ---
+            let tabs = [];
+            let activeTabId = null;
+            let tabCounter = 0;
+            const tabInstancePrefix = Math.random().toString(36).substring(2, 9);
+            // Proxy getters for compatibility
+            const getActiveTab = () => tabs.find(t => t.id === activeTabId);
+            
+            let currentSort = { field: 'name', asc: true };
+            let currentViewMode = 'grid';
+            
+            // Helper functions instead of window properties to avoid re-definition errors
+            const getCurrentPath = () => getActiveTab()?.path || "/";
+            const getIsRoot = () => getActiveTab()?.isRoot || false;
+
+            const safeBind = (sel, fn, event = 'click') => {
+                const el = container.querySelector(sel);
+                if(el) { el.addEventListener(event, fn); }
+            };
+            
+            const safeBindAll = (sel, fn, event = 'click') => {
+                container.querySelectorAll(sel).forEach(el => el.addEventListener(event, fn));
+            };
+
+            // Toolbar Delegation
+            container.addEventListener('click', (e) => {
+                const btn = e.target.closest('.tool-btn');
+                if (!btn) return;
+                if (btn.classList.contains('btn-new-file')) createItem('file');
+                else if (btn.classList.contains('btn-new-dir')) createItem('dir');
+                else if (btn.classList.contains('btn-open-compress')) openCompressModal();
+                else if (btn.classList.contains('btn-extract')) extractSelected();
+                else if (btn.classList.contains('btn-delete-sel')) deleteSelectedItems();
+                else if (btn.classList.contains('btn-refresh')) loadDir(getActiveTab().path);
+                else if (btn.classList.contains('btn-copy')) copySelectedItems();
+                else if (btn.classList.contains('btn-cut')) cutSelectedItems();
+                else if (btn.classList.contains('btn-paste')) pasteItems();
+                else if (btn.classList.contains('btn-open-wget')) container.querySelector('.modal-wget').style.display = 'flex';
+                else if (btn.classList.contains('btn-open-link')) {
+                    const s = getSelectedPaths();
+                    if(s.length === 1) {
+                        selectedItemPath = s[0];
+                        container.querySelector('.modal-link').style.display = 'flex';
+                    } else { alert("Seleziona un singolo file/cartella di destinazione."); }
+                }
+            });
+            
+            container.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const item = e.target.closest('.item');
+                if (item) {
+                    selectedContextItem = item.querySelector('.file-check');
+                    showContextMenu(container.querySelector('.context-menu'), e.clientX, e.clientY);
+                }
+                // Context menu for Browser Grid Items
+                const browserItem = e.target.closest('.browser-item');
+                if (browserItem) {
+                    selectedContextItem = { getAttribute: (attr) => browserItem.dataset[attr], checked: true }; // Mock checkbox interface
+                    showContextMenu(container.querySelector('.context-menu'), e.clientX, e.clientY);
+                }
+                // Context menu for Browser List Items (Table Rows)
+                const tableRow = e.target.closest('.browser-table tr');
+                if (tableRow && tableRow.dataset.name) {
+                    selectedContextItem = { getAttribute: (attr) => tableRow.dataset[attr], checked: true };
+                    showContextMenu(container.querySelector('.context-menu'), e.clientX, e.clientY);
+                }
+            });
+
+            // Terminal Context Menu
+            const termEmbed = container.querySelector('.terminal-embed');
+            termEmbed.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                showContextMenu(container.querySelector('#term-context-menu'), e.clientX, e.clientY);
+            });
+
+            container.querySelector('#term-context-menu').addEventListener('click', async (e) => {
+                const item = e.target.closest('.context-menu-item');
+                if(!item) return;
+                container.querySelector('#term-context-menu').style.display = 'none';
+                const action = item.dataset.action;
+                
+                const send = (d) => { if(ws && sshTermId) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: sshTermId, payload: d })); };
+
+                if(action === 'copy') {
+                    const sel = term.getSelection();
+                    if(sel) navigator.clipboard.writeText(sel);
+                } else if(action === 'paste') {
+                    const text = await navigator.clipboard.readText();
+                    if(text) send(text);
+                } else if(action === 'screen-new') {
+                    const n = prompt("Nome Screen:"); if(n) send(`screen -S ${n}\n`);
+                } else if(action === 'screen-list') {
+                    send(`screen -ls\n`);
+                } else if(action === 'screen-resume') {
+                    const n = prompt("Nome Screen:"); if(n) send(`screen -r ${n}\n`);
+                } else if(action === 'screen-detach') {
+                    send('\x01d');
+                }
+            });
+
+            const aceEditorDiv = container.querySelector('.ace-editor-div');
+            if (aceEditorDiv) {
+                aceEditorDiv.addEventListener('contextmenu', (e) => {
+                    e.preventDefault();
+                    showContextMenu(container.querySelector('.editor-context-menu'), e.clientX, e.clientY);
+                });
+            }
+
+            document.addEventListener('click', (e) => {
+                container.querySelectorAll('.context-menu, .editor-context-menu, #term-context-menu').forEach(menu => {
+                    if (!e.target.closest('.context-menu, .editor-context-menu')) {
+                        menu.style.display = 'none';
+                    }
+                });
+            });
+            
+            const withCloseMenu = (fn) => () => { container.querySelector('.context-menu').style.display = 'none'; fn(); };
+            safeBind('.cm-new-file', withCloseMenu(() => createItem('file')));
+            safeBind('.cm-new-dir', withCloseMenu(() => createItem('dir')));
+            safeBind('.cm-copy', withCloseMenu(copySelectedItems));
+            safeBind('.cm-cut', withCloseMenu(cutSelectedItems));
+            safeBind('.cm-paste', withCloseMenu(pasteItems));
+            safeBind('.cm-link', withCloseMenu(() => { if(selectedContextItem) { selectedItemPath = selectedContextItem.getAttribute('data-path'); container.querySelector('.modal-link').style.display = 'flex'; } }));
+            safeBind('.cm-rename', withCloseMenu(() => { if(selectedContextItem) renameItem(selectedContextItem.getAttribute('data-name')); }));
+            safeBind('.cm-perms', withCloseMenu(() => { if(selectedContextItem) openPermModal(selectedContextItem.getAttribute('data-path'), selectedContextItem.getAttribute('data-name')); }));
+            safeBind('.cm-compress', withCloseMenu(() => { if(selectedContextItem) { selectedContextItem.checked = true; openCompressModal(); } }));
+            safeBind('.cm-delete', withCloseMenu(() => { if(selectedContextItem) { selectedContextItem.checked = true; deleteSelectedItems(); } }));
+            safeBind('.cm-upload', withCloseMenu(() => container.querySelector('#context-upload-input').click()));
+            safeBind('.cm-wget', withCloseMenu(() => container.querySelector('.modal-wget').style.display = 'flex'));
+            safeBind('.cm-download', withCloseMenu(downloadSelectedFiles));
+            safeBind('.cm-search-content', withCloseMenu(() => toggleSearchPanel()));
+            safeBind('#context-upload-input', uploadFilesFromPicker, 'change');
+            
+            safeBind('.ec-copy', () => { 
+                const selectedText = editor.getCopyText();
+                if(selectedText) navigator.clipboard.writeText(selectedText);
+                container.querySelector('.editor-context-menu').style.display = 'none';
+            });
+             safeBind('.ec-cut', () => { 
+                const selectedText = editor.getCopyText();
+                if(selectedText) {
+                    navigator.clipboard.writeText(selectedText);
+                    editor.execCommand("removeline");
+                }
+                container.querySelector('.editor-context-menu').style.display = 'none';
+            });
+
+            safeBind('.btn-toggle-term', toggleTerminal);
+            safeBind('.btn-toggle-sftp', toggleSftpPanel);
+            safeBind('.btn-toggle-sftpc', toggleSftpCPanel);
+            safeBind('.btn-toggle-search', toggleSearchPanel);
+            safeBind('.btn-toggle-diff', toggleDiffPanel);
+            safeBind('.btn-run-diff', runDiff);
+            safeBind('.btn-swap-diff', () => {
+                const a = container.querySelector('.diff-path-a'); const b = container.querySelector('.diff-path-b');
+                const tmp = a.value; a.value = b.value; b.value = tmp;
+            });
+            safeBind('.btn-get-sel-a', () => {
+                const s = getSelectedPaths();
+                if(s.length > 0) container.querySelector('.diff-path-a').value = s[0];
+            });
+            safeBind('.btn-get-sel-b', () => {
+                const s = getSelectedPaths();
+                if(s.length > 0) container.querySelector('.diff-path-b').value = s[0];
+            });
+            safeBind('.btn-save', saveFile);
+            safeBindAll('.editor-tool-btn', (e) => { const cmd = e.currentTarget.getAttribute('data-command'); if(editor && cmd) editor.execCommand(cmd); });
+            safeBind('#sftpc-connect-main', connectSftpc);
+            safeBind('.sftpc-local-up', () => { let parts = sftpcLocalPath.split('/').filter(p => p && p !== "."); parts.pop(); loadDir(parts.length === 0 ? "/" : "/" + parts.join("/"), 'sftpcLocal'); });
+            safeBind('.sftpc-remote-up', () => { let parts = sftpcRemotePath.split('/').filter(p => p && p !== "."); parts.pop(); requestSftpcList(parts.length === 0 ? "/" : "/" + parts.join("/")); });
+            
+            safeBind('#btn-sftpc-quick', openQuickHostModal);
+            container.querySelector('.quick-host-search').addEventListener('input', (e) => renderQuickHosts(e.target.value));
+
+            safeBind('#sftpc-cm-new-dir', () => {
+                const name = prompt("Enter directory name:");
+                if (name) {
+                    ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "mkdir", path: sftpcRemotePath, name: name } }));
+                }
+                container.querySelector('#sftpc-remote-context-menu').style.display = 'none';
+            });
+            safeBind('#sftpc-cm-rename', () => {
+                if (!selectedSftpcRemoteItem) return;
+                const newName = prompt("Enter new name:", selectedSftpcRemoteItem.name);
+                if (newName && newName !== selectedSftpcRemoteItem.name) {
+                    ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "rename", path: sftpcRemotePath, oldName: selectedSftpcRemoteItem.name, newName: newName } }));
+                }
+                container.querySelector('#sftpc-remote-context-menu').style.display = 'none';
+            });
+            safeBind('#sftpc-cm-delete', () => {
+                if (!selectedSftpcRemoteItem) return;
+                if (confirm(`Are you sure you want to delete ${selectedSftpcRemoteItem.name}?`)) {
+                    ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "delete", path: selectedSftpcRemoteItem.path } }));
+                }
+                container.querySelector('#sftpc-remote-context-menu').style.display = 'none';
+            });
+
+            safeBindAll('.btn-close-modal', closeAllModals);
+            safeBind('.btn-apply-wget', applyWget);
+            safeBind('.btn-apply-link', applyLink);
+            safeBind('.btn-apply-perms', applyPerms);
+            safeBind('.btn-apply-compress', applyCompress);
+            safeBind('.btn-apply-search', applyContentSearch);
+
+            safeBind('.sftp-local-up', () => loadLocalBridgeDir('..'));
+            safeBind('.sftp-remote-up', () => { let parts = getCurrentPath().split('/').filter(p => p && p !== "."); parts.pop(); loadDir(parts.length === 0 ? "/" : "/" + parts.join("/")); });
+            safeBind('.sftp-upload', sftpUpload);
+            safeBind('.sftp-download', sftpDownload);
+            safeBind('.btn-add-tab', () => createTab());
+            
+            // Right Tabs Switching
+            container.querySelectorAll('.rt-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                    container.querySelectorAll('.rt-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    container.querySelectorAll('.rt-content').forEach(c => c.classList.remove('active'));
+                    container.querySelector('#rt-'+t.dataset.target).classList.add('active');
+                    if(t.dataset.target === 'editor' && editor) editor.resize();
+                });
+            });
+            
+            // Browser Sorting
+            container.querySelectorAll('.browser-sort-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const field = btn.dataset.sort;
+                    if(currentSort.field === field) currentSort.asc = !currentSort.asc;
+                    else { currentSort.field = field; currentSort.asc = true; }
+                    
+                    container.querySelectorAll('.browser-sort-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    btn.innerText = (field === 'name' ? 'Nome' : (field === 'size' ? 'Dimensione' : 'Data')) + (currentSort.asc ? ' ▲' : ' ▼');
+                    
+                    const tab = getActiveTab();
+                    if(tab && tab.parsedItems) {
+                        renderFileManager(tab.parsedItems);
+                    }
+                });
+            });
+            
+            // View Toggles
+            container.querySelectorAll('.view-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    currentViewMode = btn.dataset.view;
+                    container.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    const tab = getActiveTab();
+                    if(tab && tab.parsedItems) renderFileManager(tab.parsedItems);
+                });
+            });
+
+            // Table Header Sorting
+            container.querySelectorAll('.browser-table th').forEach(th => {
+                th.addEventListener('click', () => {
+                    const field = th.dataset.sort;
+                    if(currentSort.field === field) currentSort.asc = !currentSort.asc;
+                    else { currentSort.field = field; currentSort.asc = true; }
+                    const tab = getActiveTab();
+                    if(tab && tab.parsedItems) renderFileManager(tab.parsedItems);
+                });
+            });
+
+            const loadScript = (src) => new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+                const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = reject; document.head.appendChild(s);
+            });
+
+            (async function initSystem() {
+                // 1. Initialize WebSocket & Core UI immediately
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`);
+
+                ws.onopen = () => {
+                    // Subscribe for Explorer
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: explorerTermId }));
+                    
+                    // Initial tab creation
+                    createTab(true); // true = initial
+                };
+
+                ws.onmessage = (e) => {
+                    let msg; try { msg = JSON.parse(e.data); } catch(err) { console.error("WS MSG Error:", e.data); return; }
+                    if(msg.host_id != currentId) return;
+                    
+                    // Handle SSH Output separately
+                    if(msg.type === "ssh_output") {
+                        if(term && msg.term_id === sshTermId) term.write(msg.payload);
+                        return;
+                    }
+
+                    // Handle Tab-Specific Messages
+                    const targetTab = tabs.find(t => t.termId === msg.term_id);
+                    if (targetTab) {
+                        if (msg.type === "fs_list") {
+                            targetTab.cachedList = msg.payload;
+                            renderList(msg.payload, null, false, 'main', "", targetTab);
+                            
+                            // Update SFTP panels if visible (Sync with active tab)
+                            if(container.querySelector('.sftp-panel').style.display === 'flex') { 
+                                renderList(msg.payload, '#sftp-remote-list', true, 'remote', "", targetTab); 
+                                container.querySelector('#sftp-remote-path').value = targetTab.path; 
+                            }
+                            if(container.querySelector('.sftpc-panel').style.display === 'flex') { 
+                                renderSftpcLocalList(msg.payload); 
+                            }
+                        }
+                        if (msg.type === "pwd_result") {
+                            targetTab.path = msg.path || "/";
+                            if (targetTab.id === activeTabId) updateTabUI(targetTab);
+                            ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: targetTab.termId, payload: { action: "list_long", path: targetTab.path, root: targetTab.isRoot } }));
+                        }
+                        return;
+                    }
+
+                    // Filter other messages for explorerTermId
+                    if(msg.term_id && msg.term_id !== explorerTermId) return;
+
+                    switch(msg.type) {
+                        case "pwd_result":
+                            const tab = getActiveTab();
+                            if(tab) {
+                                tab.path = msg.path || "/";
+                                updateTabUI(tab);
+                                loadDir(tab.path);
+                            }
+                            break;
+                        case "fs_list":
+                            if(getActiveTab()) getActiveTab().cachedList = msg.payload;
+                            if(!searchActive) renderList(msg.payload, '.file-list');
+                            if(container.querySelector('.sftp-panel').style.display === 'flex') { renderList(msg.payload, '#sftp-remote-list', true, 'remote'); container.querySelector('#sftp-remote-path').value = getActiveTab().path; }
+                            if(container.querySelector('.sftpc-panel').style.display === 'flex') { renderSftpcLocalList(msg.payload); }
+                            break;
+                        case "file_download_res":
+                            const byteCharacters = atob(msg.payload.content);
+                            const byteNumbers = new Array(byteCharacters.length);
+                            for (let i = 0; i < byteCharacters.length; i++) { byteNumbers[i] = byteCharacters.charCodeAt(i); }
+                            const byteArray = new Uint8Array(byteNumbers);
+                            const blob = new Blob([byteArray], {type: 'application/octet-stream'});
+                            const link = document.createElement('a');
+                            link.href = window.URL.createObjectURL(blob);
+                            link.download = msg.payload.filename;
+                            document.body.appendChild(link);
+                            link.click();
+                            document.body.removeChild(link);
+                            break;
+                        case "sftpc_list": renderSftpcRemoteList(msg.payload); break;
+                        case "search_results": renderSearchResults(msg.payload); break;
+                        case "diff_result": 
+                            // Apre il risultato come un file temporaneo nell'editor principale
+                            const btn = container.querySelector('.btn-run-diff');
+                            if(btn) { btn.innerText = "Confronta"; btn.disabled = false; }
+                            
+                            handleFileContent({ filename: "diff_result.diff", content: msg.payload.content });
+                            break;
+                        case "search_content_results": renderContentSearchResults(msg.payload); break;
+                        case "bridge_fs_list": renderBridgeList(msg.payload); break;
+                        case "file_content": handleFileContent(msg.payload); break;
+                        case "file_content_base64": renderHexEditor(msg.payload); break;
+                        case "transfer_update": updateTransferUI(msg.payload); break;
+                        case "autocomplete_res":
+                            if(getActiveTab()) renderAutocomplete(getActiveTab(), msg.payload.matches);
+                            break;
+                        case "fs_op_res":
+                        case "sftpc_op_res":
+                            if(msg.payload.status === "success" || msg.payload.status === "success_local") { 
+                                const justSaved = activeFile && openFiles.has(activeFile) && openFiles.get(activeFile).dirty;
+                                if (justSaved) { const file = openFiles.get(activeFile); file.dirty = false; updateTab(activeFile); } 
+                                
+                                if (msg.type !== "sftpc_op_res" || msg.payload.action !== "connect") {
+                                    loadDir(getCurrentPath());
+                                }
+
+                                if(container.querySelector('.sftp-panel').style.display === 'flex') { loadLocalBridgeDir(sftpLocalPath); }
+                                if(container.querySelector('.sftpc-panel').style.display === 'flex') { loadDir(sftpcLocalPath, 'sftpcLocal'); }
+                                closeAllModals(); 
+                            } else { 
+                                if (msg.payload.status && msg.payload.status.includes('error')) {
+                                    alert("Errore: " + (msg.payload.msg || "Sconosciuto")); 
+                                }
+                            }
+                            break;
+                        case "smart_open_res":
+                            if (msg.payload.type === 'dir') {
+                                const tab = getActiveTab();
+                                tab.path = msg.payload.path;
+                                updateTabUI(tab);
+                                renderList(msg.payload.content, '.file-list'); // This updates cachedList and renders both views
+                            } else if (msg.payload.type === 'file') {
+                                handleFileContent({ filename: msg.payload.path, content: msg.payload.content });
+                            } else if (msg.payload.type === 'binary') {
+                                if(confirm(`Il file ${msg.payload.path} sembra binario. Vuoi aprirlo nell'Hex Editor?`)) {
+                                    ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_base64", filename: msg.payload.path } }));
+                                }
+                            }
+                            break;
+                    }
+                };
+                appInstance.registerCleanup(() => { 
+                    if(ws) {
+                        if(sshTermId && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: sshTermId }));
+                        ws.close(); 
+                    }
+                    if(editor) editor.destroy(); 
+                    if(term) term.dispose(); 
+                });
+
+                // 2. Load Optional Libraries (Editor & Terminal)
+                try {
+                    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                    if(typeof ace !== 'undefined') {
+                        const editorDiv = container.querySelector('.ace-editor-div');
+                        editorDiv.id = 'ace-editor-' + Math.random().toString(36).substr(2, 9);
+                        editor = ace.edit(editorDiv.id);
+                        editor.setTheme("ace/theme/monokai");
+                        editor.setOptions({ showPrintMargin: false, fontSize: "14px", useWorker: false });
+                        container.querySelector('.status-text').innerText = "Pronto.";
+                    }
+
+                    await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js');
+                    await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js');
+                    if(typeof Terminal !== 'undefined' && typeof FitAddon !== 'undefined') {
+                        term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000', foreground: '#00ff00' }, rows: 12 });
+                        fitAddon = new FitAddon.FitAddon();
+                        term.loadAddon(fitAddon);
+                        term.open(container.querySelector('.terminal-embed'));
+                        sshTermId = `${wsId}:term_` + Math.random().toString(36).substring(2, 9);
+                        term.onData(data => { if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: sshTermId, payload: data })); });
+                        
+                        // Resize Observer per il terminale
+                        let resizeTimeout;
+                        const resizeObserver = new ResizeObserver(() => {
+                            if (fitAddon && sshTermId) {
+                                clearTimeout(resizeTimeout);
+                                resizeTimeout = setTimeout(() => {
+                                    const el = container.querySelector('.terminal-embed');
+                                    if (!el || el.offsetParent === null) return;
+                                    try { fitAddon.fit(); } catch(e){}
+                                    if (ws && ws.readyState === WebSocket.OPEN && term.cols > 0 && term.rows > 0) {
+                                        ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: sshTermId, payload: { cols: term.cols, rows: term.rows } }));
+                                    }
+                                }, 50);
+                            }
+                        });
+                        resizeObserver.observe(container.querySelector('.terminal-embed'));
+                    }
+                } catch(e) { console.error("Optional Libs Init Error", e); }
+            })();
+
+            // --- TAB SYSTEM ---
+            function createTab(isInitial = false) {
+                const id = `tab-${tabInstancePrefix}-${tabCounter++}`;
+                const tabObj = {
+                    id: id,
+                    termId: `${wsId}:tab-${id}-${Date.now()}`,
+                    path: "/",
+                    isRoot: false,
+                    cachedList: "",
+                    history: []
+                };
+                tabs.push(tabObj);
+
+                // Header
+                const header = document.createElement('div');
+                header.className = 'sidebar-tab';
+                header.dataset.id = id;
+                header.innerHTML = `<span class="tab-title">Tab ${tabCounter}</span><i class="fas fa-times sidebar-tab-close"></i>`;
+                header.onclick = () => setActiveTab(id);
+                header.querySelector('.sidebar-tab-close').onclick = (e) => { e.stopPropagation(); closeTab(id); };
+                container.querySelector('.sidebar-tabs-header').insertBefore(header, container.querySelector('.btn-add-tab'));
+
+                // Content Pane
+                const pane = document.createElement('div');
+                pane.className = 'tab-pane';
+                pane.id = id;
+                pane.innerHTML = `
+                    <div class="path-row">
+                        <button class="btn-path-action btn-back" title="Go Back"><i class="fas fa-arrow-up"></i></button>
+                        <button class="btn-priv-toggle" title="Toggle Root"><i class="fas fa-user"></i></button>
+                        <input type="text" class="current-path-input" spellcheck="false" placeholder="Percorso...">
+                        <div class="autocomplete-suggestions"></div>
+                    </div>
+                    <div class="search-bar-container">
+                        <i class="fas fa-search" style="font-size: 0.8em; color: var(--text-dim)"></i>
+                        <input type="text" class="search-input" spellcheck="false" placeholder="Filtra file/cartelle...">
+                        <button class="btn-clear-search" style="display:none"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="fm-toolbar">
+                        <div class="toolbar-row">
+                            <button class="tool-btn btn-new-dir" title="Nuova Cartella" style="color:#e3b341; border-color:#e3b341"><i class="fas fa-folder-plus"></i></button>
+                            <button class="tool-btn btn-new-file" title="Nuovo File" style="color:#58a6ff; border-color:#58a6ff"><i class="fas fa-file-medical"></i></button>
+                            <button class="tool-btn btn-delete-sel" title="Elimina" style="color:#da3633; border-color:#da3633"><i class="fas fa-trash-alt"></i></button>
+                            <button class="tool-btn btn-open-link" title="Crea Collegamento" style="color:#c9d1d9; border-color:#c9d1d9"><i class="fas fa-link"></i></button>
+                            <button class="tool-btn btn-open-wget" title="Wget" style="color:#238636; border-color:#238636"><i class="fas fa-globe"></i></button>
+                            <button class="tool-btn btn-refresh" title="Aggiorna" style="color:#d29922; border-color:#d29922"><i class="fas fa-sync"></i></button>
+                        </div>
+                        <div class="toolbar-row">
+                            <button class="tool-btn btn-copy" title="Copia" style="color:#58a6ff; border-color:#58a6ff"><i class="fas fa-copy"></i></button>
+                            <button class="tool-btn btn-cut" title="Taglia" style="color:#d29922; border-color:#d29922"><i class="fas fa-cut"></i></button>
+                            <button class="tool-btn btn-paste" title="Incolla" disabled style="color:#238636; border-color:#238636"><i class="fas fa-paste"></i></button>
+                            <button class="tool-btn btn-open-compress" title="Comprimi" style="color:#d2a8ff; border-color:#d2a8ff"><i class="fas fa-compress"></i></button>
+                            <button class="tool-btn btn-extract" title="Estrai" style="color:#e3b341; border-color:#e3b341"><i class="fas fa-box-open"></i></button>
+                        </div>
+                    </div>
+                    <div class="file-list"></div>
+                `;
+                container.querySelector('.sidebar-tabs-container').appendChild(pane);
+
+                // Bind Events for this pane
+                const input = pane.querySelector('.current-path-input');
+                input.addEventListener('keydown', (e) => {
+                    if(e.key === 'Enter') loadDir(input.value);
+                    if(e.key === 'Tab') { e.preventDefault(); /* Handled by autocomplete logic */ }
+                });
+                input.addEventListener('input', (e) => {
+                    // Debounce autocomplete
+                    if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "autocomplete", path: e.target.value, side: "remote" } }));
+                });
+
+                pane.querySelector('.btn-back').onclick = () => {
+                    let p = tabObj.path;
+                    if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+                    if (p === '/') return;
+                    const parent = p.substring(0, p.lastIndexOf('/')) || '/';
+                    loadDir(parent);
+                };
+
+                pane.querySelector('.btn-priv-toggle').onclick = () => {
+                    tabObj.isRoot = !tabObj.isRoot;
+                    updateTabUI(tabObj);
+                    loadDir(tabObj.path);
+                };
+                
+                // Search bindings
+                const searchIn = pane.querySelector('.search-input');
+                const clearBtn = pane.querySelector('.btn-clear-search');
+                searchIn.addEventListener('input', (e) => {
+                    const q = e.target.value.trim();
+                    if(q.length > 0) { 
+                        clearBtn.style.display='block'; 
+                        renderList(tabObj.cachedList, '.file-list', false, 'main', q);
+                    }
+                    else { clearBtn.style.display='none'; renderList(tabObj.cachedList, '.file-list'); }
+                });
+                clearBtn.onclick = () => { searchIn.value=''; clearBtn.style.display='none'; searchActive=false; loadDir(tabObj.path); };
+
+                setActiveTab(id);
+                
+                if(isInitial && ws && ws.readyState === WebSocket.OPEN) {
+                    if (window.AppState && window.AppState.targetExplorer) {
+                        const t = window.AppState.targetExplorer;
+                        delete window.AppState.targetExplorer;
+                        let p = t.path;
+                        if (t.type === 'file') {
+                            const lastSlash = p.lastIndexOf('/');
+                            p = lastSlash <= 0 ? '/' : p.substring(0, lastSlash);
+                        }
+                        loadDir(p);
+                    } else {
+                        ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "get_pwd", root: false } }));
+                    }
+                } else {
+                    loadDir("/");
+                }
+            }
+
+            function setActiveTab(id) {
+                activeTabId = id;
+                container.querySelectorAll('.sidebar-tab').forEach(t => t.classList.toggle('active', t.dataset.id === id));
+                container.querySelectorAll('.tab-pane').forEach(p => p.classList.toggle('active', p.id === id));
+                const tab = getActiveTab();
+                if(tab) {
+                    updateTabUI(tab);
+                    if (tab.parsedItems) {
+                        renderFileManager(tab.parsedItems);
+                    } else {
+                        container.querySelector('.browser-grid').innerHTML = "";
+                        container.querySelector('.browser-table tbody').innerHTML = "";
+                    }
+                }
+            }
+
+            function closeTab(id) {
+                if(tabs.length <= 1) return; // Keep at least one
+                
+                const idx = tabs.findIndex(t => t.id === id);
+                if (idx === -1) return;
+
+                tabs.splice(idx, 1);
+                const tabBtn = container.querySelector(`.sidebar-tab[data-id="${id}"]`);
+                if(tabBtn) tabBtn.remove();
+                const tabPane = document.getElementById(id);
+                if(tabPane) tabPane.remove();
+                
+                if(activeTabId === id) {
+                    const nextTab = tabs[idx] || tabs[idx - 1] || tabs[0];
+                    if(nextTab) setActiveTab(nextTab.id);
+                }
+            }
+
+            function updateTabUI(tab) {
+                const pane = document.getElementById(tab.id);
+                if(!pane) return;
+                pane.querySelector('.current-path-input').value = tab.path;
+                const btnPriv = pane.querySelector('.btn-priv-toggle');
+                if(tab.isRoot) { btnPriv.classList.add('root'); btnPriv.title="Root Mode (Active)"; }
+                else { btnPriv.classList.remove('root'); btnPriv.title="User Mode"; }
+                
+                const header = container.querySelector(`.sidebar-tab[data-id="${tab.id}"] .tab-title`);
+                if(header) header.innerText = tab.path.split('/').filter(p=>p).pop() || "Root";
+            }
+
+            function loadDir(path, panel = 'main', callback) {
+                const tab = getActiveTab();
+                const newPath = path || (tab.isRoot ? "/" : ".");
+                
+                // SYNC: Keep sftpcLocalPath in sync with main tab path
+                tab.path = newPath;
+                sftpcLocalPath = newPath;
+                updateTabUI(tab);
+                if(container.querySelector('#sftpc-local-path-main')) container.querySelector('#sftpc-local-path-main').value = newPath;
+
+                if(ws && ws.readyState === WebSocket.OPEN) { ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: tab.termId || explorerTermId, payload: { action: "list_long", path: newPath, root: tab.isRoot } })); }
+                if(callback) { setTimeout(callback, 500); }
+            }
+            
+            function renderList(rawOutput, targetSelector, isSftpMode, sftpType, filterQuery = "", targetTab = null) {
+                // If targetTab is provided, use it. Otherwise use activeTab
+                const tab = targetTab || getActiveTab();
+                
+                // Determine list container
+                let list;
+                if (targetSelector) {
+                    list = container.querySelector(targetSelector);
+                } else if (tab) {
+                    const pane = document.getElementById(tab.id);
+                    if(pane) list = pane.querySelector('.file-list');
+                }
+                if (!list) return;
+                list.innerHTML = "";
+                let currentRenderPath = (sftpType === 'sftpcLocal') ? sftpcLocalPath : tab.path;
+
+                const parsedItems = [];
+
+                const lines = rawOutput.split('\n');
+                lines.forEach(line => {
+                    try {
+                        // Strip ANSI colors
+                        const cleanLine = line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+                        if(!cleanLine.trim() || cleanLine.trim().startsWith('total')) return;
+                        
+                        const parts = cleanLine.split(/\s+/);
+                        if (parts.length < 8) return;
+
+                        const perms = parts[0];
+                        const owner = parts[2];
+                        const rawSize = parts[4];
+                        
+                        let fullDate = "";
+                        let nameIndex = 8;
+
+                        if (parts[5].match(/^\d{4}-\d{2}-\d{2}$/)) {
+                            fullDate = `${parts[5]} ${parts[6].substring(0, 5)}`;
+                            nameIndex = 7;
+                        } else {
+                            fullDate = `${parts[5]} ${parts[6]} ${parts[7]}`;
+                            nameIndex = 8;
+                        }
+
+                        if (parts.length <= nameIndex) return;
+                        let rawName = parts.slice(nameIndex).join(' ');
+                        
+                        if(rawName === "." || rawName === "..") return;
+                        
+                        let name = rawName;
+                        let linkTarget = null;
+                        const isLink = perms.startsWith('l');
+
+                        // Handle Symlinks (name -> target)
+                        if (isLink && rawName.includes(' -> ')) {
+                            const arrowIndex = rawName.lastIndexOf(' -> ');
+                            name = rawName.substring(0, arrowIndex);
+                            linkTarget = rawName.substring(arrowIndex + 4);
+                        }
+
+                        // Clean name (remove trailing @ from ls -F for links, / for dirs, * for execs, etc)
+                        if (name.endsWith('@')) name = name.slice(0, -1);
+                        if (name.endsWith('/')) name = name.slice(0, -1);
+                        if (name.endsWith('*')) name = name.slice(0, -1);
+                        if (name.endsWith('=')) name = name.slice(0, -1);
+                        if (name.endsWith('|')) name = name.slice(0, -1);
+
+                        // Remove quotes if present (ls might quote filenames with spaces)
+                        if ((name.startsWith("'") && name.endsWith("'")) || (name.startsWith('"') && name.endsWith('"'))) {
+                            name = name.slice(1, -1);
+                        }
+
+                        if (filterQuery && !name.toLowerCase().includes(filterQuery.toLowerCase())) return;
+
+                        const isDir = perms.startsWith('d');
+                        const size = isDir ? '-' : rawSize;
+                        let fullPath = currentRenderPath.endsWith('/') ? currentRenderPath + name : currentRenderPath + '/' + name;
+                        
+                        // Store parsed item for Grid View
+                        if (!isSftpMode) {
+                            parsedItems.push({
+                                name: name,
+                                displayName: name,
+                                isDir: isDir,
+                                isLink: isLink,
+                                linkTarget: linkTarget,
+                                size: size,
+                                rawSize: rawSize,
+                                perms: perms,
+                                owner: owner,
+                                fullPath: fullPath,
+                                fullDate: fullDate,
+                                ext: name.split('.').pop().toLowerCase()
+                            });
+                        }
+                        
+                        if (isSftpMode) {
+                            const item = document.createElement('div');
+                            item.className = "sftp-item " + (isDir ? "dir" : "file");
+                            let icon = isDir ? 'fa-folder' : (isLink ? 'fa-link' : 'fa-file-alt');
+                            item.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${fullPath}" data-name="${name}"><i class="fas ${icon}"></i> <span>${name}</span>`;
+                            const chk = item.querySelector('.sftp-checkbox');
+                            item.addEventListener('click', (e) => { e.stopPropagation(); if (e.target.tagName !== 'INPUT') { if(isDir || isLink) { if (sftpType === 'remote') loadDir(fullPath); else if (sftpType === 'sftpcLocal') loadDir(fullPath, 'sftpcLocal'); } else { chk.checked = !chk.checked; updateSftpSelection(chk, fullPath, sftpType); } } });
+                            chk.addEventListener('click', (e) => { e.stopPropagation(); updateSftpSelection(chk, fullPath, sftpType); });
+                            list.appendChild(item);
+                        } else { // Main Explorer
+                            let displayName = name;
+                            let iconClass = isDir ? 'fa-folder' : 'fa-file-alt';
+                            let itemClass = isDir ? "dir" : "file";
+
+                            if (isLink) {
+                                iconClass = 'fa-link';
+                                itemClass += " link";
+                                if (linkTarget) {
+                                    displayName = `${name} <span style="color:var(--text-dim); font-style:italic; font-size:0.9em"> -> ${linkTarget}</span>`;
+                                }
+                            }
+
+                            const item = document.createElement('div');
+                            item.className = "item " + itemClass;
+                            item.innerHTML = `<input type="checkbox" class="item-checkbox file-check" data-name="${name}" data-path="${fullPath}" onclick="event.stopPropagation()"><i class="fas ${iconClass}"></i><div class="item-info"><span class="item-name">${displayName}</span><span class="item-meta"><span>${perms}</span><i class="fas fa-user-shield" style="margin-left: 10px; margin-right: 4px;"></i><span>${owner}</span><i class="fas fa-weight-hanging" style="margin-left: 10px; margin-right: 4px;"></i><span>${size}</span><i class="far fa-clock" style="margin-left: 10px; margin-right: 4px;"></i><span>${fullDate}</span></span></div><div class="actions-overlay"><i class="fas fa-shield-alt action-icon icon-perm" title="Permessi"></i><i class="fas fa-edit action-icon icon-ren" title="Rinomina"></i></div>`;
+                            item.querySelector('.icon-perm').onclick = (e) => { e.stopPropagation(); openPermModal(fullPath, name); };
+                            item.querySelector('.icon-ren').onclick = (e) => { e.stopPropagation(); renameItem(name); };
+                            item.onclick = (e) => { 
+                                if(!e.target.classList.contains('item-checkbox')) {
+                                    if (isDir) {
+                                        loadDir(fullPath);
+                                    } else if (isLink) {
+                                        smartOpen(fullPath);
+                                    } else {
+                                        const ext = name.split('.').pop().toLowerCase();
+                                        if (['zip', 'tar', 'gz', 'tgz', 'rar', '7z', 'bz2', 'xz', 'iso'].includes(ext)) {
+                                            if(confirm(`Questo file è un archivio (${name}). Vuoi estrarlo?`)) {
+                                                ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "extract", file: fullPath, root: getIsRoot() } }));
+                                            }
+                                            return;
+                                        }
+                                        requestOpenFile(fullPath);
+                                    }
+                                }
+                            };
+                            list.appendChild(item);
+                        }
+                    } catch(e) { console.error("Error parsing line:", line, e); }
+                });
+                
+                // If main explorer view, render the Grid View as well
+                if (!isSftpMode && tab) {
+                    tab.parsedItems = parsedItems;
+                    if (tab.id === activeTabId) {
+                        renderFileManager(parsedItems);
+                    }
+                }
+            }
+
+            function renderFileManager(items) {
+                const grid = container.querySelector('.browser-grid');
+                const listContainer = container.querySelector('.browser-list-container');
+                const tbody = container.querySelector('.browser-table tbody');
+                grid.innerHTML = "";
+                tbody.innerHTML = "";
+                
+                // Sort items
+                items.sort((a, b) => {
+                    let valA, valB;
+                    if (currentSort.field === 'name') { valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); }
+                    else if (currentSort.field === 'size') { valA = parseInt(a.rawSize) || 0; valB = parseInt(b.rawSize) || 0; }
+                    else if (currentSort.field === 'date') { valA = a.fullDate; valB = b.fullDate; }
+                    
+                    // Always folders first
+                    if (a.isDir && !b.isDir) return -1;
+                    if (!a.isDir && b.isDir) return 1;
+
+                    if (valA < valB) return currentSort.asc ? -1 : 1;
+                    if (valA > valB) return currentSort.asc ? 1 : -1;
+                    return 0;
+                });
+
+                if (currentViewMode === 'grid') {
+                    grid.style.display = 'grid';
+                    listContainer.style.display = 'none';
+                    
+                    items.forEach(item => {
+                        const el = document.createElement('div');
+                        el.className = `browser-item ${item.isDir ? 'dir' : 'file'} ${item.isLink ? 'link' : ''} ${['zip','tar','gz','rar'].includes(item.ext) ? 'zip' : ''} ${['jpg','png','gif'].includes(item.ext) ? 'img' : ''}`;
+                        el.dataset.path = item.fullPath;
+                        el.dataset.name = item.name;
+                        
+                        let icon = item.isDir ? 'fa-folder' : 'fa-file-alt';
+                        if (item.isLink) icon = 'fa-link';
+                        else if (['zip','tar','gz','rar','7z'].includes(item.ext)) icon = 'fa-file-archive';
+                        else if (['jpg','png','gif','svg'].includes(item.ext)) icon = 'fa-file-image';
+                        else if (['mp3','wav'].includes(item.ext)) icon = 'fa-file-audio';
+                        else if (['mp4','mkv'].includes(item.ext)) icon = 'fa-file-video';
+                        else if (['js','html','css','py','go','c','cpp'].includes(item.ext)) icon = 'fa-file-code';
+
+                        el.innerHTML = `
+                            <input type="checkbox" class="item-checkbox file-check" data-name="${item.name}" data-path="${item.fullPath}" onclick="event.stopPropagation()">
+                            <div class="browser-icon"><i class="fas ${icon}"></i></div>
+                            <div class="browser-name">${item.name}</div>
+                            <div class="browser-meta">${item.size}</div>
+                        `;
+                        
+                        el.onclick = () => {
+                            container.querySelectorAll('.browser-item').forEach(i => i.classList.remove('selected'));
+                            el.classList.add('selected');
+                        };
+                        
+                        el.ondblclick = () => handleItemDblClick(item);
+                        grid.appendChild(el);
+                    });
+                } else {
+                    // List View
+                    grid.style.display = 'none';
+                    listContainer.style.display = 'block';
+                    
+                    items.forEach(item => {
+                        const tr = document.createElement('tr');
+                        tr.dataset.path = item.fullPath;
+                        tr.dataset.name = item.name;
+                        
+                        let icon = item.isDir ? 'fa-folder' : 'fa-file-alt';
+                        if (item.isLink) icon = 'fa-link';
+                        else if (['zip','tar','gz','rar','7z'].includes(item.ext)) icon = 'fa-file-archive';
+                        else if (['jpg','png','gif','svg'].includes(item.ext)) icon = 'fa-file-image';
+                        
+                        const color = item.isDir ? 'var(--folder-color)' : (item.isLink ? 'var(--text-dim)' : 'var(--file-color)');
+                        
+                        tr.innerHTML = `
+                            <td>
+                                <div style="display:flex; align-items:center; gap:10px;">
+                                    <input type="checkbox" class="item-checkbox file-check" data-name="${item.name}" data-path="${item.fullPath}" onclick="event.stopPropagation()">
+                                    <i class="fas ${icon}" style="color:${color}; font-size:1.1em; width:20px; text-align:center;"></i>
+                                    <span>${item.name}</span>
+                                </div>
+                            </td>
+                            <td>${item.fullDate}</td>
+                            <td>${item.owner}</td>
+                            <td>${item.perms}</td>
+                            <td>${item.size}</td>
+                        `;
+                        
+                        tr.onclick = (e) => {
+                            if(e.target.type !== 'checkbox') {
+                                container.querySelectorAll('.browser-table tr').forEach(r => r.classList.remove('selected'));
+                                tr.classList.add('selected');
+                            }
+                        };
+                        tr.ondblclick = () => handleItemDblClick(item);
+                        tbody.appendChild(tr);
+                    });
+                }
+            }
+
+            function handleItemDblClick(item) {
+                if (item.isDir) loadDir(item.fullPath);
+                else if (item.isLink) smartOpen(item.fullPath);
+                else {
+                    if (['zip', 'tar', 'gz', 'tgz', 'rar', '7z', 'bz2', 'xz', 'iso'].includes(item.ext)) {
+                        if(confirm(`Estrarre ${item.name}?`)) {
+                            ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "extract", file: item.fullPath, root: getIsRoot() } }));
+                        }
+                    } else {
+                        requestOpenFile(item.fullPath);
+                    }
+                }
+            }
+
+            function renderHexEditor(data) {
+                container.querySelector('.hex-filename').innerText = data.filename;
+                const view = container.querySelector('.hex-view');
+                view.innerHTML = "";
+                
+                // Decode base64
+                const binaryString = atob(data.content);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+                let html = "";
+                for (let i = 0; i < len; i += 16) {
+                    const offset = i.toString(16).padStart(8, '0').toUpperCase();
+                    let hex = "";
+                    let ascii = "";
+                    
+                    for (let j = 0; j < 16; j++) {
+                        if (i + j < len) {
+                            const b = bytes[i + j];
+                            hex += b.toString(16).padStart(2, '0').toUpperCase() + " ";
+                            ascii += (b >= 32 && b <= 126) ? String.fromCharCode(b) : ".";
+                        } else {
+                            hex += "   ";
+                        }
+                    }
+                    
+                    html += `<div class="hex-row"><span class="hex-offset">${offset}</span><span class="hex-bytes">${hex}</span><span class="hex-ascii">${ascii}</span></div>`;
+                }
+                view.innerHTML = html;
+                
+                // Switch to Hex tab
+                container.querySelector('.rt-tab[data-target="hex"]').click();
+            }
+
+            function smartOpen(path) {
+                if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "smart_open", path: path, root: getIsRoot() } }));
+            }
+
+            function renderAutocomplete(tab, matches) {
+                const pane = document.getElementById(tab.id);
+                const box = pane.querySelector('.autocomplete-suggestions');
+                if(!matches || matches.length === 0) { box.style.display='none'; return; }
+                
+                box.innerHTML = "";
+                matches.forEach(m => {
+                    const div = document.createElement('div');
+                    div.className = "suggestion-item";
+                    div.innerText = m;
+                    div.onclick = () => { pane.querySelector('.current-path-input').value = m; box.style.display='none'; loadDir(m); };
+                    box.appendChild(div);
+                });
+                box.style.display = 'block';
+                // Hide on click elsewhere
+                const hide = (e) => { if(!box.contains(e.target)) { box.style.display='none'; document.removeEventListener('click', hide); } };
+                setTimeout(() => document.addEventListener('click', hide), 100);
+            }
+
+            function togglePanel(panelClass, btn) {
+                const panels = ['.terminal-panel', '.sftp-panel', '.sftpc-panel', '.search-panel', '.diff-panel'];
+                const buttons = ['.btn-toggle-term', '.btn-toggle-sftp', '.btn-toggle-sftpc', '.btn-toggle-search', '.btn-toggle-diff'];
+                const targetPanel = container.querySelector(panelClass);
+                const isActive = targetPanel.style.display === 'flex' || targetPanel.style.display === 'block';
+
+                panels.forEach(p => {
+                    const el = container.querySelector(p);
+                    if (el) el.style.display = 'none';
+                });
+                buttons.forEach(b => {
+                    const el = container.querySelector(b);
+                    if (el) el.classList.remove('active');
+                });
+
+                if (!isActive) {
+                    targetPanel.style.display = 'flex';
+                    if (btn) btn.classList.add('active');
+                }
+                if(editor) editor.resize();
+            }
+
+            function toggleTerminal() { 
+                togglePanel('.terminal-panel', container.querySelector('.btn-toggle-term')); 
+                if (container.querySelector('.terminal-panel').style.display === "flex") { 
+                    if (term) term.focus(); 
+                    setTimeout(() => {
+                        if (fitAddon) try { fitAddon.fit(); } catch(e){} 
+                        if(ws && sshTermId) ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: sshTermId, payload: { cols: term.cols, rows: term.rows } }));
+                        if(ws && sshTermId) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: sshTermId, payload: `cd ${getActiveTab().path}\n` })); 
+                    }, 50);
+                } 
+            }
+            function toggleSftpPanel() { togglePanel('.sftp-panel', container.querySelector('.btn-toggle-sftp')); if (container.querySelector('.sftp-panel').style.display === "flex") { loadLocalBridgeDir("."); loadDir(getActiveTab().path); } }
+            function toggleSftpCPanel() { togglePanel('.sftpc-panel', container.querySelector('.btn-toggle-sftpc')); if (container.querySelector('.sftpc-panel').style.display === "flex") { sftpcLocalPath = getActiveTab().path; renderSftpcLocalList(getActiveTab().cachedList); container.querySelector('#sftpc-local-path-main').value = sftpcLocalPath; } }
+            function toggleSearchPanel() { togglePanel('.search-panel', container.querySelector('.btn-toggle-search')); if (container.querySelector('.search-panel').style.display === 'flex') { container.querySelector('.search-content-path-input').value = getActiveTab().path; } }
+            
+            function toggleDiffPanel() {
+                togglePanel('.diff-panel', container.querySelector('.btn-toggle-diff'));
+                if (container.querySelector('.diff-panel').style.display === 'flex') {
+                    const selected = getSelectedPaths();
+                    if (selected.length >= 1) container.querySelector('.diff-path-a').value = selected[0];
+                    if (selected.length >= 2) container.querySelector('.diff-path-b').value = selected[1];
+                }
+            }
+
+            function runDiff() {
+                const p1 = container.querySelector('.diff-path-a').value;
+                const p2 = container.querySelector('.diff-path-b').value;
+                if(!p1 || !p2) return alert("Inserisci entrambi i percorsi per il confronto.");
+                
+                const saveCheck = container.querySelector('.diff-opt-save');
+                let saveFile = "";
+                if (saveCheck && saveCheck.checked) {
+                    saveFile = prompt("Nome del file di output (percorso completo o relativo):", "diff_output.patch");
+                    if (saveFile === null) return; // Annullato dall'utente
+                }
+
+                const opts = {
+                    ignoreSpace: container.querySelector('.diff-opt-w').checked,
+                    ignoreCase: container.querySelector('.diff-opt-i').checked,
+                    ignoreBlank: container.querySelector('.diff-opt-B').checked,
+                    saveOutput: !!saveFile,
+                    outputFile: saveFile
+                };
+                
+                const btn = container.querySelector('.btn-run-diff');
+                const originalText = btn.innerText;
+                btn.innerText = "Confronto...";
+                btn.disabled = true;
+                
+                ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "diff", path1: p1, path2: p2, ...opts } }));
+                
+                // Reset button after 5 seconds timeout (fallback)
+                setTimeout(() => { btn.innerText = originalText; btn.disabled = false; }, 5000);
+            }
+
+            function connectSftpc() { 
+                const ip = container.querySelector('#sftpc-ip').value;
+                const user = container.querySelector('#sftpc-username').value;
+                const pass = container.querySelector('#sftpc-password').value;
+                const type = container.querySelector('#sftpc-connection-type').value;
+                if(!ip || !user) { alert("IP e Username sono richiesti."); return; }
+                
+                const payload = { ip, user, pass, connection_type: type };
+                if (type === 'bridge' && sftpcPrivateKey) payload.private_key = sftpcPrivateKey;
+                
+                ws.send(JSON.stringify({ type: "sftpc_connect", host_id: parseInt(currentId), term_id: explorerTermId, payload: payload })); 
+            }
+            function renderSftpcLocalList(rawOutput) {
+                const list = container.querySelector("#sftpc-local-list-main");
+                list.innerHTML = "";
+                const lines = rawOutput.split('\n');
+                lines.forEach(line => {
+                    const cleanLine = line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+                    if(!cleanLine.trim() || cleanLine.trim().startsWith('total')) return;
+                    
+                    const parts = cleanLine.split(/\s+/);
+                    if (parts.length < 8) return;
+
+                    let nameIndex = 8;
+                    if (parts[5].match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        nameIndex = 7;
+                    }
+
+                    if (parts.length <= nameIndex) return;
+                    let name = parts.slice(nameIndex).join(' ');
+                    
+                    if(name === "." || name === "..") return;
+
+                    const isDir = parts[0].startsWith('d');
+                    const fullPath = sftpcLocalPath.endsWith('/') ? sftpcLocalPath + name : sftpcLocalPath + '/' + name;
+                    
+                    const item = document.createElement('div');
+                    item.className = "sftp-item " + (isDir ? "dir" : "file");
+                    item.innerHTML = `<i class="fas ${isDir ? 'fa-folder' : 'fa-file-alt'}"></i> <span>${name}</span>`;
+                    item.addEventListener('click', () => {
+                        if (isDir) {
+                            loadDir(fullPath, 'sftpcLocal');
+                        }
+                    });
+                    list.appendChild(item);
+                });
+            }
+            function renderSftpcRemoteList(data) { 
+                sftpcRemotePath = data.path; 
+                container.querySelector('#sftpc-remote-path-main').value = sftpcRemotePath; 
+                const list = container.querySelector('#sftpc-remote-list-main'); 
+                list.innerHTML = ""; 
+                const parentPath = sftpcRemotePath.split('/').filter(p => p).slice(0, -1).join('/') || '/'; 
+                if(sftpcRemotePath !== "/") { 
+                    const parent = document.createElement('div'); 
+                    parent.className = "sftp-item parent"; 
+                    parent.innerHTML = `<i class="fas fa-arrow-left"></i> <div class="item-info"><span class="item-name">..</span></div>`; 
+                    parent.onclick = () => requestSftpcList(parentPath); 
+                    list.appendChild(parent); 
+                } 
+                data.items.forEach(item => { 
+                    const div = document.createElement('div'); 
+                    div.className = "sftp-item " + (item.isDir ? "dir" : "file"); 
+                    div.dataset.path = item.path;
+                    div.dataset.name = item.name;
+                    let icon = item.isDir ? 'fa-folder' : (item.isLink ? 'fa-link' : 'fa-file');
+                    div.innerHTML = `<i class="fas ${icon}"></i> <span>${item.name}</span>`; 
+                    div.onclick = (e) => { if (e.target.tagName !== 'INPUT' && (item.isDir || item.isLink)) requestSftpcList(item.path); }; 
+                    list.appendChild(div); 
+                }); 
+            }
+            function requestSftpcList(path) { if(ws) ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "list", path: path } })); }
+
+            function loadLocalBridgeDir(path) { if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "bridge_list", path: path, current: sftpLocalPath } })); }
+            function renderBridgeList(data) { sftpLocalPath = data.path; container.querySelector('#sftp-local-path').value = sftpLocalPath; const list = container.querySelector('#sftp-local-list'); list.innerHTML = ""; if(data.items) { data.items.forEach(item => { const div = document.createElement('div'); div.className = "sftp-item " + (item.isDir ? "dir" : "file"); div.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${item.path}"><i class="fas ${item.isDir?'fa-folder':'fa-file'}"></i> <span>${item.name}</span>`; const chk = div.querySelector('.sftp-checkbox'); div.addEventListener('click', (e) => { e.stopPropagation(); if (e.target.tagName !== 'INPUT') { if(item.isDir) loadLocalBridgeDir(item.path); else { chk.checked = !chk.checked; updateSftpSelection(chk, item.path, 'local'); } } }); chk.addEventListener('click', (e) => { e.stopPropagation(); updateSftpSelection(chk, item.path, 'local'); }); list.appendChild(div); }); } }
+            function updateSftpSelection(checkbox, path, type) { const map = { 'local': sftpLocalSelection, 'remote': sftpRemoteSelection, 'sftpcLocal': sftpcLocalSelection, 'sftpcRemote': sftpcRemoteSelection }; let arr = map[type]; if (!arr) return; const i = arr.indexOf(path); if (checkbox.checked) { if (i === -1) arr.push(path); } else { if (i > -1) arr.splice(i, 1); } checkbox.parentElement.classList.toggle('selected', checkbox.checked); }
+            function clearSftpSelections(type) { if (type === 'local' || type === 'all') { sftpLocalSelection = []; container.querySelectorAll('#sftp-local-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } if (type === 'remote' || type === 'all') { sftpRemoteSelection = []; container.querySelectorAll('#sftp-remote-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } }
+            function sftpUpload() { if(sftpLocalSelection.length === 0) return alert("Seleziona file locali (Bridge) da caricare."); container.querySelector('.transfer-queue').style.display = 'flex'; sftpLocalSelection.forEach(p => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "upload_native", localPath: p, remotePath: getActiveTab().path, root: getActiveTab().isRoot } }))); clearSftpSelections('local'); }
+            function sftpDownload() { if(sftpRemoteSelection.length === 0) return alert("Seleziona file remoti (Host) da scaricare."); container.querySelector('.transfer-queue').style.display = 'flex'; sftpRemoteSelection.forEach(f => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "download_native", remoteFile: f, localDestDir: sftpLocalPath, root: getActiveTab().isRoot } }))); clearSftpSelections('remote'); }
+            function updateTransferUI(data) { const list = container.querySelector('#transfer-queue-list'); let el = list.querySelector(`[data-tid="${data.id}"]`); if (!el) { el = document.createElement('div'); el.className = 'q-item'; el.dataset.tid = data.id; el.innerHTML = `<div style="display:flex; justify-content:space-between"><span><i class="fas ${data.type==='upload'?'fa-arrow-right':'fa-arrow-left'}"></i> ${data.filename}</span><span class="q-perc">0%</span></div><div class="q-bar-bg"><div class="q-bar-fill"></div></div>`; list.prepend(el); } el.querySelector('.q-perc').innerText = `${data.progress}%`; el.querySelector('.q-bar-fill').style.width = `${data.progress}%`; if(data.status === 'done') { el.querySelector('.q-bar-fill').style.background = 'var(--accent)'; setTimeout(() => el.remove(), 5000); } }
+
+            function handleFileContent({ filename, content }) { if (openFiles.has(filename)) { switchTab(filename); return; } const clean = content.includes("password for") ? content.split('\n').filter(l => !l.includes("password for")).join('\n') : (content || ""); const session = ace.createEditSession(clean); setEditorMode(filename, session); session.on('change', () => { const f = openFiles.get(filename); if (f && !f.dirty) { f.dirty = true; updateTab(filename); } }); openFiles.set(filename, { session: session, dirty: false }); addTab(filename); switchTab(filename); if (targetLineToGo) { editor.gotoLine(targetLineToGo, 0, true); targetLineToGo = null; } }
+            function requestOpenFile(f) { if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "read", filename: f, root: getActiveTab().isRoot } })); }
+            function saveFile() { if(!activeFile || !openFiles.has(activeFile)) { console.error("saveFile called with no active file."); return; } console.log("Attempting to save:", activeFile); const file = openFiles.get(activeFile); if(ws) { ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "save", filename: activeFile, content: file.session.getValue(), root: getActiveTab().isRoot } })); } }
+            function addTab(filename) { const tabs = container.querySelector('.editor-tabs'); const tab = document.createElement('div'); tab.className = 'editor-tab'; tab.dataset.filename = filename; tab.innerHTML = `<span>${filename.split('/').pop()}</span><span class="file-dirty-indicator"></span><i class="fas fa-times tab-close"></i>`; tab.onclick = () => switchTab(filename); tab.querySelector('.tab-close').onclick = (e) => { e.stopPropagation(); closeTab(filename); }; tabs.appendChild(tab); }
+            function updateTab(filename) { const tab = container.querySelector(`.editor-tab[data-filename="${filename}"]`); if (tab) tab.classList.toggle('dirty', openFiles.get(filename)?.dirty); }
+            function switchTab(filename) { if (!openFiles.has(filename)) return; activeFile = filename; editor.setSession(openFiles.get(filename).session); container.querySelectorAll('.editor-tab').forEach(t => t.classList.remove('active')); const tab = container.querySelector(`.editor-tab[data-filename="${filename}"]`); if (tab) tab.classList.add('active'); container.querySelector('.status-text').innerText = "Edit: " + filename; container.querySelector('.btn-save').disabled = false; }
+            function closeTab(filename) { const file = openFiles.get(filename); if (file && file.dirty && confirm(`Salvare le modifiche a ${filename.split('/').pop()}?`)) { saveFile(); } const tab = container.querySelector(`.editor-tab[data-filename="${filename}"]`); if (tab) tab.remove(); openFiles.delete(filename); if (activeFile === filename) { activeFile = null; if (openFiles.size > 0) { switchTab(openFiles.keys().next().value); } else { editor.setSession(ace.createEditSession("")); container.querySelector('.status-text').innerText = "Nessun file aperto"; container.querySelector('.btn-save').disabled = true; } } }
+            function setEditorMode(f, session) { 
+                if(!session) return; 
+                const ext = f.split('.').pop().toLowerCase(); 
+                const modes = { 'go': 'golang', 'js': 'javascript', 'py': 'python', 'html': 'html', 'css': 'css', 'json': 'json', 'php': 'php', 'sh': 'sh', 'diff': 'diff', 'yaml': 'yaml', 'xml': 'xml', 'sql': 'sql' }; 
+                session.setMode("ace/mode/" + (modes[ext] || 'text')); 
+                // Switch to editor tab
+                container.querySelector('.rt-tab[data-target="editor"]').click();
+            }
+
+            function getSelectedPaths() { 
+                let paths = [];
+                
+                // 1. Sidebar (Active Tab)
+                const pane = document.getElementById(activeTabId);
+                if(pane) {
+                    paths.push(...Array.from(pane.querySelectorAll('.file-check:checked')).map(cb => cb.getAttribute('data-path')));
+                }
+                
+                // 2. Main Browser View (if active)
+                const browserView = container.querySelector('#rt-browser');
+                if(browserView && browserView.classList.contains('active')) {
+                    paths.push(...Array.from(browserView.querySelectorAll('.file-check:checked')).map(cb => cb.getAttribute('data-path')));
+                    browserView.querySelectorAll('.browser-item.selected, .browser-table tr.selected').forEach(el => {
+                        if(el.dataset.path) paths.push(el.dataset.path);
+                    });
+                }
+                
+                // Deduplicate
+                return [...new Set(paths)];
+            }
+            function createItem(t) { const n = prompt(`Nome ${t}:`); if(n && ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "create", type: t, path: getActiveTab().path, name: n, root: getIsRoot() } })); }
+            function renameItem(o) { const n = prompt("Nuovo nome:", o); if(n && ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "rename", path: getActiveTab().path, oldName: o, newName: n, root: getIsRoot() } })); }
+            function deleteSelectedItems() { const s = getSelectedPaths(); if(s.length > 0 && confirm("Eliminare?")) s.forEach(p => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "delete", path: p, root: getIsRoot() } }))); }
+            function copySelectedItems() { clipboardSources = getSelectedPaths(); isCutOperation = false; updatePasteBtn(); }
+            function cutSelectedItems() { clipboardSources = getSelectedPaths(); isCutOperation = true; updatePasteBtn(); }
+            function updatePasteBtn() { 
+                const pbs = container.querySelectorAll('.btn-paste'); 
+                pbs.forEach(pb => { pb.disabled = clipboardSources.length === 0; pb.classList.toggle('active-clip', clipboardSources.length > 0); });
+            }
+            function pasteItems() { 
+                if(clipboardSources.length === 0) return; 
+                const destDir = getActiveTab().path;
+                clipboardSources.forEach(s => {
+                    let newName = s.split('/').pop();
+                    if (!isCutOperation) {
+                         const srcDir = s.substring(0, s.lastIndexOf('/')) || "/";
+                         const normSrc = srcDir === '/' ? '/' : srcDir.replace(/\/$/, '');
+                         const normDst = destDir === '/' ? '/' : destDir.replace(/\/$/, '');
+                         if (normSrc === normDst) {
+                             const parts = newName.split('.');
+                             if (parts.length > 1) { const ext = parts.pop(); newName = parts.join('.') + " (copy)." + ext; } 
+                             else { newName = newName + " (copy)"; }
+                         }
+                    }
+                    ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: isCutOperation ? "move" : "copy_paste", source: s, destDir: destDir, root: getIsRoot(), newName: newName } }));
+                }); 
+                clipboardSources = []; updatePasteBtn(); 
+            }
+            function openCompressModal() { if(getSelectedPaths().length > 0) container.querySelector('.modal-compress').style.display = 'flex'; else alert("Seleziona file/cartelle da comprimere."); }
+            function applyCompress() { const n = container.querySelector('.compress-name').value, f = container.querySelector('.compress-format').value; if(!n) return; const s = getSelectedPaths(), b = s.map(p => p.split('/').pop()); ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "compress", path: getActiveTab().path, paths: b, archiveName: n, format: f, root: getIsRoot() } })); closeAllModals(); }
+            function extractSelected() { const s = getSelectedPaths(); if(s.length !== 1) return alert("Seleziona UN archivio (.zip, .tar.gz, .tar) da estrarre."); if(confirm("Estrarre l'archivio?")) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "extract", file: s[0], root: getIsRoot() } }));}
+            function downloadSelectedFiles() { const s = getSelectedPaths(); if (s.length === 0) { const i = selectedContextItem?.getAttribute('data-path'); if (i) s.push(i); } if (s.length === 0) return alert("Nessun file selezionato."); s.forEach(p => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "download", filename: p, root: getIsRoot() } }))); }
+            function uploadFilesFromPicker(e) { const f = e.target.files; if (!f || f.length === 0) return; for (const i of f) { const r = new FileReader(); r.onload = (e) => { ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "upload", path: getActiveTab().path, filename: i.name, content: e.target.result.split(',')[1], root: getIsRoot() } })); }; r.readAsDataURL(i); } e.target.value = ''; }
+            
+            let selectedItemPath;
+
+            async function openQuickHostModal() {
+                container.querySelector('.modal-quick-host').style.display = 'flex';
+                container.querySelector('.quick-host-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center; padding:10px">Caricamento...</td></tr>';
+                
+                try {
+                    const res = await fetch(`/api/tree?workspace_id=${wsId}`);
+                    if(!res.ok) throw new Error("API Error");
+                    const data = await res.json();
+                    allHostsCache = data.hosts || [];
+                    allGroupsCache = data.groups || [];
+                    renderQuickHosts();
+                } catch(e) {
+                    console.error(e);
+                    container.querySelector('.quick-host-tbody').innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--danger)">Errore caricamento</td></tr>';
+                }
+            }
+
+            function renderQuickHosts(filter = "") {
+                const tbody = container.querySelector('.quick-host-tbody');
+                tbody.innerHTML = "";
+                
+                // Build group map for paths
+                const groupMap = {};
+                allGroupsCache.forEach(g => groupMap[g.id] = g);
+                
+                const getPath = (gid) => {
+                    if(!gid) return "/";
+                    let path = "";
+                    let curr = gid;
+                    while(curr && groupMap[curr]) {
+                        path = groupMap[curr].name + (path ? " / " + path : "");
+                        curr = groupMap[curr].parent_id;
+                    }
+                    return path || "/";
+                };
+
+                const f = filter.toLowerCase();
+                const filtered = allHostsCache.filter(h => 
+                    h.name.toLowerCase().includes(f) || 
+                    h.ip.toLowerCase().includes(f) || 
+                    (h.user && h.user.toLowerCase().includes(f))
+                );
+
+                filtered.forEach(h => {
+                    const tr = document.createElement('tr');
+                    tr.style.cursor = 'pointer';
+                    tr.innerHTML = `<td>${h.name}</td><td>${h.ip}</td><td>${h.user}</td><td style="color:#8b949e; font-size:0.9em">${getPath(h.group_id)}</td>`;
+                    tr.onclick = () => selectQuickHost(h.id);
+                    tbody.appendChild(tr);
+                });
+            }
+
+            async function selectQuickHost(hid) {
+                try {
+                    const res = await fetch(`/api/host-credentials/${hid}?workspace_id=${wsId}`);
+                    if(res.ok) {
+                        const creds = await res.json();
+                        container.querySelector('#sftpc-ip').value = creds.ip;
+                        container.querySelector('#sftpc-username').value = creds.user;
+                        container.querySelector('#sftpc-password').value = creds.password || "";
+                        sftpcPrivateKey = creds.key || "";
+                        container.querySelector('.modal-quick-host').style.display = 'none';
+                    }
+                } catch(e) { console.error(e); }
+            }
+
+            function openPermModal(path, name) { selectedItemPath = path; container.querySelector('.modal-target-name').innerText = name; container.querySelector('.modal-perm').style.display = 'flex'; }
+            function closeAllModals() { container.querySelectorAll('.local-modal').forEach(m => m.style.display = 'none'); }
+            function applyWget() { const u = container.querySelector('.wget-url').value; if(u) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "wget", path: getActiveTab().path, url: u, root: getIsRoot() } })); closeAllModals(); }
+            function applyLink() { const n = container.querySelector('.link-name').value, t = container.querySelector('.link-type').value; if(n) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "link", target: selectedItemPath, linkName: n, linkType: t, path: getActiveTab().path, root: getIsRoot() } })); closeAllModals(); }
+            function applyPerms() { const m = container.querySelector('.chmod-val').value, o = container.querySelector('.chown-val').value; if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "set_perms", path: selectedItemPath, chmod: m, chown: o, root: getIsRoot() } })); closeAllModals(); }
+
+            function performRecursiveSearch(query) { searchActive = true; if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "search_recursive", path: getActiveTab().path, query, root: getIsRoot() } })); }
+            function renderSearchResults(results) { const list = container.querySelector('.file-list'); list.innerHTML = "";if (!Array.isArray(results) || results.length === 0) {
+        return; 
+    } results.forEach(item => { const div = document.createElement('div'); div.className = `item ${item.isDir ? "dir" : "file"}`; div.innerHTML = `<input type="checkbox" class="item-checkbox file-check" data-name="${item.name}" data-path="${item.path}" onclick="event.stopPropagation()"><i class="fas ${item.isDir ? 'fa-folder' : 'fa-file-alt'}"></i><div class="item-info"><span class="item-name">${item.name}</span><span class="item-meta">${item.path}</span></div><div class="actions-overlay"><i class="fas fa-shield-alt action-icon icon-perm" title="Permessi"></i><i class="fas fa-edit action-icon icon-ren" title="Rinomina"></i></div>`; div.querySelector('.icon-perm').onclick = (e) => { e.stopPropagation(); openPermModal(item.path, item.name); }; div.querySelector('.icon-ren').onclick = (e) => { e.stopPropagation(); renameItem(item.name); }; div.onclick = (e) => { if(!e.target.classList.contains('item-checkbox')) { searchActive = false; container.querySelector('.search-input').value = ''; if(item.isDir) loadDir(item.path); else requestOpenFile(item.path); } }; list.appendChild(div); }); }
+            
+            function applyContentSearch() { 
+                const q = container.querySelector('.search-content-query-input').value; 
+                const p = container.querySelector('.search-content-path-input').value || getActiveTab().path; 
+                if(!q) return; 
+                ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "search_content", path: p, query: q, root: getIsRoot() } })); 
+            }
+                function renderContentSearchResults(results) { 
+                    const list = container.querySelector('.search-results-container'); 
+                    list.innerHTML = ""; 
+
+                    // Controllo di sicurezza: verifichiamo che results esista e sia un Array
+                    if (!Array.isArray(results) || results.length === 0) { 
+                        list.innerHTML = "<div style='padding: 20px; text-align: center;'>Nessun risultato.</div>"; 
+                        return; 
+                    } 
+
+                    results.forEach(item => { 
+                        const div = document.createElement('div'); 
+                        div.className = `item search-result-item`; 
+                        div.innerHTML = `<i class="fas fa-file-alt"></i><div class="item-info"><span class="item-name">${item.file}</span></div>`;
+                        div.onclick = (e) => { 
+                            targetLineToGo = item.line; 
+                            requestOpenFile(item.file); 
+                        }; 
+                        list.appendChild(div); 
+                    });
+                }
+
+            function showContextMenu(menu, x, y) { menu.style.left = x + 'px'; menu.style.top = y + 'px'; menu.style.display = 'block'; const rect = menu.getBoundingClientRect(); if(rect.right > window.innerWidth) menu.style.left = (window.innerWidth - rect.width - 10) + 'px'; if(rect.bottom > window.innerHeight) menu.style.top = (window.innerHeight - rect.height - 10) + 'px'; }
+        })();
+    </script>
+
+</div>

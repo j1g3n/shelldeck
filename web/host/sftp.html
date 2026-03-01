@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>SFTP Manager</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-dark1: #0d1117; --bg-dark2: #161b22; --border-color: #30363d;
+            --text-light: #c9d1d9; --text-dark: #8b949e; --accent-blue: #58a6ff;
+            --error-red: #da3633;
+        }
+        html, body { height: 100%; margin: 0; font-family: 'JetBrains Mono', monospace; overflow: hidden; }
+        .sftp-module-wrapper { width:100%; height:100vh; display:flex; background: var(--bg-dark1); color: var(--text-light); }
+        .sftp-panel { flex:1; display:flex; flex-direction:column; min-width: 0;}
+        .sftp-panel:first-child { border-right:1px solid var(--border-color); }
+        .sftp-header { padding:10px; background: var(--bg-dark2); border-bottom:1px solid var(--border-color); display:flex; gap:8px; align-items:center; flex-shrink: 0; }
+        .sftp-path-input { flex:1; background:var(--bg-dark1); border:1px solid var(--border-color); color:var(--text-light); padding:6px; border-radius:4px }
+        .sftp-list { flex:1; overflow:auto; padding:8px; }
+        .sftp-item { padding:6px 10px; display:flex; gap:10px; align-items:center; border-radius:4px; cursor:pointer; user-select:none; }
+        .sftp-item:hover { background:var(--bg-dark2); }
+        .sftp-item.selected { background: rgba(88, 166, 255, 0.2); border: 1px solid var(--accent-blue); padding: 5px 9px;}
+        .sftp-item .fa-folder { color: var(--accent-blue); }
+        .sftp-item .fa-file { color: var(--text-dark); }
+        .sftp-controls { width:50px; display:flex; flex-direction:column; gap:10px; align-items:center; justify-content:center; background:var(--bg-dark2); border-left:1px solid var(--border-color); border-right:1px solid var(--border-color); flex-shrink: 0;}
+        .tool-btn { background:transparent; border:1px solid var(--border-color); color:var(--text-dark); width:28px; height:28px; border-radius:4px; cursor:pointer; }
+        .tool-btn:hover { color: var(--text-light); border-color: var(--text-light); }
+        #status-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(13, 17, 23, 0.8); display: flex; align-items: center; justify-content: center; text-align: center; z-index: 100; }
+    </style>
+</head>
+<body>
+
+<div id="status-overlay">
+    <div>
+        <i class="fas fa-circle-notch fa-spin fa-2x" style="margin-bottom: 15px;"></i>
+        <div id="status-text">Connecting...</div>
+    </div>
+</div>
+
+<div class="sftp-module-wrapper">
+    <!-- Local (Bridge) Panel -->
+    <div class="sftp-panel sftp-left">
+        <div class="sftp-header">
+            <i class="fas fa-desktop" style="color:#c9d1d9"></i>
+            <input class="sftp-path-input sftp-local-path">
+            <button class="tool-btn sftp-mkdir-local" title="New Folder"><i class="fas fa-folder-plus"></i></button>
+            <button class="tool-btn sftp-refresh-local" title="Refresh"><i class="fas fa-sync"></i></button>
+        </div>
+        <div id="sftp-local-list" class="sftp-list"></div>
+    </div>
+
+    <!-- Transfer Controls -->
+    <div class="sftp-controls">
+        <button class="tool-btn transfer-to-remote" title="Upload to Remote" style="width:36px; height:36px"><i class="fas fa-arrow-right"></i></button>
+        <button class="tool-btn transfer-to-local" title="Download to Local" style="width:36px; height:36px"><i class="fas fa-arrow-left"></i></button>
+    </div>
+
+    <!-- Remote (Host) Panel -->
+    <div class="sftp-panel sftp-right">
+        <div class="sftp-header">
+            <i class="fas fa-server" style="color:#58a6ff"></i>
+            <input class="sftp-path-input sftp-remote-path">
+            <button class="tool-btn sftp-mkdir-remote" title="New Folder"><i class="fas fa-folder-plus"></i></button>
+            <button class="tool-btn sftp-refresh-remote" title="Refresh"><i class="fas fa-sync"></i></button>
+        </div>
+        <div id="sftp-remote-list" class="sftp-list"></div>
+    </div>
+</div>
+
+<script>
+(function(){
+    const params = new URLSearchParams(window.location.search);
+    const hostId = parseInt(params.get('id'));
+    const wsId = params.get('workspace_id') || 0;
+    const statusOverlay = document.getElementById('status-overlay');
+    const statusText = document.getElementById('status-text');
+
+    if(!hostId) {
+        statusText.innerHTML = '<span style="color:var(--error-red)">Missing Host ID in URL.</span>';
+        return;
+    }
+
+    const remoteListEl = document.getElementById('sftp-remote-list');
+    const localListEl = document.getElementById('sftp-local-list');
+    const remotePathInput = document.querySelector('.sftp-remote-path');
+    const localPathInput = document.querySelector('.sftp-local-path');
+    
+    let ws = null;
+    const termId = `${wsId}:sftp-${hostId}-${Date.now()}`;
+    let currentRemotePath = '/';
+    let currentLocalPath = '.';
+    let remoteSelection = new Set();
+    let localSelection = new Set();
+
+    function showStatus(text, showSpinner=true) {
+        statusOverlay.style.display = 'flex';
+        statusText.innerHTML = text;
+        statusOverlay.querySelector('.fa-spin').style.display = showSpinner ? 'block' : 'none';
+    }
+
+    function hideStatus() {
+        statusOverlay.style.display = 'none';
+    }
+
+    function wsSend(msg) { 
+        if(ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(Object.assign({ term_id: termId }, msg)));
+        }
+    }
+
+    // --- REMOTE (HOST) FUNCTIONS ---
+    function requestRemoteList(path) {
+        currentRemotePath = (path && path.length) ? path : '/';
+        remotePathInput.value = currentRemotePath;
+        remoteListEl.innerHTML = '<div style="color:#6b7280;padding:12px">Loading...</div>';
+        wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'list_long', path: currentRemotePath } });
+    }
+
+    function createRemoteFolder() {
+        const name = prompt("Enter remote folder name:");
+        if (name && name.trim()) {
+            wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'create', type: 'dir', path: currentRemotePath, name: name.trim() } });
+        }
+    }
+
+    function renderRemoteList(linesString) {
+        remoteListEl.innerHTML = '';
+        remoteSelection.clear();
+        const lines = (linesString || '').split('\n').map(l => l.trim()).filter(l => l.length > 0 && !l.startsWith('total'));
+        
+        if (currentRemotePath !== '/') {
+            const up = renderItem({ name: '..', isDir: true, parent: true });
+            up.onclick = () => {
+                const parts = currentRemotePath.replace(/\/$/, '').split('/');
+                parts.pop();
+                requestRemoteList(parts.join('/') || '/');
+            };
+            remoteListEl.appendChild(up);
+        }
+
+        if (lines.length === 0) {
+            remoteListEl.innerHTML += '<div style="color:#6b7280;padding:12px">(empty)</div>';
+        }
+
+        lines.forEach(line => {
+            const parts = line.split(/\s+/);
+            if (parts.length < 9) return;
+            const perm = parts[0] || '';
+            let name = parts.slice(8).join(' ');
+            if (name.includes('->')) name = name.split('->')[0].trim();
+            
+            const isDir = perm.startsWith('d');
+            const displayName = isDir && name.endsWith('/') ? name.slice(0, -1) : name;
+            
+            const item = { name: displayName, isDir: isDir, fullName: name };
+            const el = renderItem(item);
+
+            el.onclick = (e) => {
+                const fullPath = (currentRemotePath.endsWith('/') ? currentRemotePath : currentRemotePath + '/') + item.fullName;
+                if (!e.ctrlKey) {
+                    remoteSelection.clear();
+                    document.querySelectorAll('#sftp-remote-list .sftp-item.selected').forEach(i => i.classList.remove('selected'));
+                }
+                el.classList.toggle('selected');
+                if (el.classList.contains('selected')) {
+                    remoteSelection.add(fullPath);
+                } else {
+                    remoteSelection.delete(fullPath);
+                }
+            };
+            el.ondblclick = () => {
+                if (item.isDir) {
+                    const newPath = (currentRemotePath.endsWith('/') ? currentRemotePath : currentRemotePath + '/') + item.fullName;
+                    requestRemoteList(newPath);
+                }
+            };
+            remoteListEl.appendChild(el);
+        });
+    }
+
+    // --- LOCAL (BRIDGE) FUNCTIONS ---
+    function requestLocalList(path) {
+        currentLocalPath = (path && path.length) ? path : '.';
+        localPathInput.value = "Loading...";
+        localListEl.innerHTML = '<div style="color:#6b7280;padding:12px">Loading...</div>';
+        wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'bridge_list', path: currentLocalPath } });
+    }
+
+    function createLocalFolder() {
+        const name = prompt("Enter local folder name:");
+        if (name && name.trim()) {
+            wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'bridge_mkdir', path: currentLocalPath, name: name.trim() } });
+        }
+    }
+
+    function renderLocalList(payload) {
+        localListEl.innerHTML = '';
+        localSelection.clear();
+        currentLocalPath = payload.path || '.';
+        localPathInput.value = currentLocalPath;
+
+        const up = renderItem({ name: '..', isDir: true, parent: true });
+        up.onclick = () => requestLocalList(payload.parent || '.');
+        localListEl.appendChild(up);
+
+        if (!payload.items || payload.items.length === 0) {
+            localListEl.innerHTML += '<div style="color:#6b7280;padding:12px">(empty)</div>';
+        }
+        
+        (payload.items || []).sort((a,b) => {
+            const aIsDir = a.isDir ? 1 : 0;
+            const bIsDir = b.isDir ? 1 : 0;
+            if (aIsDir !== bIsDir) {
+                return bIsDir - aIsDir;
+            }
+            return (a.name || '').localeCompare(b.name || '');
+        }).forEach(item => {
+            const el = renderItem(item);
+            el.onclick = (e) => {
+                if (!e.ctrlKey) {
+                    localSelection.clear();
+                    document.querySelectorAll('#sftp-local-list .sftp-item.selected').forEach(i => i.classList.remove('selected'));
+                }
+                el.classList.toggle('selected');
+                if (el.classList.contains('selected')) {
+                    localSelection.add(item.path);
+                } else {
+                    localSelection.delete(item.path);
+                }
+            };
+            el.ondblclick = () => {
+                if (item.isDir) {
+                    requestLocalList(item.path);
+                }
+            };
+            localListEl.appendChild(el);
+        });
+    }
+
+    // --- TRANSFER FUNCTIONS ---
+    function transferToRemote() { // Local -> Remote (Upload)
+        if (localSelection.size === 0) return alert("No local files selected to upload.");
+        showStatus(`Uploading ${localSelection.size} items...`);
+        localSelection.forEach(localPath => {
+            wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'upload_native', localPath: localPath, remotePath: currentRemotePath } });
+        });
+    }
+
+    function transferToLocal() { // Remote -> Local (Download)
+        if (remoteSelection.size === 0) return alert("No remote files selected to download.");
+        showStatus(`Downloading ${remoteSelection.size} items...`);
+        remoteSelection.forEach(remoteFile => {
+            wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'download_native', remoteFile: remoteFile, localDestDir: currentLocalPath } });
+        });
+    }
+
+    // --- GENERIC RENDER/UI ---
+    function renderItem(item) {
+        const el = document.createElement('div');
+        const isDir = !!item.isDir;
+        const name = item.name || '';
+        const icon = item.parent ? 'fa-level-up-alt' : (isDir ? 'fa-folder' : 'fa-file');
+        el.className = 'sftp-item';
+        el.innerHTML = `<i class="fas ${icon}"></i><span>${name}</span>`;
+        return el;
+    }
+
+    // --- WEBSOCKET SETUP & HANDLERS ---
+    (function init() {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+        try { ws = new WebSocket(wsUrl); } catch(e) { return showStatus('WebSocket connection failed.', false); }
+
+        ws.onopen = () => {
+            wsSend({ type: 'subscribe', host_id: hostId, term_id: termId });
+            wsSend({ type: 'sftp_init', host_id: hostId, term_id: termId });
+        };
+
+        ws.onmessage = (e) => {
+            let msg; try { msg = JSON.parse(e.data); } catch(_) { return; }
+            if ((msg.host_id && msg.host_id !== hostId) || (msg.term_id && msg.term_id !== termId)) return;
+
+            const t = msg.type || msg.Type;
+            const pl = msg.payload || msg.Payload || msg;
+
+            switch(t) {
+                case 'sftp_init_res':
+                    if (pl.status === 'success') {
+                        hideStatus();
+                        requestRemoteList('/');
+                        requestLocalList('.');
+                    } else {
+                        showStatus(`Connection Failed:<br><span style="color:var(--error-red);font-size:0.8em;word-break:break-all;">${pl.msg}</span>`, false);
+                    }
+                    break;
+                case 'fs_list':
+                    renderRemoteList(pl.output || pl);
+                    break;
+                case 'bridge_fs_list':
+                    renderLocalList(pl);
+                    break;
+                case 'autocomplete_res':
+                    if (pl.matches && pl.matches.length === 1 && pl.matches[0]) {
+                        if (pl.side === 'local') {
+                            localPathInput.value = pl.matches[0];
+                        } else {
+                            remotePathInput.value = pl.matches[0];
+                        }
+                    }
+                    break;
+                case 'fs_op_res':
+                    hideStatus();
+                    if (pl.status && pl.status.includes('error')) {
+                        return alert('Operation error: ' + (pl.msg || 'Unknown error'));
+                    }
+
+                    // Refresh destination panel after successful transfers
+                    if (pl.action === 'upload_native') {
+                        return requestRemoteList(currentRemotePath);
+                    }
+                    if (pl.action === 'download_native') {
+                        return requestLocalList(currentLocalPath);
+                    }
+
+                    // Refresh panel after other operations like mkdir
+                    if (pl.status === 'success') {
+                        return requestRemoteList(currentRemotePath);
+                    }
+                    if (pl.status === 'success_local') {
+                        return requestLocalList(currentLocalPath);
+                    }
+                    break;
+            }
+        };
+
+        ws.onerror = (e) => showStatus('WebSocket error. See console.', false);
+        ws.onclose = () => showStatus('Disconnected. Please refresh.', false);
+
+        // Bind buttons
+        document.querySelector('.sftp-refresh-remote').addEventListener('click', () => requestRemoteList(currentRemotePath));
+        document.querySelector('.sftp-mkdir-remote').addEventListener('click', createRemoteFolder);
+        document.querySelector('.sftp-refresh-local').addEventListener('click', () => requestLocalList(currentLocalPath));
+        document.querySelector('.sftp-mkdir-local').addEventListener('click', createLocalFolder);
+        document.querySelector('.transfer-to-remote').addEventListener('click', transferToRemote);
+        document.querySelector('.transfer-to-local').addEventListener('click', transferToLocal);
+
+        // Add Enter key listeners for path inputs
+        remotePathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                requestRemoteList(e.target.value);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'autocomplete', path: e.target.value, side: 'remote' } });
+            }
+        });
+        localPathInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                requestLocalList(e.target.value);
+            } else if (e.key === 'Tab') {
+                e.preventDefault();
+                wsSend({ type: 'fs_command', host_id: hostId, payload: { action: 'autocomplete', path: e.target.value, side: 'local' } });
+            }
+        });
+    })();
+})();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,226 @@
+<style>
+    .h-navbar {
+        height: 50px;
+        background-color: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+        padding: 0 20px;
+        gap: 20px;
+        flex-shrink: 0;
+        user-select: none;
+        font-family: 'JetBrains Mono', monospace;
+    }
+
+    .h-brand {
+        font-weight: bold;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding-right: 20px;
+        border-right: 1px solid #30363d;
+        height: 30px;
+    }
+    .h-brand i { color: #238636; font-size: 1.2em; }
+
+    .h-nav-items { display: flex; align-items: center; gap: 5px; flex: 1; }
+
+    .h-nav-btn {
+        padding: 8px 12px;
+        border-radius: 6px;
+        cursor: pointer;
+        color: #8b949e;
+        display: flex; align-items: center; gap: 8px;
+        transition: all 0.2s;
+        font-size: 0.85em;
+        position: relative;
+    }
+
+    .h-nav-btn:hover { background-color: #21262d; color: #fff; }
+    
+    .h-nav-btn.active, .h-nav-btn.force-active {
+        background-color: rgba(35, 134, 54, 0.15);
+        color: #238636;
+        font-weight: bold;
+    }
+
+    .h-dropdown-wrapper { position: relative; }
+
+    .h-dropdown-menu {
+        display: none;
+        position: absolute;
+        top: 100%;
+        left: 0;
+        margin-top: 5px;
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        min-width: 160px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        z-index: 999;
+        flex-direction: column;
+        padding: 5px;
+    }
+
+    .h-dropdown-wrapper.open .h-dropdown-menu { display: flex; }
+    .h-dropdown-wrapper.open .h-nav-btn { color: #fff; background: #21262d; }
+
+    .h-drop-item {
+        padding: 8px 10px;
+        color: #c9d1d9;
+        cursor: pointer;
+        border-radius: 4px;
+        display: flex; align-items: center; gap: 8px;
+        font-size: 0.85em;
+    }
+    .h-drop-item:hover { background-color: #0d1117; color: #58a6ff; }
+    .h-drop-item i { width: 20px; text-align: center; opacity: 0.7; }
+
+    .caret { font-size: 0.7em; margin-left: 5px; opacity: 0.5; }
+</style>
+
+<div class="h-navbar menu-root">
+    <div class="h-brand">
+        <i class="fas fa-terminal"></i> 
+        <span class="menu-host-title">HOST</span>
+    </div>
+
+    <div class="h-nav-items">
+        <div class="h-nav-btn active" data-target="dashboard.html">
+            <i class="fas fa-tachometer-alt" style="color: #da3633;"></i> <span>Dashboard</span>
+        </div>
+        
+        <div class="h-nav-btn" data-target="terminal.html">
+            <i class="fas fa-code" style="color: #238636;"></i> <span>Terminale</span>
+        </div>
+
+        <div class="h-nav-btn" data-target="explorer.html" data-mode="user">
+            <i class="fas fa-folder" style="color: #e3b341;"></i> <span>Explorer</span>
+        </div>
+
+        <div class="h-nav-btn" data-target="taskmanager.html">
+            <i class="fas fa-microchip" style="color: #d29922;"></i> <span>Task Manager</span>
+        </div>
+
+        <div class="h-dropdown-wrapper">
+            <div class="h-nav-btn dropdown-trigger">
+                <i class="fas fa-cogs" style="color: #58a6ff;"></i> <span>System</span> <i class="fas fa-chevron-down caret"></i>
+            </div>
+            <div class="h-dropdown-menu">
+                <div class="h-drop-item" data-target="network.html">
+                    <i class="fas fa-network-wired" style="color: #58a6ff;"></i> Network
+                </div>
+                <div class="h-drop-item" data-target="disk.html">
+                    <i class="fas fa-hdd" style="color: #d29922;"></i> Disks
+                </div>
+                <div class="h-drop-item" data-target="logs.html">
+                    <i class="fas fa-scroll" style="color: #d2a8ff;"></i> Logs
+                </div>
+                <div class="h-drop-item" data-target="packman.html">
+                    <i class="fas fa-box-open" style="color: #e3b341;"></i> PackMan
+                </div>
+                    <div class="h-drop-item" data-target="services.html">
+                    <i class="fas fa-server" style="color: #3fb950;"></i> Systems Services
+                </div>
+                     <div class="h-drop-item" data-target="config/admin.html">
+                    <i class="fas fa-tools" style="color: #8b949e;"></i> Settings
+                </div>
+            </div>
+        </div>
+
+        <div class="h-dropdown-wrapper">
+            <div class="h-nav-btn dropdown-trigger">
+                <i class="fas fa-cubes" style="color: #d2a8ff;"></i> <span>Services</span> <i class="fas fa-chevron-down caret"></i>
+            </div>
+            <div class="h-dropdown-menu">
+                <div class="h-drop-item" data-target="apache.html">
+                    <i class="fas fa-feather-alt" style="color: #d22128;"></i> Apache
+                </div>
+                <div class="h-drop-item" data-target="nginx.html">
+                    <i class="fab fa-envira" style="color: #009639;"></i> Nginx
+                </div>
+                <div class="h-drop-item" data-target="ssh.html">
+                    <i class="fas fa-key" style="color: #f0f6fc;"></i> SSH
+                </div>
+                <div class="h-drop-item" data-target="docker.html">
+                    <i class="fab fa-docker" style="color: #0db7ed;"></i> Docker
+                </div>
+                <div class="h-drop-item" data-target="mariadb.html">
+                    <i class="fas fa-database" style="color: #e3b341;"></i> MySQL | MariaDB
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function() {
+        const app = (typeof appInstance !== 'undefined') ? appInstance : null;
+        if(!app) return; // Sicurezza
+
+        // SCOPED QUERY: Cerchiamo SOLO dentro il container di questo host
+        const root = app.container.querySelector('.menu-root');
+        const titleEl = app.container.querySelector('.menu-host-title');
+
+        if(titleEl) {
+            titleEl.innerText = app.hostName.toUpperCase();
+        }
+
+        // GESTIONE CLICK MENU (Scoped su root)
+        root.addEventListener('click', (e) => {
+            // Dropdown
+            const trigger = e.target.closest('.dropdown-trigger');
+            if(trigger) {
+                const wrapper = trigger.closest('.h-dropdown-wrapper');
+                root.querySelectorAll('.h-dropdown-wrapper').forEach(w => {
+                    if(w !== wrapper) w.classList.remove('open');
+                });
+                wrapper.classList.toggle('open');
+                e.stopPropagation();
+                return;
+            }
+
+            // Navigazione
+            const btn = e.target.closest('[data-target]');
+            if(btn) {
+                const page = btn.dataset.target;
+                const mode = btn.dataset.mode || null;
+
+                // UI Active State
+                root.querySelectorAll('.h-nav-btn').forEach(b => b.classList.remove('active', 'force-active'));
+                
+                const parentDrop = btn.closest('.h-dropdown-wrapper');
+                if(parentDrop) {
+                    parentDrop.querySelector('.dropdown-trigger').classList.add('force-active');
+                    parentDrop.classList.remove('open');
+                } else {
+                    btn.classList.add('active');
+                }
+
+                // Chiama la funzione sull'istanza corretta
+                app.loadPage(page, null, mode);
+            }
+        });
+
+        // Chiudi dropdown se clicco fuori (Listener globale ma gestito)
+        const closeDropdowns = (e) => {
+            // Se il click non è dentro QUESTO menu, chiudi i dropdown di QUESTO menu
+            if(!root.contains(e.target)) {
+                root.querySelectorAll('.h-dropdown-wrapper').forEach(w => w.classList.remove('open'));
+            }
+        };
+
+        document.addEventListener('click', closeDropdowns);
+
+        // CLEANUP FONDAMENTALE: Rimuovere il listener globale quando il tab viene distrutto
+        // Altrimenti dopo 10 aperture avrai 10 listener che girano
+        if (app.registerCleanup) {
+            // Nota: registerCleanup deve essere gestito in HostApp.destroy() o simile
+            // Se HostApp non ha un meccanismo di cleanup menu specifico, questo listener
+            // rimarrà appeso. Idealmente HostApp dovrebbe chiamare un callback quando si chiude.
+            // Per ora lo lasciamo così, è meno grave dell'ID duplicato.
+        }
+
+    })();
+</script>

@@ -1,0 +1,371 @@
+<div class="search-module-wrapper">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        .search-module-wrapper {
+            display: flex; flex-direction: column; width: 100%; height: 100%;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'Inter', 'JetBrains Mono', sans-serif;
+            position: relative; box-sizing: border-box; align-items: center; padding: 40px 20px;
+            --bg-panel: #161b22; --border: #30363d; --accent: #58a6ff; 
+            --text-dim: #8b949e; --hover-bg: #21262d;
+        }
+
+        /* --- SPOTLIGHT SEARCH BAR --- */
+        .spotlight-container {
+            width: 100%; max-width: 800px;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 12px; box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            display: flex; flex-direction: column; overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .search-input-box {
+            display: flex; align-items: center; padding: 15px 25px;
+            border-bottom: 1px solid transparent; transition: border 0.3s;
+        }
+        .search-input-box.has-results { border-bottom-color: var(--border); }
+        
+        .search-input-box i { font-size: 1.5em; color: var(--accent); margin-right: 15px; }
+        .search-input-box input {
+            flex: 1; background: transparent; border: none; outline: none;
+            color: #fff; font-size: 1.5em; font-family: inherit;
+        }
+        .search-input-box input::placeholder { color: var(--text-dim); }
+
+        .search-filters {
+            display: flex; gap: 10px; padding: 10px 25px; background: #0d1117; border-bottom: 1px solid var(--border);
+        }
+        .filter-pill {
+            background: transparent; border: 1px solid var(--border); color: var(--text-dim);
+            padding: 4px 12px; border-radius: 20px; font-size: 0.8em; cursor: pointer; transition: 0.2s;
+        }
+        .filter-pill:hover { border-color: var(--accent); color: #fff; }
+        .filter-pill.active { background: rgba(88, 166, 255, 0.1); border-color: var(--accent); color: var(--accent); }
+
+        /* --- RESULTS AREA --- */
+        .results-container {
+            max-height: 60vh; overflow-y: auto; padding: 10px 0; display: none;
+        }
+        .results-container::-webkit-scrollbar { width: 8px; }
+        .results-container::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+
+        .result-group-title {
+            padding: 5px 25px; font-size: 0.75em; font-weight: bold; color: var(--text-dim);
+            text-transform: uppercase; letter-spacing: 1px; margin-top: 10px;
+        }
+        
+        .result-item {
+            display: flex; align-items: center; padding: 12px 25px; cursor: pointer;
+            transition: background 0.1s; gap: 15px;
+        }
+        .result-item:hover, .result-item.selected { background: var(--hover-bg); }
+        
+        .result-icon {
+            width: 40px; height: 40px; border-radius: 8px; background: #0d1117; border: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: center; font-size: 1.2em; flex-shrink: 0;
+        }
+        .icon-app { color: #d2a8ff; } .icon-srv { color: #3fb950; } 
+        .icon-dir { color: #e3b341; } .icon-file { color: #c9d1d9; } .icon-log { color: #da3633; }
+
+        .result-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .result-title { font-weight: 600; color: #fff; font-size: 1.05em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .result-desc { font-size: 0.8em; color: var(--text-dim); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: 'JetBrains Mono', monospace; }
+
+        .result-action { font-size: 0.8em; color: var(--accent); opacity: 0; transition: opacity 0.2s; font-weight: bold;}
+        .result-item:hover .result-action { opacity: 1; }
+
+        .empty-state { text-align: center; padding: 40px; color: var(--text-dim); font-size: 0.9em; display: none; }
+
+        /* --- APP INFO MODAL --- */
+        .app-modal {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.8); z-index: 3000; align-items: center; justify-content: center; backdrop-filter: blur(5px);
+        }
+        .app-modal-content {
+            background: var(--bg-panel); border: 1px solid var(--border); border-radius: 12px;
+            width: 600px; max-height: 80vh; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.7);
+        }
+        .app-modal-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .app-modal-title { font-size: 1.2em; font-weight: bold; color: #fff; display: flex; align-items: center; gap: 10px; }
+        .app-modal-body { padding: 20px; overflow-y: auto; flex: 1; font-size: 0.9em; line-height: 1.5; }
+        .app-modal-footer {
+            padding: 15px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: flex-end;
+            background: #0d1117;
+        }
+        .btn { 
+            background: var(--accent); color: white; border: none; 
+            padding: 8px 18px; border-radius: 6px; cursor: pointer; 
+            font-weight: bold; font-family: inherit;
+            transition: background 0.2s;
+        }
+        .btn:hover {
+            background: #6ab0ff;
+        }
+        
+        .info-block { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 15px; margin-bottom: 15px; }
+        .info-label { color: var(--text-dim); font-size: 0.8em; text-transform: uppercase; margin-bottom: 5px; font-weight: bold; }
+        .info-data { font-family: 'JetBrains Mono', monospace; color: #e6edf3; white-space: pre-wrap; word-wrap: break-word; }
+        
+        .loader-spinner { animation: spin 1s linear infinite; }
+        @keyframes spin { 100% { transform: rotate(360deg); } }
+    </style>
+
+    <div class="spotlight-container">
+        <div class="search-input-box" id="search-box">
+            <i class="fas fa-search" id="search-icon"></i>
+            <input type="text" id="global-search" placeholder="Cerca app, servizi, file (es. nginx, docker)..." autocomplete="off" spellcheck="false">
+        </div>
+        
+        <div class="search-filters">
+            <button class="filter-pill active" data-filter="all">Tutto</button>
+            <button class="filter-pill" data-filter="app">Programmi</button>
+            <button class="filter-pill" data-filter="service">Servizi</button>
+            <button class="filter-pill" data-filter="file">File/Cartelle</button>
+        </div>
+
+        <div class="results-container" id="results-area">
+            <div class="empty-state" id="empty-state">Nessun risultato trovato.</div>
+            <div id="results-list"></div>
+        </div>
+    </div>
+
+    <div class="app-modal" id="app-details-modal">
+        <div class="app-modal-content">
+            <div class="app-modal-header">
+                <div class="app-modal-title"><i class="fas fa-terminal" style="color:#d2a8ff"></i> <span id="adm-title">Program Info</span></div>
+                <i class="fas fa-times" style="cursor:pointer; color:var(--text-dim)" onclick="document.getElementById('app-details-modal').style.display='none'"></i>
+            </div>
+            <div class="app-modal-body">
+                <div class="info-block">
+                    <div class="info-label">Eseguibile & Percorsi (whereis)</div>
+                    <div class="info-data" id="adm-whereis"><i class="fas fa-spinner loader-spinner"></i> Analisi in corso...</div>
+                </div>
+                <div class="info-block">
+                    <div class="info-label">Versione Rilevata</div>
+                    <div class="info-data" id="adm-version"><i class="fas fa-spinner loader-spinner"></i></div>
+                </div>
+                <div class="info-block">
+                    <div class="info-label">Stato Servizio Collegato (se esiste)</div>
+                    <div class="info-data" id="adm-service">Ricerca servizio systemd correlato...</div>
+                </div>
+            </div>
+            <div class="app-modal-footer">
+                <button id="btn-run-app" class="btn">Esegui nel Terminale</button>
+           </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("[Search] appInstance mancante."); return; }
+            
+            const currentId = appInstance.hostId;
+            const container = appInstance.container;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:search-` + Date.now();
+            
+            const searchInput = container.querySelector('#global-search');
+            const searchBox = container.querySelector('#search-box');
+            const resultsArea = container.querySelector('#results-area');
+            const resultsList = container.querySelector('#results-list');
+            const emptyState = container.querySelector('#empty-state');
+            const searchIcon = container.querySelector('#search-icon');
+            const filterPills = container.querySelectorAll('.filter-pill');
+            
+            let ws = null;
+            let searchTimeout = null;
+            let currentFilter = 'all';
+            let lastQuery = '';
+
+            // --- WEBSOCKET SETUP ---
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                ws.onmessage = (e) => {
+                    let msg; try { msg = JSON.parse(e.data); } catch(err) { return; }
+                    if(msg.host_id != currentId) return;
+
+                    // Gestione Risultati Ricerca Globale
+                    if(msg.type === "search_results") {
+                        searchIcon.className = "fas fa-search"; // Reset icona
+                        renderResults(msg.payload);
+                    }
+
+                    // Gestione Risultati Analisi App (whereis, version, ecc.)
+                    if(msg.type === "app_analysis_res") {
+                        populateAppModal(msg.payload);
+                    }
+                };
+                
+                appInstance.registerCleanup(() => { if(ws) ws.close(); });
+            }
+
+            // --- EVENT LISTENERS ---
+            // Focus immediato
+            setTimeout(() => searchInput.focus(), 100);
+
+            // Gestione Input (Debounce)
+            searchInput.addEventListener('input', (e) => {
+                const query = e.target.value.trim();
+                lastQuery = query;
+                
+                clearTimeout(searchTimeout);
+                
+                if(query.length < 2) {
+                    resultsArea.style.display = 'none';
+                    searchBox.classList.remove('has-results');
+                    return;
+                }
+
+                searchIcon.className = "fas fa-circle-notch loader-spinner"; // Spinner
+                
+                searchTimeout = setTimeout(() => {
+                    if(ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ 
+                            type: "search_command", 
+                            host_id: parseInt(currentId), term_id: termId,
+                            payload: { action: "global_search", query: query, filter: currentFilter } 
+                        }));
+                    }
+                }, 400); // 400ms debounce
+            });
+
+            // Gestione Filtri
+            filterPills.forEach(pill => {
+                pill.addEventListener('click', (e) => {
+                    filterPills.forEach(p => p.classList.remove('active'));
+                    e.target.classList.add('active');
+                    currentFilter = e.target.dataset.filter;
+                    // Rilancia la ricerca se c'è già testo
+                    if(lastQuery.length >= 2) searchInput.dispatchEvent(new Event('input'));
+                });
+            });
+
+            // --- RENDERING RISULTATI ---
+            function renderResults(results) {
+                resultsArea.style.display = 'block';
+                searchBox.classList.add('has-results');
+                resultsList.innerHTML = '';
+
+                if(!results || results.length === 0) {
+                    emptyState.style.display = 'block';
+                    return;
+                }
+                emptyState.style.display = 'none';
+
+                // Raggruppa i risultati
+                const groups = { app: [], service: [], dir: [], file: [], log: [] };
+                results.forEach(r => { if(groups[r.type]) groups[r.type].push(r); });
+
+                const groupTitles = { app: "Programmi & Binari", service: "Servizi Systemd", dir: "Cartelle", file: "File", log: "Log Files" };
+                const icons = { app: "fa-terminal icon-app", service: "fa-cogs icon-srv", dir: "fa-folder icon-dir", file: "fa-file-alt icon-file", log: "fa-align-left icon-log" };
+                const actions = { app: "Analizza", service: "Gestisci", dir: "Apri Explorer", file: "Modifica", log: "Vedi Log" };
+
+                Object.keys(groups).forEach(key => {
+                    if(groups[key].length > 0) {
+                        // Header Gruppo
+                        const header = document.createElement('div');
+                        header.className = 'result-group-title';
+                        header.innerText = groupTitles[key];
+                        resultsList.appendChild(header);
+
+                        // Elementi Gruppo
+                        groups[key].forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = 'result-item';
+                            div.innerHTML = `
+                                <div class="result-icon"><i class="fas ${icons[key]}"></i></div>
+                                <div class="result-info">
+                                    <div class="result-title">${item.name}</div>
+                                    <div class="result-desc">${item.path || item.desc || ''}</div>
+                                </div>
+                                <div class="result-action">${actions[key]} &rarr;</div>
+                            `;
+                            
+                            // Click Handler basato sul tipo
+                            div.onclick = () => handleResultClick(item);
+                            resultsList.appendChild(div);
+                        });
+                    }
+                });
+            }
+
+            // --- GESTIONE CLICK SUI RISULTATI ---
+            function handleResultClick(item) {
+                if(!window.AppState) window.AppState = {};
+
+                switch(item.type) {
+                    case 'dir':
+                        window.AppState.targetExplorer = { path: item.path, type: 'dir' };
+                        appInstance.loadPage('explorer.html');
+                        break;
+                    case 'file':
+                    case 'log':
+                        window.AppState.targetExplorer = { path: item.path, type: 'file' };
+                        appInstance.loadPage('explorer.html');
+                        break;
+                    case 'service':
+                        // Comunica alla pagina servizi quale servizio cercare
+                        window.AppState.targetServiceSearch = item.name;
+                        appInstance.loadPage('services.html');
+                        break;
+                    case 'app':
+                        // Apre la modale per analizzare l'eseguibile (invia comando al bridge)
+                        openAppModal(item);
+                        break;
+                }
+            }
+
+            // --- LOGICA MODALE APP / PROGRAMMA ---
+            function openAppModal(item) {
+                const appName = item.name;
+                container.querySelector('#adm-title').innerText = "Analisi: " + appName;
+                container.querySelector('#adm-whereis').innerHTML = '<i class="fas fa-spinner loader-spinner"></i>';
+                container.querySelector('#adm-version').innerHTML = '<i class="fas fa-spinner loader-spinner"></i>';
+                container.querySelector('#adm-service').innerHTML = '<i class="fas fa-spinner loader-spinner"></i>';
+                
+                const modal = container.querySelector('#app-details-modal');
+                
+                const runBtn = modal.querySelector('#btn-run-app');
+                runBtn.onclick = () => {
+                    if (!window.AppState) window.AppState = {};
+                    window.AppState.terminalCommand = item.path || item.name;
+                    appInstance.loadPage('terminal.html');
+                };
+
+                modal.style.display = 'flex';
+
+                // Richiedi analisi al backend
+                if(ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ 
+                        type: "search_command", 
+                        host_id: parseInt(currentId), term_id: termId,
+                        payload: { action: "analyze_app", app: appName } 
+                    }));
+                }
+            }
+
+            function populateAppModal(data) {
+                if(data.whereis) container.querySelector('#adm-whereis').innerText = data.whereis.trim() || "Percorso non trovato";
+                if(data.version) container.querySelector('#adm-version').innerText = data.version.trim() || "Impossibile determinare la versione";
+                
+                const srvEl = container.querySelector('#adm-service');
+                if(data.service_status) {
+                    if(data.service_status.includes("non-existent") || data.service_status.includes("could not be found")) {
+                        srvEl.innerText = "Nessun servizio di sistema associato trovato.";
+                        srvEl.style.color = "var(--text-dim)";
+                    } else {
+                        srvEl.innerText = data.service_status;
+                        srvEl.style.color = data.service_status.includes("running") ? "#3fb950" : "#da3633";
+                    }
+                }
+            }
+
+        })();
+    </script>
+</div>

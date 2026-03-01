@@ -1,0 +1,692 @@
+<div class="services-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+
+    <style>
+        .services-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #238636;
+        }
+
+        .services-module-wrapper * { box-sizing: border-box; }
+
+        /* Sidebar Scoped */
+        .svc-sidebar { 
+            width: 250px; min-width: 250px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .svc-sidebar h2 { color: var(--accent); margin-top: 0; font-size: 1.2em; display: flex; align-items: center; gap: 10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: #238636; color: white; }
+
+        /* Content Area */
+        .main-wrapper { 
+            flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; 
+            min-width: 0;
+        }
+        .main-content { flex: 1; padding: 20px; overflow-y: auto; display: none; }
+        .main-content.active-view { display: block; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .search-bar { background: var(--bg-panel); border: 1px solid var(--border); color: white; padding: 8px 15px; border-radius: 4px; width: 300px; font-family: inherit; }
+
+        /* Tables */
+        .svc-table { width: 100%; border-collapse: collapse; font-size: 0.9em; table-layout: fixed; }
+        .svc-table th { text-align: left; padding: 10px; border-bottom: 2px solid var(--border); color: var(--text-dim); background: #0d1117; position: sticky; top: 0; }
+        .svc-table td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; word-wrap: break-word; }
+        .svc-table tr:hover { background: #161b22; }
+
+        /* Indicators */
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+        .dot-green { background-color: var(--success); box-shadow: 0 0 5px var(--success); }
+        .dot-red { background-color: var(--danger); }
+        .dot-grey { background-color: var(--text-dim); }
+
+        .badge { padding: 3px 8px; border-radius: 10px; font-size: 0.75em; font-weight: bold; cursor: pointer; border: 1px solid transparent; }
+        .badge-enabled { background: rgba(35, 134, 54, 0.15); color: var(--success); border-color: var(--success); }
+        .badge-disabled { background: rgba(218, 54, 51, 0.15); color: var(--danger); border-color: var(--danger); }
+
+        /* Buttons */
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .action-btn { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 5px; transition: 0.2s; }
+        .action-btn:hover { background: #21262d; border-color: var(--text-dim); }
+        
+        .btn-half-container { display: flex; width: 80px; gap: 2px; }
+        .btn-half { flex: 1; padding: 5px; text-align: center; }
+        .btn-danger-light { color: var(--danger); border-color: var(--danger); }
+        .btn-danger-light:hover { background: var(--danger); color: white; }
+
+        /* Filters */
+        .filter-group { display: flex; gap: 5px; margin-right: 20px; }
+        .filter-btn { background: var(--bg-panel); border: 1px solid var(--border); color: var(--text-dim); padding: 5px 12px; cursor: pointer; border-radius: 4px; font-size: 0.8em; }
+        .filter-btn.active { background: var(--accent); color: white; border-color: var(--accent); }
+
+        /* Modals */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 70%; max-width: 800px; height: 80%; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .modal-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+        .modal-footer { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1px solid var(--border); padding-top: 10px; }
+        
+        /* Editors */
+        .editor-wrapper { flex: 1; border: 1px solid var(--border); position: relative; min-height: 300px; }
+        .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+        .input-group { margin-bottom: 10px; }
+        .input-group label { display: block; font-size: 0.8em; color: var(--text-dim); margin-bottom: 5px; }
+        .input-group input, .input-group select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; font-family: inherit; }
+        
+        .log-view { background: #0d1117; color: #ccc; padding: 10px; font-family: monospace; height: 100%; overflow: auto; white-space: pre-wrap; font-size: 0.85em; }
+        
+        .cron-comment { color: #6a737d; font-style: italic; font-size: 0.85em; }
+        
+        .svc-table th.sortable { cursor: pointer; user-select: none; }
+        .svc-table th.sortable:hover { color: var(--text-main); }
+        .svc-table th.active-sort { color: var(--accent); }
+    </style>
+
+    <div class="svc-sidebar">
+        <h2><i class="fas fa-server"></i> Servizi</h2>
+        <div class="nav-item active" data-view="systemd"><i class="fab fa-linux"></i> Systemd Units</div>
+        <div class="nav-item" data-view="crontab"><i class="fas fa-clock"></i> Crontab</div>
+        <div class="nav-item" data-view="cronroot"><i class="fas fa-user-shield" style="color:var(--warning)"></i> Crontab (Root)</div>
+        <div class="nav-item" data-view="rclocal"><i class="fas fa-terminal"></i> rc.local</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <div id="view-systemd" class="main-content active-view">
+            <div class="panel-header">
+                <h3>Gestione Servizi (Systemctl)</h3>
+                <div style="display:flex; align-items:center; gap:10px;">
+                    <div class="filter-group">
+                        <div class="filter-btn active" data-filter="all">All</div>
+                        <div class="filter-btn" data-filter="running">Running</div>
+                        <div class="filter-btn" data-filter="dead">Dead</div>
+                        <div class="filter-btn" data-filter="timers"><i class="fas fa-clock"></i> Timers</div>
+                        <div class="filter-btn" data-filter="monitor"><i class="fas fa-chart-line"></i> Monitor</div>
+                    </div>
+                    <input type="text" class="search-bar svc-search" placeholder="Cerca servizio...">
+                    <button class="btn btn-create-svc"><i class="fas fa-plus"></i> Nuovo</button>
+                    <button class="action-btn btn-refresh-sysd" title="Aggiorna"><i class="fas fa-sync"></i></button>
+                </div>
+            </div>
+            <table class="svc-table">
+                <thead>
+                    <tr>
+                        <th style="width: 120px;">Stato</th>
+                        <th class="col-mon sortable" data-sort="pid" style="width: 80px; display:none">PID</th>
+                        <th class="col-mon sortable" data-sort="cpu" style="width: 80px; display:none">CPU</th>
+                        <th class="col-mon sortable" data-sort="mem" style="width: 100px; display:none">Memory</th>
+                        <th class="sortable active-sort" data-sort="name">Nome Servizio</th>
+                        <th style="width: 120px;">Avvio (Boot)</th>
+                        <th style="width: 260px;">Azioni</th>
+                    </tr>
+                </thead>
+                <tbody class="svc-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="view-crontab" class="main-content">
+            <div class="panel-header">
+                <h3>Schedulazione (Crontab Utente)</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-add-cron-user"><i class="fas fa-plus"></i> Aggiungi Job</button>
+                    <div class="btn-half-container">
+                        <button class="action-btn btn-half btn-danger-light btn-clear-cron-user" title="Svuota"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn btn-half btn-refresh-cron-user" title="Aggiorna"><i class="fas fa-sync"></i></button>
+                    </div>
+                </div>
+            </div>
+            <table class="svc-table">
+                <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 80px;">Azioni</th></tr></thead>
+                <tbody class="cron-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="view-cronroot" class="main-content">
+            <div class="panel-header">
+                <h3 style="color:var(--warning)">Schedulazione (Crontab ROOT)</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-add-cron-root"><i class="fas fa-plus"></i> Aggiungi Job</button>
+                    <div class="btn-half-container">
+                        <button class="action-btn btn-half btn-danger-light btn-clear-cron-root" title="Svuota"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn btn-half btn-refresh-cron-root" title="Aggiorna"><i class="fas fa-sync"></i></button>
+                    </div>
+                </div>
+            </div>
+            <table class="svc-table">
+                <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 80px;">Azioni</th></tr></thead>
+                <tbody class="cronroot-tbody"></tbody>
+            </table>
+        </div>
+
+        <div id="view-rclocal" class="main-content">
+            <div class="panel-header">
+                <h3>Avvio Legacy (rc.local)</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-save-rclocal"><i class="fas fa-save"></i> Salva Modifiche</button>
+                    <div class="btn-half-container">
+                        <button class="action-btn btn-half btn-danger-light btn-del-rclocal" title="Elimina File"><i class="fas fa-trash"></i></button>
+                        <button class="action-btn btn-half btn-refresh-rclocal" title="Aggiorna"><i class="fas fa-sync"></i></button>
+                    </div>
+                </div>
+            </div>
+            <div class="editor-wrapper" style="height: calc(100% - 60px);">
+                <div class="ace-div" id="rc-editor-div"></div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="local-modal modal-status">
+        <div class="modal-content" style="height: 60%;">
+            <div class="modal-header">
+                <span>Log Servizio</span>
+                <i class="fas fa-times btn-close-modal" style="cursor:pointer"></i>
+            </div>
+            <div class="modal-body">
+                <div class="log-view status-log-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-edit-svc">
+        <div class="modal-content">
+            <div class="modal-header">
+                <span>Modifica Unit</span>
+                <i class="fas fa-times btn-close-modal" style="cursor:pointer"></i>
+            </div>
+            <div class="modal-body" style="padding:0">
+                <div style="padding:10px; background:#161b22; display:flex; gap:10px; border-bottom:1px solid #30363d">
+                    <input type="text" class="svc-filename-input" style="flex:1" placeholder="nome-servizio.service">
+                    <select class="svc-template-select" style="width:150px">
+                        <option value="">-- Template --</option>
+                        <option value="service">Service (Standard)</option>
+                        <option value="timer">Timer (Schedule)</option>
+                        <option value="oneshot">OneShot (Script)</option>
+                    </select>
+                </div>
+                <div class="editor-wrapper">
+                    <div class="ace-div" id="svc-editor-div"></div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-save-svc">Salva & Reload</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-cron">
+        <div class="modal-content" style="height: auto;">
+            <div class="modal-header">
+                <span>Generatore Cron</span>
+                <i class="fas fa-times btn-close-modal" style="cursor:pointer"></i>
+            </div>
+            <div class="modal-body">
+                <div style="display:flex; gap:10px">
+                    <div class="input-group" style="flex:1"><label>Min</label><input type="text" class="c-min" value="*"></div>
+                    <div class="input-group" style="flex:1"><label>Ore</label><input type="text" class="c-hour" value="*"></div>
+                    <div class="input-group" style="flex:1"><label>Giorno</label><input type="text" class="c-day" value="*"></div>
+                    <div class="input-group" style="flex:1"><label>Mese</label><input type="text" class="c-month" value="*"></div>
+                    <div class="input-group" style="flex:1"><label>Week</label><input type="text" class="c-wday" value="*"></div>
+                </div>
+                <div class="input-group"><label>Comando</label><input type="text" class="c-cmd"></div>
+            </div>
+            <div class="modal-footer">
+                <button class="action-btn btn-close-modal">Annulla</button>
+                <button class="btn btn-add-cron-entry">Aggiungi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("[Services] AppInstance not found"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:svc-` + Date.now();
+
+            // Loader Dependencies
+            const loadScript = (src) => new Promise((res) => {
+                if (document.querySelector(`script[src="${src}"]`)) return res();
+                const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                try {
+                    if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                } catch(e) { console.error(e); }
+
+                let svcEditor, rcEditor;
+                let cronLines = [], cronRootLines = [];
+                let isCronRootEdit = false;
+                let lastServices = [];
+                let serviceStats = {};
+                let currentSort = { field: 'name', asc: true };
+                let currentFilter = 'all';
+                let isNewService = false;
+                let monitorInterval = null;
+                let ws = null;
+
+                // Setup Editors
+                if(typeof ace !== 'undefined') {
+                    svcEditor = ace.edit(container.querySelector("#svc-editor-div")); 
+                    svcEditor.setTheme("ace/theme/monokai"); svcEditor.session.setMode("ace/mode/ini");
+                    
+                    rcEditor = ace.edit(container.querySelector("#rc-editor-div")); 
+                    rcEditor.setTheme("ace/theme/monokai"); rcEditor.session.setMode("ace/mode/sh");
+                }
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+                // --- BINDINGS ---
+                const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+                const bindInput = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('keyup', fn); };
+                const bindChange = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('change', fn); };
+
+                // Templates
+                const TEMPLATES = {
+                    service: `[Unit]
+Description=My Custom Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /path/to/script.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target`,
+                    timer: `[Unit]
+Description=Run My Service Periodically
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1d
+# OnCalendar=*-*-* 00:00:00
+
+[Install]
+WantedBy=timers.target`,
+                    oneshot: `[Unit]
+Description=Run Once Script
+
+[Service]
+Type=oneshot
+ExecStart=/path/to/script.sh
+
+[Install]
+WantedBy=multi-user.target`
+                };
+
+                // Sidebar Navigation
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.main-content').forEach(c => c.classList.remove('active-view'));
+                        const viewId = item.dataset.view;
+                        container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                        
+                        if(viewId === 'systemd') loadSystemd();
+                        if(viewId === 'crontab') loadCron(false);
+                        if(viewId === 'cronroot') loadCron(true);
+                        if(viewId === 'rclocal') { loadRcLocal(); if(rcEditor) rcEditor.resize(); }
+                    });
+                });
+
+                // Systemd
+                bind('.btn-refresh-sysd', loadSystemd);
+                bind('.btn-create-svc', openCreateServiceModal);
+                bindInput('.svc-search', (e) => filterTable(e.target.value));
+                
+                bindChange('.svc-template-select', (e) => {
+                    const t = e.target.value;
+                    if(t && TEMPLATES[t]) {
+                        svcEditor.setValue(TEMPLATES[t], -1);
+                        // Auto-set extension
+                        const nameInput = container.querySelector('.svc-filename-input');
+                        let val = nameInput.value.trim();
+                        if (val) {
+                            const base = val.split('.')[0];
+                            if (t === 'timer') nameInput.value = base + '.timer';
+                            else if (t === 'service' || t === 'oneshot') nameInput.value = base + '.service';
+                        }
+                    }
+                });
+                
+                container.querySelectorAll('.filter-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        container.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        applyFilter(btn.dataset.filter);
+                        
+                        if(btn.dataset.filter === 'monitor') {
+                            startMonitor();
+                        } else {
+                            stopMonitor();
+                        }
+                    });
+                });
+                
+                // Sorting Headers
+                container.querySelectorAll('.svc-table th.sortable').forEach(th => {
+                    th.addEventListener('click', () => {
+                        const field = th.dataset.sort;
+                        if(currentSort.field === field) currentSort.asc = !currentSort.asc;
+                        else { currentSort.field = field; currentSort.asc = true; }
+                        container.querySelectorAll('.svc-table th').forEach(h => h.classList.remove('active-sort'));
+                        th.classList.add('active-sort');
+                        applyFilter(currentFilter);
+                    });
+                });
+
+                // Service Actions Delegation
+                container.querySelector('.svc-tbody').addEventListener('click', (e) => {
+                    const btn = e.target.closest('button') || e.target.closest('.badge');
+                    if(!btn) return;
+                    
+                    if(btn.classList.contains('badge')) toggleEnable(btn.dataset.svc, btn.dataset.enabled === 'true');
+                    
+                    const action = btn.dataset.action;
+                    const svc = btn.dataset.svc;
+                    if(action === 'start') toggleActive(svc, false);
+                    if(action === 'stop') toggleActive(svc, true);
+                    if(action === 'restart') restartService(svc);
+                    if(action === 'edit') editService(svc);
+                    if(action === 'status') showStatus(svc);
+                    if(action === 'delete') deleteService(svc);
+                });
+
+                // Crontab
+                bind('.btn-add-cron-user', () => openCronModal(false));
+                bind('.btn-clear-cron-user', () => clearCrontab(false));
+                bind('.btn-refresh-cron-user', () => loadCron(false));
+                
+                bind('.btn-add-cron-root', () => openCronModal(true));
+                bind('.btn-clear-cron-root', () => clearCrontab(true));
+                bind('.btn-refresh-cron-root', () => loadCron(true));
+
+                // Cron Actions Delegation (User & Root)
+                const cronAction = (e, isRoot) => {
+                    const btn = e.target.closest('button');
+                    if(btn && btn.dataset.action === 'delete') deleteCron(parseInt(btn.dataset.index), isRoot);
+                };
+                container.querySelector('.cron-tbody').addEventListener('click', (e) => cronAction(e, false));
+                container.querySelector('.cronroot-tbody').addEventListener('click', (e) => cronAction(e, true));
+
+                // Rc Local
+                bind('.btn-save-rclocal', saveRcLocal);
+                bind('.btn-del-rclocal', deleteRcLocal);
+                bind('.btn-refresh-rclocal', loadRcLocal);
+
+                // Modals
+                container.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => container.querySelectorAll('.local-modal').forEach(m => m.style.display='none')));
+                bind('.btn-save-svc', saveService);
+                bind('.btn-add-cron-entry', addCronEntry);
+
+                // --- LOGIC ---
+
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        loadSystemd();
+                    };
+
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.host_id != currentId) return;
+
+                        if(msg.type === "svc_list") { 
+                            lastServices = msg.payload; 
+                            renderSystemdTable(msg.payload);
+                            
+                            if (window.AppState && window.AppState.targetServiceSearch) {
+                                const searchTerm = window.AppState.targetServiceSearch;
+                                delete window.AppState.targetServiceSearch;
+                                container.querySelector('.svc-search').value = searchTerm;
+                                filterTable(searchTerm);
+                            }
+                        }
+                        
+                        if(msg.type === "svc_stats") {
+                            updateMonitorStats(msg.payload);
+                        }
+
+                        if(msg.type === "svc_status_out") container.querySelector('.status-log-content').innerText = msg.payload;
+                        if(msg.type === "svc_file_content") { 
+                            container.querySelector('.svc-filename-input').value = msg.payload.filename; 
+                            svcEditor.setValue(msg.payload.content, -1); 
+                            container.querySelector('.modal-edit-svc').style.display = 'flex'; 
+                            svcEditor.resize(); 
+                            isNewService = false;
+                        }
+                        
+                        if(msg.type === "cron_list") {
+                            const raw = msg.payload.payload || "";
+                            const lines = raw.split('\n').filter(l => l.trim() !== ""); // Filtra righe vuote
+                            if (msg.payload.is_root) { cronRootLines = lines; renderCronTable(true); } 
+                            else { cronLines = lines; renderCronTable(false); }
+                        }
+                        
+                        if(msg.type === "rclocal_content") {
+                            const exists = msg.payload.exists;
+                            if(!exists) {
+                                rcEditor.setValue("#!/bin/sh -e\n# rc.local\n\nexit 0", -1);
+                                if(confirm("rc.local non esiste. Vuoi crearlo con un template di base?")) {
+                                    saveRcLocal();
+                                }
+                            } else {
+                                rcEditor.setValue(msg.payload.content, -1);
+                            }
+                        }
+                        
+                        if(msg.type === "svc_op_res") { 
+                            if(msg.payload.status === "success") { 
+                                container.querySelectorAll('.local-modal').forEach(m => m.style.display='none');
+                                if(container.querySelector('#view-systemd').classList.contains('active-view')) loadSystemd();
+                                if(container.querySelector('#view-crontab').classList.contains('active-view')) loadCron(false);
+                                if(container.querySelector('#view-cronroot').classList.contains('active-view')) loadCron(true);
+                            } else { alert("Errore: " + msg.payload.msg); } 
+                        }
+                    };
+                }
+
+                // Systemd Logic
+                function loadSystemd() { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list" } })); }
+                
+                function renderSystemdTable(services) {
+                    const tbody = container.querySelector('.svc-tbody'); tbody.innerHTML = "";
+                    const isMonitor = container.querySelector('.filter-btn[data-filter="monitor"]').classList.contains('active');
+                    
+                    container.querySelectorAll('.col-mon').forEach(th => th.style.display = isMonitor ? 'table-cell' : 'none');
+
+                    // Sorting
+                    services.sort((a, b) => {
+                        let valA, valB;
+                        const statA = serviceStats[a.name] || {};
+                        const statB = serviceStats[b.name] || {};
+
+                        if (currentSort.field === 'name') { valA = a.name.toLowerCase(); valB = b.name.toLowerCase(); }
+                        else if (currentSort.field === 'pid') { valA = parseInt(statA.pid) || 0; valB = parseInt(statB.pid) || 0; }
+                        else if (currentSort.field === 'cpu') { valA = parseFloat(statA.cpu) || 0; valB = parseFloat(statB.cpu) || 0; }
+                        else if (currentSort.field === 'mem') { valA = parseMem(statA.mem); valB = parseMem(statB.mem); }
+                        else { return 0; }
+
+                        if (valA < valB) return currentSort.asc ? -1 : 1;
+                        if (valA > valB) return currentSort.asc ? 1 : -1;
+                        return 0;
+                    });
+
+                    services.forEach(svc => {
+                        const tr = document.createElement('tr');
+                        tr.dataset.name = svc.name;
+                        const stat = serviceStats[svc.name] || {};
+                        const isTimer = svc.name.endsWith('.timer');
+                        const isRunning = svc.active === "active";
+                        const icon = isTimer ? '<i class="fas fa-clock" style="color:var(--warning)"></i>' : '<i class="fas fa-cogs" style="color:var(--text-dim)"></i>';
+                        
+                        tr.innerHTML = `<td><span class="status-dot ${isRunning ? 'dot-green' : 'dot-red'}"></span> ${svc.sub}</td>
+                            <td class="col-mon cell-pid" style="display:${isMonitor?'table-cell':'none'}">${stat.pid || '-'}</td>
+                            <td class="col-mon cell-cpu" style="display:${isMonitor?'table-cell':'none'}">${stat.cpu || '-'}</td>
+                            <td class="col-mon cell-mem" style="display:${isMonitor?'table-cell':'none'}">${stat.mem || '-'}</td>
+                            <td>${icon} ${svc.name}</td>
+                            <td><span class="badge ${svc.enabled === 'enabled' ? 'badge-enabled' : 'badge-disabled'}" data-svc="${svc.name}" data-enabled="${svc.enabled === 'enabled'}">${svc.enabled.toUpperCase()}</span></td>
+                            <td><button class="action-btn" data-action="start" data-svc="${svc.name}" title="Start"><i class="fas fa-play" style="color:var(--success)"></i></button>
+                                <button class="action-btn" data-action="stop" data-svc="${svc.name}" title="Stop"><i class="fas fa-stop" style="color:var(--danger)"></i></button>
+                                <button class="action-btn" data-action="restart" data-svc="${svc.name}" title="Restart"><i class="fas fa-redo"></i></button>
+                                <button class="action-btn" data-action="edit" data-svc="${svc.name}" title="Edit"><i class="fas fa-edit"></i></button>
+                                <button class="action-btn" data-action="status" data-svc="${svc.name}" title="Logs"><i class="fas fa-info-circle"></i></button>
+                                <button class="action-btn btn-danger-light" data-action="delete" data-svc="${svc.name}" title="Delete"><i class="fas fa-trash"></i></button></td>`;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                function applyFilter(f) {
+                    currentFilter = f;
+                    if(!lastServices) return;
+                    let res = lastServices;
+                    if(f==='running') res = lastServices.filter(s => s.active==='active');
+                    if(f==='dead') res = lastServices.filter(s => s.active!=='active');
+                    if(f==='timers') res = lastServices.filter(s => s.name.endsWith('.timer'));
+                    if(f==='monitor') res = lastServices.filter(s => s.active==='active'); // Monitor only running
+                    renderSystemdTable(res);
+                }
+
+                function filterTable(q) {
+                    if(!lastServices) return;
+                    const res = lastServices.filter(s => s.name.toLowerCase().includes(q.toLowerCase()));
+                    renderSystemdTable(res);
+                }
+
+                function startMonitor() {
+                    if(monitorInterval) clearInterval(monitorInterval);
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "monitor_start" } }));
+                    // Poll fallback if backend doesn't stream
+                    monitorInterval = setInterval(() => {
+                        if(container.querySelector('.filter-btn[data-filter="monitor"]').classList.contains('active')) {
+                            ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_stats" } }));
+                        }
+                    }, 2000);
+                }
+
+                function stopMonitor() {
+                    if(monitorInterval) clearInterval(monitorInterval);
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "monitor_stop" } }));
+                }
+
+                function updateMonitorStats(stats) {
+                    // stats: [{name, pid, cpu, mem}]
+                    stats.forEach(s => { serviceStats[s.name] = s; });
+                    
+                    // If sorting by dynamic stats, re-render to update order
+                    if(['pid', 'cpu', 'mem'].includes(currentSort.field)) {
+                        applyFilter(currentFilter);
+                    } else {
+                        // Just update values in place if not sorting by them (optimization)
+                        stats.forEach(s => {
+                             const tr = container.querySelector(`tr[data-name="${s.name}"]`);
+                             if(tr) {
+                                 tr.querySelector('.cell-pid').innerText = s.pid || "-";
+                                 tr.querySelector('.cell-cpu').innerText = s.cpu || "0%";
+                                 tr.querySelector('.cell-mem').innerText = s.mem || "0B";
+                             }
+                        });
+                    }
+                }
+
+                function parseMem(s) {
+                    if(!s) return 0;
+                    const unit = s.slice(-1).toUpperCase();
+                    const val = parseFloat(s);
+                    if(isNaN(val)) return 0;
+                    if(unit === 'K') return val * 1024;
+                    if(unit === 'M') return val * 1024 * 1024;
+                    if(unit === 'G') return val * 1024 * 1024 * 1024;
+                    if(unit === 'T') return val * 1024 * 1024 * 1024 * 1024;
+                    return val;
+                }
+
+                function toggleActive(n, r) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "control", service: n, cmd: r ? "stop" : "start" } })); }
+                function restartService(n) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "control", service: n, cmd: "restart" } })); }
+                function toggleEnable(n, e) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "control", service: n, cmd: e ? "disable" : "enable" } })); }
+                function showStatus(n) { container.querySelector('.modal-status').style.display='flex'; ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "status", service: n } })); }
+                function editService(n) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_file", service: n } })); }
+                
+                function saveService() { 
+                    let name = container.querySelector('.svc-filename-input').value.trim();
+                    if(!name) { alert("Inserisci un nome per il servizio"); return; }
+                    
+                    if(isNewService && !name.includes('.')) name += '.service';
+                    
+                    const action = isNewService ? "create_service" : "save_file";
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: action, service: name, content: svcEditor.getValue() } })); 
+                }
+                
+                function deleteService(n) { if(n && confirm(`Eliminare definitivamente il servizio ${n}?`)) ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_service", service: n } })); }
+                function openCreateServiceModal() { 
+                    container.querySelector('.modal-edit-svc').style.display='flex'; 
+                    svcEditor.setValue("",-1); 
+                    container.querySelector('.svc-filename-input').value = "";
+                    container.querySelector('.svc-template-select').value = "";
+                    isNewService = true;
+                }
+
+                // Cron Logic
+                function loadCron(r) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_list", as_root: r } })); }
+                
+                function renderCronTable(isRoot) {
+                    const tbody = container.querySelector(isRoot ? '.cronroot-tbody' : '.cron-tbody');
+                    const lines = isRoot ? cronRootLines : cronLines;
+                    tbody.innerHTML = "";
+                    lines.forEach((l, i) => {
+                        if(!l.trim()) return;
+                        const tr = document.createElement('tr');
+                        if(l.trim().startsWith("#")) {
+                            tr.innerHTML = `<td>#</td><td colspan="2" class="cron-comment">${l}</td>`;
+                        } else {
+                            let p = l.trim().split(/\s+/);
+                            if(p.length >= 6) {
+                                tr.innerHTML = `<td style="color:var(--accent);font-weight:bold">${p.slice(0,5).join(" ")}</td><td>${p.slice(5).join(" ")}</td><td><button class="action-btn" style="color:var(--danger)" data-action="delete" data-index="${i}"><i class="fas fa-trash"></i></button></td>`;
+                            } else {
+                                tr.innerHTML = `<td>?</td><td colspan="2">${l}</td>`;
+                            }
+                        }
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                function openCronModal(r) { isCronRootEdit=r; container.querySelector('.modal-cron').style.display='flex'; }
+                function addCronEntry() {
+                    let cmd=container.querySelector('.c-cmd').value; if(!cmd) return;
+                    let sched=`${container.querySelector('.c-min').value} ${container.querySelector('.c-hour').value} ${container.querySelector('.c-day').value} ${container.querySelector('.c-month').value} ${container.querySelector('.c-wday').value}`;
+                    if(isCronRootEdit) cronRootLines.push(`${sched} ${cmd}`); else cronLines.push(`${sched} ${cmd}`);
+                    saveCron(isCronRootEdit);
+                    container.querySelector('.modal-cron').style.display='none';
+                }
+                function deleteCron(i, r) { if(r) cronRootLines.splice(i,1); else cronLines.splice(i,1); saveCron(r); }
+                function clearCrontab(r) { if(confirm("Svuotare?")) { if(r) cronRootLines=[]; else cronLines=[]; saveCron(r); } }
+                function saveCron(r) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_save", as_root: r, content: (r?cronRootLines:cronLines).join("\n")+"\n" } })); }
+
+                // RC Local
+                function loadRcLocal() { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_read" } })); }
+                function saveRcLocal() { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_save", content: rcEditor.getValue() } })); }
+                function deleteRcLocal() { if(confirm("Eliminare?")) ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_delete" } })); }
+
+                appInstance.registerCleanup(() => { if(ws) ws.close(); if(svcEditor) svcEditor.destroy(); if(rcEditor) rcEditor.destroy(); });
+            })();
+        })();
+    </script>
+</div>

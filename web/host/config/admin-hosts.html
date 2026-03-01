@@ -1,0 +1,214 @@
+<style>
+    .hosts-layout { display: flex; flex-direction: column; height: 100%; overflow-y: auto; padding: 20px; gap: 20px; }
+    .hosts-editor { width: 100%; height: 400px; background: #000; color: #0f0; border: 1px solid var(--border); padding: 10px; font-family: monospace; resize: none; }
+    .dns-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+    .dns-header { display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: var(--text-main); font-size: 0.9em; }
+    .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; display: inline-block; }
+    .status-dot.active { background: var(--success); box-shadow: 0 0 5px var(--success); }
+    .status-dot.inactive { background: var(--danger); }
+    
+    .hosts-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 10px; }
+    .hosts-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-bottom: 2px solid transparent; font-weight: bold; }
+    .hosts-tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .hosts-content { display: none; flex-direction: column; gap: 10px; }
+    .hosts-content.active { display: flex; }
+    
+    .hosts-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .hosts-table th { text-align: left; padding: 10px; background: #161b22; color: var(--text-dim); border-bottom: 1px solid var(--border); }
+    .hosts-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+    .hosts-table input { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 5px; border-radius: 4px; }
+</style>
+
+<div class="usr-header">
+    <div class="usr-title">Identità e Risoluzione Locale (/etc/hosts)</div>
+</div>
+
+<div class="hosts-layout">
+    <div style="margin-bottom:20px;">
+        <label style="display:block; color:var(--text-dim); margin-bottom:5px;">Hostname Corrente</label>
+        <div style="display:flex; gap:10px;">
+            <input type="text" id="inp-hostname" style="background:#0d1117; border:1px solid #30363d; color:white; padding:8px; border-radius:4px; flex:1">
+            <button class="btn btn-primary" id="btn-save-hostname">Salva</button>
+        </div>
+    </div>
+
+    <div class="hosts-tabs">
+        <div class="hosts-tab active" data-tab="table">Tabella Host</div>
+        <div class="hosts-tab" data-tab="raw">Editor Testuale</div>
+    </div>
+
+    <div id="tab-table" class="hosts-content active">
+        <div style="display:flex; justify-content:flex-end; margin-bottom:10px">
+            <button class="btn btn-primary" id="btn-add-row"><i class="fas fa-plus"></i> Aggiungi Riga</button>
+        </div>
+        <table class="hosts-table">
+            <thead><tr><th>IP Address</th><th>Hostnames (spazio separati)</th><th style="width:50px"></th></tr></thead>
+            <tbody id="hosts-tbody"></tbody>
+        </table>
+        <div style="text-align:right; margin-top:10px;">
+            <button class="btn btn-primary" id="btn-save-table">Applica Modifiche</button>
+        </div>
+    </div>
+
+    <div id="tab-raw" class="hosts-content">
+        <textarea class="hosts-editor" id="txt-hosts">Loading...</textarea>
+        <div style="text-align:right; margin-top:10px;">
+            <button class="btn btn-primary" id="btn-save-hosts">Salva /etc/hosts</button>
+        </div>
+    </div>
+
+    <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:20px;">
+        <label style="display:block; color:var(--text-dim); margin-bottom:10px; font-weight:bold">DNS & Cache Manager</label>
+        
+        <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px;">
+            <!-- Systemd Resolve -->
+            <div class="dns-card">
+                <div class="dns-header">
+                    <span>Systemd Resolve</span>
+                    <span class="status-dot" id="st-resolved"></span>
+                </div>
+                <button class="btn-action" onclick="dnsOp('flush_systemd')"><i class="fas fa-eraser"></i> Flush Caches</button>
+            </div>
+
+            <!-- Dnsmasq -->
+            <div class="dns-card">
+                <div class="dns-header">
+                    <span>Dnsmasq</span>
+                    <span class="status-dot" id="st-dnsmasq"></span>
+                </div>
+                <div style="display:flex; gap:5px">
+                    <button class="btn-action" style="flex:1" onclick="dnsOp('restart_dnsmasq')"><i class="fas fa-sync"></i> Restart</button>
+                    <button class="btn-action" style="flex:1" onclick="dnsOp('reload_dnsmasq')"><i class="fas fa-redo"></i> Reload</button>
+                </div>
+            </div>
+
+            <!-- BIND -->
+            <div class="dns-card">
+                <div class="dns-header"><span>BIND (Named)</span><span class="status-dot" id="st-named"></span></div>
+                <button class="btn-action" onclick="dnsOp('restart_named')"><i class="fas fa-sync"></i> Restart</button>
+            </div>
+
+            <!-- NSCD -->
+            <div class="dns-card">
+                <div class="dns-header"><span>NSCD</span><span class="status-dot" id="st-nscd"></span></div>
+                <button class="btn-action" onclick="dnsOp('restart_nscd')"><i class="fas fa-sync"></i> Restart</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view') || app.container.querySelector('#view-hosts');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-hosts-` + Date.now();
+        let ws = null;
+        let rawContent = "";
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+        if(ws) {
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_hosts_info" } }));
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_dns_services_status" } }));
+            };
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if(msg.type === "admin_hosts_info") {
+                    wrapper.querySelector('#inp-hostname').value = msg.payload.hostname;
+                    wrapper.querySelector('#txt-hosts').value = msg.payload.hosts_file;
+                    rawContent = msg.payload.hosts_file;
+                    parseAndRenderTable(rawContent);
+                }
+                if(msg.type === "dns_services_status") {
+                    const s = msg.payload;
+                    const setSt = (id, active) => {
+                        const el = wrapper.querySelector(id);
+                        if(el) el.className = "status-dot " + (active ? "active" : "inactive");
+                    };
+                    setSt('#st-resolved', s['systemd-resolved']);
+                    setSt('#st-dnsmasq', s['dnsmasq']);
+                    setSt('#st-named', s['named']);
+                    setSt('#st-nscd', s['nscd']);
+                }
+                if(msg.type === "admin_op_res") {
+                    alert(msg.payload.msg);
+                    if(msg.payload.status === 'success') {
+                        ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_dns_services_status" } }));
+                    }
+                }
+            };
+        }
+
+        // Tabs
+        wrapper.querySelectorAll('.hosts-tab').forEach(t => t.onclick = () => {
+            wrapper.querySelectorAll('.hosts-tab').forEach(x => x.classList.remove('active'));
+            t.classList.add('active');
+            wrapper.querySelectorAll('.hosts-content').forEach(c => c.classList.remove('active'));
+            wrapper.querySelector('#tab-'+t.dataset.tab).classList.add('active');
+            
+            if(t.dataset.tab === 'table') parseAndRenderTable(wrapper.querySelector('#txt-hosts').value);
+            if(t.dataset.tab === 'raw') wrapper.querySelector('#txt-hosts').value = generateFromTable();
+        });
+
+        function parseAndRenderTable(content) {
+            const tbody = wrapper.querySelector('#hosts-tbody');
+            tbody.innerHTML = "";
+            const lines = content.split('\n');
+            lines.forEach(line => {
+                const l = line.trim();
+                if(!l || l.startsWith('#')) return; // Skip comments/empty in table view (preserved in raw)
+                const parts = l.split(/\s+/);
+                if(parts.length >= 2) {
+                    addRow(parts[0], parts.slice(1).join(' '));
+                }
+            });
+        }
+
+        function addRow(ip = "", hosts = "") {
+            const tbody = wrapper.querySelector('#hosts-tbody');
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td><input type="text" class="h-ip" value="${ip}" placeholder="127.0.0.1"></td>
+                <td><input type="text" class="h-names" value="${hosts}" placeholder="localhost myhost"></td>
+                <td><button class="btn-action" style="color:var(--danger)" onclick="this.closest('tr').remove()"><i class="fas fa-trash"></i></button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function generateFromTable() {
+            let out = "# Generated by JConMan\n127.0.0.1\tlocalhost\n"; // Basic safety
+            wrapper.querySelectorAll('#hosts-tbody tr').forEach(tr => {
+                const ip = tr.querySelector('.h-ip').value.trim();
+                const names = tr.querySelector('.h-names').value.trim();
+                if(ip && names) out += `${ip}\t${names}\n`;
+            });
+            return out;
+        }
+
+        wrapper.querySelector('#btn-save-hostname').onclick = () => {
+            const h = wrapper.querySelector('#inp-hostname').value;
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_hostname", hostname: h } }));
+        };
+
+        wrapper.querySelector('#btn-add-row').onclick = () => addRow();
+        
+        wrapper.querySelector('#btn-save-table').onclick = () => {
+            const c = generateFromTable();
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_hosts_file", content: c } }));
+        };
+
+        wrapper.querySelector('#btn-save-hosts').onclick = () => {
+            const c = wrapper.querySelector('#txt-hosts').value;
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_hosts_file", content: c } }));
+        };
+
+        window.dnsOp = (op) => {
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "dns_op", op: op } }));
+        };
+    })(arguments[0]);
+</script>

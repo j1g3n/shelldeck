@@ -1,0 +1,120 @@
+<style>
+    .time-layout { display: flex; flex-direction: column; height: 100%; overflow-y: auto; }
+    .time-container { padding: 30px; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+    .time-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .time-val { font-size: 1.5em; font-weight: bold; color: white; margin: 10px 0; }
+    .time-lbl { color: var(--text-dim); font-size: 0.9em; text-transform: uppercase; }
+    
+    .tz-select { width: 100%; background: #0d1117; color: white; border: 1px solid var(--border); padding: 10px; border-radius: 4px; margin-top: 10px; }
+</style>
+
+<div class="time-layout">
+    <div class="usr-header">
+        <div class="usr-title">Impostazioni Data, Ora e Locale</div>
+    </div>
+
+    <div class="time-container">
+        <div class="time-card">
+            <div class="time-lbl">Orario Sistema</div>
+            <div class="time-val" id="sys-time">--:--:--</div>
+            <div class="time-lbl" id="sys-date">----/--/--</div>
+        </div>
+
+        <div class="time-card">
+            <div class="time-lbl">Timezone</div>
+            <div class="time-val" id="sys-tz" style="color:var(--accent)">Loading...</div>
+            <select class="tz-select" id="sel-tz">
+                <option value="">Cambia Timezone...</option>
+                </select>
+            <button class="btn-action" style="margin-top:10px; width:100%" id="btn-set-tz">Applica Timezone</button>
+        </div>
+
+        <div class="time-card">
+            <div class="time-lbl">Stato NTP</div>
+            <div class="time-val" id="sys-ntp">Checking...</div>
+            <div style="display:flex; gap:10px; margin-top:10px;">
+                <button class="btn-action" id="btn-ntp-on">Attiva NTP</button>
+                <button class="btn-action btn-del" id="btn-ntp-off">Disattiva NTP</button>
+            </div>
+        </div>
+
+        <div class="time-card">
+            <div class="time-lbl">Impostazione Manuale</div>
+            <input type="text" id="inp-manual-time" class="tz-select" placeholder="YYYY-MM-DD HH:MM:SS">
+            <button class="btn-action" style="margin-top:10px; width:100%" id="btn-set-manual">Imposta Data/Ora</button>
+            <div style="font-size:0.8em; color:var(--warning); margin-top:5px">Nota: Disabilita NTP automaticamente.</div>
+        </div>
+    </div>
+
+    <div style="padding: 0 30px 30px 30px; text-align: right;">
+        <button class="btn btn-primary" id="btn-refresh-time"><i class="fas fa-sync"></i> Aggiorna</button>
+    </div>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view') || document.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-time-` + Date.now();
+        let ws = null;
+
+        // Common Timezones (List ridotta per esempio, il backend potrebbe mandare la lista completa)
+        const commonTZ = ["UTC", "Europe/Rome", "Europe/London", "Europe/Paris", "Europe/Berlin", "America/New_York", "Asia/Tokyo"];
+        const sel = wrapper.querySelector('#sel-tz');
+        commonTZ.forEach(t => {
+            const o = document.createElement('option'); o.value = t; o.innerText = t; sel.appendChild(o);
+        });
+
+        // WS Setup
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+        if(ws) {
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                getTimeInfo();
+            };
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if(msg.type === "admin_time_info") renderTime(msg.payload);
+                if(msg.type === "admin_op_res") { alert(msg.payload.msg); getTimeInfo(); }
+            };
+        }
+
+        function getTimeInfo() {
+            ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_time_info" } }));
+        }
+
+        function renderTime(data) {
+            // data: { local_time, date, timezone, ntp_active }
+            wrapper.querySelector('#sys-time').innerText = data.local_time;
+            wrapper.querySelector('#sys-date').innerText = data.date;
+            wrapper.querySelector('#sys-tz').innerText = data.timezone;
+            
+            const ntpEl = wrapper.querySelector('#sys-ntp');
+            if(data.ntp_active) {
+                ntpEl.innerHTML = '<span style="color:#238636"><i class="fas fa-check-circle"></i> Sincronizzato</span>';
+            } else {
+                ntpEl.innerHTML = '<span style="color:#da3633"><i class="fas fa-times-circle"></i> Manuale</span>';
+            }
+        }
+
+        wrapper.querySelector('#btn-refresh-time').onclick = getTimeInfo;
+        
+        wrapper.querySelector('#btn-set-tz').onclick = () => {
+            const tz = wrapper.querySelector('#sel-tz').value;
+            if(tz) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_timezone", timezone: tz } }));
+        };
+
+        wrapper.querySelector('#btn-set-manual').onclick = () => {
+            const dt = wrapper.querySelector('#inp-manual-time').value;
+            if(dt) ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_time", datetime: dt } }));
+        };
+
+        wrapper.querySelector('#btn-ntp-on').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_ntp", state: true } }));
+        wrapper.querySelector('#btn-ntp-off').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_ntp", state: false } }));
+
+    })(arguments[0]);
+</script>

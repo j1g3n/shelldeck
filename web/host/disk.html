@@ -1,0 +1,1327 @@
+<div class="disk-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        .disk-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative;
+            box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #238636; --info: #2f81f7;
+            --part-primary: #1f6feb; --part-logical: #8b949e; --part-extended: #3fb950; --part-free: #30363d;
+        }
+
+        .disk-module-wrapper * { box-sizing: border-box; }
+        
+        .disk-sidebar { 
+            width: 220px; min-width: 220px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .disk-sidebar h2 { color: var(--accent); margin-top: 0; font-size: 1.1em; display: flex; align-items: center; gap: 10px; }
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: #238636; color: white; }
+
+        .main-wrapper { flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; min-width: 0; }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 20px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; }
+        .btn { background: var(--accent); color: white; border: none; padding: 8px 18px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn-danger { background: var(--danger); }
+        .btn-sec { background: transparent; border: 1px solid var(--border); color: var(--text-main); }
+        .btn-sec:hover { background: #21262d; }
+
+        /* GPARTED STYLE VISUAL BAR */
+        .disk-selector-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; background: var(--bg-panel); padding: 10px; border-radius: 6px; border: 1px solid var(--border); }
+        .disk-select { background: #0d1117; border: 1px solid var(--border); color: white; padding: 8px; border-radius: 4px; min-width: 200px; }
+        
+        .visual-disk-container { margin-bottom: 20px; background: #000; padding: 10px; border: 1px solid var(--border); border-radius: 6px; }
+        .visual-bar { display: flex; height: 60px; width: 100%; background: #222; border: 1px solid #444; position: relative; }
+        .part-segment { 
+            height: 100%; border-right: 1px solid #000; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            font-size: 0.75em; overflow: hidden; white-space: nowrap; color: #fff; 
+            cursor: pointer; transition: 0.2s; position: relative; 
+        }
+        .part-segment:hover { filter: brightness(1.2); }
+        .part-segment.selected { border: 2px solid #fff; z-index: 10; box-shadow: 0 0 10px rgba(255,255,255,0.3); }
+        .part-segment.free { background: repeating-linear-gradient(45deg, #30363d, #30363d 10px, #262c33 10px, #262c33 20px); color: #8b949e; }
+        
+        .part-label { font-weight: bold; }
+        .part-size { font-size: 0.8em; opacity: 0.8; }
+
+        /* TABLE */
+        .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+        .data-table th { text-align: left; padding: 10px; border-bottom: 2px solid var(--border); color: var(--text-dim); background: #161b22; }
+        .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .data-table tr:hover { background: #21262d; }
+        .data-table tr.selected { background: rgba(31, 111, 235, 0.15); }
+
+        /* LVM & RAID */
+        .lvm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; height: 100%; }
+        .lvm-col { display: flex; flex-direction: column; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .lvm-header { padding: 10px; background: #21262d; font-weight: bold; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .lvm-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .lvm-item { padding: 10px; border: 1px solid var(--border); margin-bottom: 8px; border-radius: 4px; background: #0d1117; cursor: pointer; }
+        .lvm-item:hover { border-color: var(--accent); }
+        .lvm-item.selected { border-color: var(--info); background: rgba(47, 129, 247, 0.1); }
+        .lvm-bar { height: 6px; background: #333; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+        .lvm-fill { height: 100%; background: var(--accent); }
+
+        /* MODALS */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 500px; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .modal-header { font-weight: bold; font-size: 1.1em; margin-bottom: 15px; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .input-group input, .input-group select { width: 100%; background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; box-sizing: border-box; font-family: inherit; }
+        .modal-footer { margin-top: 15px; display: flex; justify-content: flex-end; gap: 10px; }
+
+        .editor-wrapper { height: 500px; border: 1px solid var(--border); position: relative; }
+        .ace-div { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
+
+        /* Info Grid for Ramdisk */
+        .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 15px; }
+        .info-card { background: var(--bg-panel); border: 1px solid var(--border); padding: 15px; border-radius: 6px; }
+        .card-title { font-weight: bold; margin-bottom: 10px; color: white; border-bottom: 1px solid var(--border); padding-bottom: 5px; display:flex; justify-content:space-between; align-items: center; }
+
+        /* TABS STYLE FOR MOUNT PAGE */
+        .mount-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 20px; background: #161b22; }
+        .mount-tab-btn { 
+            padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); 
+            display: flex; align-items: center; gap: 8px; transition: 0.2s;
+        }
+        .mount-tab-btn:hover { background: #21262d; color: white; }
+        .mount-tab-btn.active { background: var(--bg-body); color: var(--accent); border-top: 2px solid var(--accent); font-weight: bold; }
+        .mount-tab-content { display: none; flex-direction: column; height: 100%; }
+        
+        .editor-toolbar { display: flex; gap: 10px; padding: 5px; background: #161b22; border-bottom: 1px solid var(--border); }
+        .editor-tool-btn { background: transparent; border: 1px solid var(--border); color: var(--text-main); padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+        .editor-tool-btn:hover { background: #21262d; }
+
+        /* ANALYZER STYLES */
+        .analyzer-tree-row { display: grid; grid-template-columns: 3fr 1fr 1fr; padding: 6px 10px; border-bottom: 1px solid #21262d; align-items: center; font-size: 0.9em; cursor: pointer; position: relative; }
+        .analyzer-tree-row:hover { background: #21262d; }
+        .analyzer-bg-bar { position: absolute; top: 2px; bottom: 2px; left: 0; background: rgba(35, 134, 54, 0.15); z-index: 0; pointer-events: none; transition: width 0.5s; }
+        .analyzer-content { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; overflow: hidden; }
+        .analyzer-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .analyzer-size { text-align: right; font-family: monospace; }
+        .analyzer-perc { text-align: right; font-family: monospace; color: var(--text-dim); }
+        .an-icon { width: 20px; text-align: center; color: var(--folder-color); }
+        .an-icon.file { color: var(--text-dim); }
+        
+        .disk-linear-container { width: 100%; height: 20px; background: #333; border-radius: 4px; margin-top: 5px; overflow: hidden; position: relative; }
+        .disk-linear-fill { height: 100%; background: var(--accent); width: 0%; transition: width 0.8s ease; }
+        .an-part-info { font-size: 0.8em; color: var(--text-dim); display: flex; justify-content: space-between; margin-bottom: 2px; }
+        .an-part-perc-text { position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.75em; text-shadow: 1px 1px 2px black; font-weight: bold; }
+
+    </style>
+
+    <div class="disk-sidebar">
+        <h2><i class="fas fa-hdd"></i> Storage</h2>
+        <div class="nav-item active" data-view="part"><i class="fas fa-server"></i> Dischi Fisici</div>
+        <div class="nav-item" data-view="raid"><i class="fas fa-cubes"></i> RAID (mdadm)</div>
+        <div class="nav-item" data-view="lvm"><i class="fas fa-layer-group"></i> LVM Manager</div>
+        <div class="nav-item" data-view="swap"><i class="fas fa-memory"></i> Swap</div>
+        <div class="nav-item" data-view="ramdisk"><i class="fas fa-microchip"></i> RAMDisk</div>
+        <div class="nav-item" data-view="analyzer"><i class="fas fa-chart-pie"></i> Space Analyzer</div>
+        <div class="nav-item" data-view="mount"><i class="fas fa-file-signature"></i> Mounts & Fstab</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <!-- PHYSICAL DISKS (GParted Style) -->
+        <div id="view-part" class="view-panel active-view">
+            <div class="disk-selector-bar">
+                <label>Seleziona Disco:</label>
+                <select class="disk-select"><option>Caricamento...</option></select>
+                <button class="btn-sec btn-refresh"><i class="fas fa-sync"></i></button>
+                <div style="margin-left:auto; font-size:0.9em; color:var(--text-dim)" class="disk-info-text"></div>
+            </div>
+
+            <div class="visual-disk-container">
+                <div class="visual-bar" id="visual-bar"></div>
+            </div>
+
+            <div class="panel-header" style="margin-bottom:10px">
+                <h4>Partizioni</h4>
+                <div class="disk-actions" style="display:none">
+                    <button class="btn btn-create-part" disabled><i class="fas fa-plus"></i> Nuova</button>
+                    <button class="btn btn-danger btn-delete-part" disabled><i class="fas fa-trash"></i> Elimina</button>
+                    <button class="btn btn-sec btn-mount-part" disabled><i class="fas fa-play-circle"></i> Mount</button>
+                    <button class="btn btn-sec btn-unmount-part" disabled><i class="fas fa-stop-circle"></i> Unmount</button>
+                    <button class="btn btn-sec btn-check-fs" disabled><i class="fas fa-stethoscope"></i> Check FS</button>
+                    <button class="btn btn-sec btn-resize-part" disabled><i class="fas fa-ruler-combined"></i> Ridimensiona</button>
+                    <button class="btn btn-sec btn-resize-fs" disabled><i class="fas fa-expand"></i> Resize FS</button>
+                    <button class="btn btn-sec btn-format-part" disabled><i class="fas fa-eraser"></i> Formatta</button>
+                </div>
+            </div>
+
+            <table class="data-table">
+                <thead><tr><th>Stato</th><th>Partizione</th><th>File System</th><th>Mount Point</th><th>Size</th><th>Used</th><th>Flags</th></tr></thead>
+                <tbody id="part-table-body"></tbody>
+            </table>
+        </div>
+
+        <!-- RAID MANAGER -->
+        <div id="view-raid" class="view-panel">
+            <div class="panel-header">
+                <h3>Software RAID (mdadm)</h3>
+                <button class="btn btn-create-raid"><i class="fas fa-plus"></i> Crea Array</button>
+            </div>
+            <div id="raid-list-container"></div>
+        </div>
+
+        <!-- LVM MANAGER -->
+        <div id="view-lvm" class="view-panel">
+            <div class="panel-header">
+                <h3>Logical Volume Manager (LVM)</h3>
+                <button class="btn-sec btn-refresh"><i class="fas fa-sync"></i> Refresh</button>
+            </div>
+            
+            <div class="lvm-grid">
+                <!-- Physical Volumes -->
+                <div class="lvm-col">
+                    <div class="lvm-header">
+                        <span>Physical Volumes (PV)</span>
+                        <button class="btn btn-sm btn-create-pv" title="Inizializza PV"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div class="lvm-list" id="pv-list"></div>
+                </div>
+
+                <!-- Volume Groups -->
+                <div class="lvm-col">
+                    <div class="lvm-header">
+                        <span>Volume Groups (VG)</span>
+                        <button class="btn btn-sm btn-create-vg" style="font-size:0.7em"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div class="lvm-list" id="vg-list"></div>
+                </div>
+
+                <!-- Logical Volumes -->
+                <div class="lvm-col">
+                    <div class="lvm-header">
+                        <span>Logical Volumes (LV)</span>
+                        <button class="btn btn-sm btn-create-lv" disabled><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div class="lvm-list" id="lv-list">
+                        <div style="color:#666; text-align:center; padding:20px">Seleziona un VG</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MOUNT MANAGER -->
+        <div id="view-mount" class="view-panel">
+            <div class="mount-tabs">
+                <div class="mount-tab-btn active" data-tab="tab-mount-helper"><i class="fas fa-hdd"></i> Mount Helper</div>
+                <div class="mount-tab-btn" data-tab="tab-fstab-gui"><i class="fas fa-list"></i> Fstab Manager</div>
+                <div class="mount-tab-btn" data-tab="tab-fstab-editor"><i class="fas fa-edit"></i> Fstab Editor (Raw)</div>
+            </div>
+
+            <!-- TAB 1: MOUNT HELPER -->
+            <div id="tab-mount-helper" class="mount-tab-content" style="display:flex">
+                <div class="info-card" style="max-width:700px; margin-bottom: 20px;">
+                    <div class="card-title">Monta Dispositivo / Share / ISO</div>
+                    <div class="input-group"><label>Sorgente (Device, //server/share, o path ISO)</label><input type="text" class="mnt-src" placeholder="/dev/sdb1 oppure //192.168.1.5/share"></div>
+                    <div class="input-group"><label>Destinazione (Directory, es: /mnt/data)</label><input type="text" class="mnt-dst"></div>
+                    
+                    <div style="display:flex; gap:10px">
+                        <div class="input-group" style="flex:1"><label>Tipo</label><input type="text" class="mnt-type" placeholder="auto, cifs, nfs, ext4..."></div>
+                        <div class="input-group" style="flex:1"><label>Opzioni (es: defaults,ro)</label><input type="text" class="mnt-opts"></div>
+                    </div>
+
+                    <div class="input-group" style="background:#21262d; padding:10px; border-radius:4px; border:1px solid var(--border)">
+                        <label style="margin-bottom:10px; color:var(--accent)">Opzioni Avanzate</label>
+                        <div style="display:flex; gap:15px; flex-wrap:wrap">
+                            <div style="display:flex; gap:5px; align-items:center"><input type="checkbox" class="mnt-iso" style="width:auto"> <span>Mount ISO (loop)</span></div>
+                            <div style="display:flex; gap:5px; align-items:center"><input type="checkbox" class="mnt-fstab" style="width:auto"> <span>Aggiungi a /etc/fstab</span></div>
+                        </div>
+                        <div class="mnt-creds" style="margin-top:10px; display:flex; gap:10px">
+                            <input type="text" class="mnt-user" placeholder="Username (CIFS/SMB)">
+                            <input type="password" class="mnt-pass" placeholder="Password (CIFS/SMB)">
+                        </div>
+                    </div>
+
+                    <button class="btn btn-mount-dev" style="margin-top:10px; width:100%; justify-content:center">Esegui Mount</button>
+                </div>
+
+                <div class="panel-header">
+                    <h3>Punti di Mount Attivi</h3>
+                    <button class="action-btn btn-refresh-mounts"><i class="fas fa-sync"></i> Aggiorna</button>
+                </div>
+                <div style="flex:1; overflow:auto">
+                    <table class="data-table">
+                        <thead><tr><th>Device</th><th>Mount Point</th><th>Type</th><th>Options</th><th>Action</th></tr></thead>
+                        <tbody class="mount-body"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: FSTAB MANAGER (GUI) -->
+            <div id="tab-fstab-gui" class="mount-tab-content">
+                <div class="panel-header">
+                    <h3>Gestione /etc/fstab</h3>
+                    <button class="action-btn btn-refresh-fstab-gui"><i class="fas fa-sync"></i> Ricarica</button>
+                </div>
+                <div style="flex:1; overflow:auto; border:1px solid var(--border); margin-bottom:20px">
+                    <table class="data-table">
+                        <thead><tr><th>Device/Spec</th><th>Mount Point</th><th>Type</th><th>Options</th><th>Dump</th><th>Pass</th><th>Action</th></tr></thead>
+                        <tbody class="fstab-gui-body"></tbody>
+                    </table>
+                </div>
+                <div class="info-card">
+                    <div class="card-title">Aggiungi Entry Manuale</div>
+                    <div style="display:flex; gap:10px; flex-wrap:wrap">
+                        <input type="text" class="fs-dev" placeholder="Device/UUID" style="flex:2">
+                        <input type="text" class="fs-mnt" placeholder="Mount Point" style="flex:2">
+                        <input type="text" class="fs-type" placeholder="Type" style="flex:1">
+                        <input type="text" class="fs-opts" placeholder="defaults" style="flex:2">
+                        <input type="text" class="fs-dump" placeholder="0" style="width:50px">
+                        <input type="text" class="fs-pass" placeholder="0" style="width:50px">
+                        <button class="btn btn-add-fstab-entry">Aggiungi</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: FSTAB EDITOR (RAW) -->
+            <div id="tab-fstab-editor" class="mount-tab-content">
+                <div class="panel-header">
+                    <h3>Editor Testuale /etc/fstab</h3>
+                    <div class="editor-toolbar">
+                        <button class="editor-tool-btn" onclick="fstabEditor.undo()"><i class="fas fa-undo"></i></button>
+                        <button class="editor-tool-btn" onclick="fstabEditor.redo()"><i class="fas fa-redo"></i></button>
+                        <button class="btn btn-save-fstab"><i class="fas fa-save"></i> Salva (con Backup)</button>
+                    </div>
+                </div>
+                <div class="editor-wrapper"><div class="ace-div" id="fstab-editor"></div></div>
+            </div>
+        </div>
+
+        <!-- SWAP -->
+        <div id="view-swap" class="view-panel">
+            <div class="panel-header">
+                <h3>Gestione Swap</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-new-swap">+ File Swap</button>
+                    <button class="btn-sec btn-refresh-swap"><i class="fas fa-sync"></i> Aggiorna</button>
+                </div>
+            </div>
+            <table class="data-table">
+                <thead><tr><th>Device</th><th>Type</th><th>Size</th><th>Used</th><th>Priority</th><th>Action</th></tr></thead>
+                <tbody class="swap-body"></tbody>
+            </table>
+        </div>
+
+        <!-- RAMDISK -->
+        <div id="view-ramdisk" class="view-panel">
+            <div class="panel-header">
+                <h3>Gestione RAMDisk</h3>
+                <button class="btn btn-new-ramdisk">+ Crea RAMDisk</button>
+            </div>
+            <div class="info-grid ramdisk-container"></div>
+        </div>
+
+        <!-- SPACE ANALYZER -->
+        <div id="view-analyzer" class="view-panel">
+            <div class="panel-header">
+                <h3>Space Analyzer (TreeSize)</h3>
+                <div style="display:flex; gap:10px">
+                     <select class="analyzer-disk-select" style="min-width:250px; background:#0d1117; border:1px solid var(--border); color:white; padding:5px; border-radius:4px;"><option>Seleziona Partizione...</option></select>
+                     <button class="btn btn-analyze-refresh"><i class="fas fa-sync"></i> Scan</button>
+                </div>
+            </div>
+            <div class="analyzer-usage-bar-container" style="margin-bottom: 20px; display:none; background:var(--bg-panel); padding:15px; border-radius:6px; border:1px solid var(--border);">
+                <div class="an-part-info"><span class="an-part-label" style="font-weight:bold; color:white"></span><span class="an-part-details"></span></div>
+                <div class="disk-linear-container"><div class="disk-linear-fill an-part-fill"></div><div class="an-part-perc-text"></div></div>
+            </div>
+            <div class="analyzer-tree-header" style="display:grid; grid-template-columns: 3fr 1fr 1fr; padding:10px; background:#161b22; font-weight:bold; border-bottom:1px solid var(--border); border-radius: 6px 6px 0 0; color:var(--text-dim); font-size:0.9em;">
+                <div>Path <span id="analyzer-current-path" style="font-weight:normal; color:var(--accent); margin-left:10px; font-family:monospace;"></span></div><div style="text-align:right">Size</div><div style="text-align:right">%</div>
+            </div>
+            <div class="analyzer-tree-container" style="flex:1; overflow-y:auto; border:1px solid var(--border); border-top:none; background:#0d1117;">
+                <div style="padding:20px; text-align:center; color:var(--text-dim)">Seleziona una partizione e premi Scan per iniziare l'analisi.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- MODALS -->
+    <div class="local-modal modal-create-part">
+        <div class="modal-content">
+            <div class="modal-header">Crea Partizione</div>
+            <div class="input-group"><label>Tipo</label><select class="cp-type"><option value="primary">Primary</option><option value="logical">Logical</option></select></div>
+            <div class="input-group"><label>File System</label><select class="cp-fs"><option value="ext4">ext4</option><option value="xfs">xfs</option><option value="swap">linux-swap</option><option value="ntfs">ntfs</option></select></div>
+            <div class="input-group"><label>Dimensione (MB)</label><input type="number" class="cp-size"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-create-part">Crea</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-mount">
+        <div class="modal-content">
+            <div class="modal-header">Mount Partizione</div>
+            <div class="input-group"><label>Mount Point (Directory)</label><input type="text" class="mount-point-input" placeholder="/mnt/data"></div>
+            <div class="modal-footer"><button class="action-btn btn-close-modal">Annulla</button><button class="btn btn-confirm-mount">Mount</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-resize-part">
+        <div class="modal-content">
+            <div class="modal-header">Ridimensiona Partizione</div>
+            <div class="input-group">
+                <label>Nuova Dimensione (es: 20G, 512M, o 100% per max)</label>
+                <input type="text" class="rp-size" value="100%">
+            </div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-resize-part">Applica</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-fs-check">
+        <div class="modal-content">
+            <div class="modal-header">Controllo Filesystem</div>
+            <div style="margin-bottom:15px">Verrà eseguito un controllo di integrità (dry-run/read-only).</div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-fs-check">Esegui Check</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-fs-resize">
+        <div class="modal-content">
+            <div class="modal-header">Ridimensiona Filesystem</div>
+            <div style="margin-bottom:15px">Il filesystem verrà espanso per occupare tutto lo spazio disponibile nella partizione.</div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-fs-resize">Esegui Resize</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-format">
+        <div class="modal-content">
+            <div class="modal-header">Formatta Partizione</div>
+            <div style="color:var(--danger); margin-bottom:15px"><i class="fas fa-exclamation-triangle"></i> ATTENZIONE: Tutti i dati verranno persi!</div>
+            <div class="input-group"><label>File System</label><select class="fmt-fs"><option value="ext4">ext4</option><option value="xfs">xfs</option><option value="swap">swap</option><option value="vfat">fat32</option></select></div>
+            <div class="input-group"><label>Label (Opzionale)</label><input type="text" class="fmt-label"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-danger btn-confirm-format">Formatta</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-create-pv">
+        <div class="modal-content">
+            <div class="modal-header">Inizializza Physical Volume</div>
+            <div class="input-group"><label>Device (es: /dev/sdb1)</label><input type="text" class="cpv-device"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-create-pv">Inizializza</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-create-vg">
+        <div class="modal-content">
+            <div class="modal-header">Crea Volume Group</div>
+            <div class="input-group"><label>Nome VG</label><input type="text" class="cvg-name"></div>
+            <div class="input-group"><label>Seleziona PVs (Free)</label><select multiple class="cvg-pvs" style="height:100px"></select></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-create-vg">Crea</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-extend-vg">
+        <div class="modal-content">
+            <div class="modal-header">Estendi Volume Group</div>
+            <div class="input-group"><label>Aggiungi PV</label><select class="evg-pv"></select></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-extend-vg">Estendi</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-create-lv">
+        <div class="modal-content">
+            <div class="modal-header">Crea Logical Volume</div>
+            <div class="input-group"><label>Nome LV</label><input type="text" class="clv-name"></div>
+            <div class="input-group"><label>Dimensione (es: 10G, 500M)</label><input type="text" class="clv-size"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-create-lv">Crea</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-resize-lv">
+        <div class="modal-content">
+            <div class="modal-header">Ridimensiona LV</div>
+            <div class="input-group"><label>Nuova Dimensione (es: 20G) o Delta (es: +5G, -2G)</label><input type="text" class="rlv-size"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-resize-lv">Resize</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-create-raid">
+        <div class="modal-content">
+            <div class="modal-header">Crea RAID Array</div>
+            <div class="input-group"><label>Nome Device</label><input type="text" class="raid-name" value="/dev/md0"></div>
+            <div class="input-group"><label>Livello</label><select class="raid-level"><option value="0">RAID 0 (Stripe)</option><option value="1">RAID 1 (Mirror)</option><option value="5">RAID 5</option><option value="10">RAID 10</option></select></div>
+            <div class="input-group"><label>Dispositivi (spazio separati)</label><input type="text" class="raid-devs" placeholder="/dev/sdb1 /dev/sdc1"></div>
+            <div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-confirm-create-raid">Crea</button></div>
+        </div>
+    </div>
+
+    <div class="local-modal modal-ramdisk"><div class="modal-content"><div class="modal-header">Crea RAMDisk</div><div class="modal-body"><div class="input-group"><label>Mount</label><input type="text" class="rd-mount"></div><div class="input-group"><label>Size</label><input type="text" class="rd-size"></div></div><div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-create-ramdisk">Crea</button></div></div></div>
+    <div class="local-modal modal-swap"><div class="modal-content"><div class="modal-header">Crea Swap</div><div class="modal-body"><div class="input-group"><label>Path</label><input type="text" class="sw-path" value="/swapfile"></div><div class="input-group"><label>Size (MB)</label><input type="number" class="sw-size" placeholder="1024"></div></div><div class="modal-footer"><button class="btn-sec btn-close-modal">Annulla</button><button class="btn btn-create-swap">Crea</button></div></div></div>
+
+    <div class="context-menu" id="disk-ctx-menu" style="display:none; position:fixed; z-index:10000; background:#161b22; border:1px solid #30363d; border-radius:4px; min-width:150px; box-shadow:0 5px 15px rgba(0,0,0,0.5);">
+        <div class="ctx-item" data-action="mount" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-play-circle" style="width:20px"></i> Mount</div>
+        <div class="ctx-item" data-action="unmount" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-stop-circle" style="width:20px"></i> Unmount</div>
+        <div class="ctx-item" data-action="format" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-eraser" style="width:20px"></i> Formatta...</div>
+        <div class="ctx-item" data-action="resize" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-ruler-combined" style="width:20px"></i> Ridimensiona...</div>
+        <div class="ctx-item" data-action="delete" style="padding:8px 15px; cursor:pointer; color:#da3633;"><i class="fas fa-trash" style="width:20px"></i> Elimina</div>
+    </div>
+
+    <div class="context-menu" id="analyzer-ctx-menu" style="display:none; position:fixed; z-index:10000; background:#161b22; border:1px solid #30363d; border-radius:4px; min-width:150px; box-shadow:0 5px 15px rgba(0,0,0,0.5);">
+        <div class="ctx-item" data-action="an-scan" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-sync" style="width:20px"></i> Scansiona Cartella</div>
+        <div class="ctx-item" data-action="an-open" style="padding:8px 15px; cursor:pointer; color:#c9d1d9; border-bottom:1px solid #30363d;"><i class="fas fa-folder-open" style="width:20px"></i> Apri in Explorer</div>
+        <div class="ctx-item" data-action="an-delete" style="padding:8px 15px; cursor:pointer; color:#da3633;"><i class="fas fa-trash" style="width:20px"></i> Elimina</div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("[Disk] Missing appInstance"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:disk-` + Date.now();
+
+            // --- STATE ---
+            let ws = null;
+            let fullData = null;
+            let currentDiskName = null;
+            let selectedPart = null; // { name, type: 'part'|'free', start, end, size }
+            let selectedLV = null;
+            let selectedVG = null;
+            let analyzerTarget = null; // Per context menu analyzer
+            let fstabEditor = null;
+
+            // --- INIT ---
+            const loadScript = (src) => new Promise((resolve) => {
+                if (document.querySelector(`script[src="${src}"]`)) { resolve(); return; }
+                const s = document.createElement('script'); s.src = src; s.onload = resolve; s.onerror = resolve; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                try { if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js'); } catch(e) {}
+                
+                if(typeof ace !== 'undefined') {
+                    fstabEditor = ace.edit(container.querySelector('#fstab-editor'));
+                    fstabEditor.setTheme("ace/theme/monokai"); fstabEditor.session.setMode("ace/mode/sh"); // sh mode for basic highlighting
+                }
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+                const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+                
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.view-panel').forEach(c => c.classList.remove('active-view'));
+                        container.querySelector(`#view-${item.dataset.view}`).classList.add('active-view');
+                        if(item.dataset.view === 'mount') { loadMounts(); loadFstab(); loadFstabGui(); }
+                        if(item.dataset.view === 'swap') loadSwap();
+                        if(item.dataset.view === 'ramdisk') loadRamdisk();
+                        if(item.dataset.view === 'analyzer') initAnalyzer();
+                    });
+                });
+
+                bind('.btn-refresh', loadData);
+                container.querySelector('.disk-select').addEventListener('change', (e) => selectDisk(e.target.value));
+                
+                container.querySelectorAll('.mount-tab-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        container.querySelectorAll('.mount-tab-btn').forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        switchMountTab(btn.dataset.tab);
+                    });
+                });
+                
+                // Partition Actions
+                bind('.btn-create-part', () => { if(selectedPart && selectedPart.type==='free') container.querySelector('.modal-create-part').style.display='flex'; });
+                bind('.btn-delete-part', deletePartition);
+                bind('.btn-resize-part', () => { if(selectedPart && selectedPart.type==='part') container.querySelector('.modal-resize-part').style.display='flex'; });
+                bind('.btn-confirm-resize-part', doResizePart);
+                bind('.btn-check-fs', () => { if(selectedPart && selectedPart.type==='part') container.querySelector('.modal-fs-check').style.display='flex'; });
+                bind('.btn-confirm-fs-check', doFsCheck);
+                bind('.btn-resize-fs', () => { if(selectedPart && selectedPart.type==='part') container.querySelector('.modal-fs-resize').style.display='flex'; });
+                bind('.btn-confirm-fs-resize', doFsResize);
+                bind('.btn-format-part', () => { if(selectedPart && selectedPart.type==='part') container.querySelector('.modal-format').style.display='flex'; });
+                bind('.btn-confirm-mount', doMountPart);
+                bind('.btn-confirm-create-part', doCreatePart);
+                bind('.btn-confirm-format', doFormatPart);
+
+                // LVM Actions
+                bind('.btn-create-pv', () => container.querySelector('.modal-create-pv').style.display='flex');
+                bind('.btn-confirm-create-pv', doCreatePV);
+                
+                bind('.btn-create-vg', openCreateVGModal);
+                bind('.btn-confirm-create-vg', doCreateVG);
+                bind('.btn-confirm-extend-vg', doExtendVG);
+
+                bind('.btn-create-lv', () => { if(selectedVG) container.querySelector('.modal-create-lv').style.display='flex'; });
+                bind('.btn-confirm-create-lv', doCreateLV);
+                bind('.btn-confirm-resize-lv', doResizeLV);
+
+                // RAID Actions
+                bind('.btn-create-raid', () => container.querySelector('.modal-create-raid').style.display='flex');
+                bind('.btn-confirm-create-raid', doCreateRaid);
+
+                // Mount Manager
+                bind('.btn-mount-dev', mountDev);
+                bind('.btn-refresh-mounts', loadMounts);
+                bind('.btn-refresh-fstab-gui', loadFstabGui);
+                bind('.btn-add-fstab-entry', addFstabEntry);
+
+                // Swap & Ramdisk
+                bind('.btn-refresh-swap', loadSwap);
+                bind('.btn-new-swap', () => container.querySelector('.modal-swap').style.display='flex');
+                bind('.btn-create-swap', createSwap);
+                bind('.btn-new-ramdisk', () => container.querySelector('.modal-ramdisk').style.display='flex');
+                bind('.btn-create-ramdisk', createRamdisk);
+
+                // Fstab
+                bind('.btn-save-fstab', saveFstab);
+
+                // Analyzer
+                bind('.btn-analyze-refresh', () => { const v = container.querySelector('.analyzer-disk-select').value; if(v) runAnalysis(v); });
+                container.querySelector('.analyzer-disk-select').addEventListener('change', updateAnalyzerHeader);
+
+                container.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => container.querySelectorAll('.local-modal').forEach(m => m.style.display='none')));
+
+                // Delegation for Swap/Ramdisk actions
+                container.addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if(btn) {
+                        if(btn.dataset.action === 'swap-off') swapOff(btn.dataset.path);
+                        if(btn.dataset.action === 'swap-on') enableSwap(btn.dataset.path);
+                        if(btn.dataset.action === 'swap-del') deleteSwap(btn.dataset.path);
+                        if(btn.dataset.action === 'ram-umount') umountRam(btn.dataset.path);
+                    }
+                });
+
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        loadData();
+                    };
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.type === "disk_full_info") {
+                            fullData = msg.payload;
+                            try { renderDiskSelector(); } catch(e) { console.error("Disk render error:", e); }
+                            try { renderLVM(); } catch(e) { console.error("LVM render error:", e); }
+                            try { renderRAID(); } catch(e) { console.error("RAID render error:", e); }
+                        }
+                        if(msg.type === "disk_analysis") renderAnalysis(msg.payload);
+                        if(msg.type === "disk_mounts") renderMounts(msg.payload);
+                        if(msg.type === "fstab_entries") renderFstabGui(msg.payload);
+                        if(msg.type === "disk_swap") renderSwap(msg.payload);
+                        if(msg.type === "disk_ramdisk") renderRamdisk(msg.payload);
+                        if(msg.type === "fstab_content" && fstabEditor) fstabEditor.setValue(msg.payload, -1);
+                        if(msg.type === "disk_op_res") {
+                            if(msg.payload.status === "success") {
+                                alert("Successo!");
+                            } else {
+                                // Gestione errore interattivo Parted (Partizione in uso)
+                                if (msg.payload.msg && (msg.payload.msg.includes("being used") || msg.payload.msg.includes("in use")) && msg.payload.msg.includes("continue")) {
+                                    if(confirm("ATTENZIONE: La partizione è in uso.\nIl sistema chiede: \"" + msg.payload.msg.trim() + "\"\n\nVuoi forzare l'operazione rispondendo 'Yes'?")) {
+                                        doResizePart(true);
+                                        return;
+                                    }
+                                }
+                                alert("Errore: " + msg.payload.msg);
+                            }
+                            container.querySelectorAll('.local-modal').forEach(m => m.style.display='none');
+                            loadData();
+                            if(container.querySelector('#view-swap').classList.contains('active-view')) loadSwap();
+                            if(container.querySelector('#view-ramdisk').classList.contains('active-view')) loadRamdisk();
+                            if(container.querySelector('#view-mount').classList.contains('active-view')) { loadMounts(); loadFstabGui(); loadFstab(); }
+                            if(container.querySelector('#view-analyzer').classList.contains('active-view') && analyzerTarget) runAnalysis(analyzerTarget.parentPath || container.querySelector('.analyzer-disk-select').value);
+                        }
+                        // Show detail output in alert for now
+                        if(msg.type === "disk_op_res" && msg.payload.status === "success" && msg.payload.msg && msg.payload.msg.includes("Array Size")) {
+                             alert(msg.payload.msg);
+                        }
+                    };
+                }
+            })();
+
+            function switchMountTab(tabId) {
+                container.querySelectorAll('.mount-tab-content').forEach(c => c.style.display = 'none');
+                container.querySelector(`#${tabId}`).style.display = 'flex';
+                if(tabId === 'tab-fstab-editor' && fstabEditor) fstabEditor.resize();
+            }
+
+            function loadData() { loadFullInfo(); }
+            
+            function loadFullInfo() { 
+                // Renderizza subito se i dati sono in cache per evitare il "flash" vuoto
+                if (fullData) {
+                    if(container.querySelector('#view-part').classList.contains('active-view')) renderDiskSelector();
+                    if(container.querySelector('#view-lvm').classList.contains('active-view')) renderLVM();
+                    if(container.querySelector('#view-raid').classList.contains('active-view')) renderRAID();
+                }
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_full_info" } })); 
+            }
+            
+            function loadFstab() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "read_fstab" } })); }
+            function saveFstab() { 
+                const content = fstabEditor.getValue(); 
+                if(confirm("Salvare le modifiche a /etc/fstab? Verrà creato un backup.")) 
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "save_fstab", content: content } })); 
+            }
+
+            // --- PHYSICAL DISK LOGIC ---
+            function renderDiskSelector() {
+                const sel = container.querySelector('.disk-select');
+                const oldVal = sel.value;
+                sel.innerHTML = "";
+                if(!fullData || !fullData.lsblk) return;
+                
+                if (fullData.lsblk.error) {
+                    sel.innerHTML = `<option>Error: ${fullData.lsblk.error}</option>`;
+                    return;
+                }
+
+                if (!fullData.lsblk.blockdevices) {
+                     sel.innerHTML = '<option>Nessun disco trovato</option>';
+                     return;
+                }
+
+                // Rimosso filtro type==='disk' per supportare RAID, LVM PV, Loop, ecc.
+                fullData.lsblk.blockdevices.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.name;
+                    opt.innerText = `/dev/${d.name} (${formatBytes(d.size)}) - ${d.model || ''}`;
+                    sel.appendChild(opt);
+                });
+
+                if(oldVal && Array.from(sel.options).some(o => o.value === oldVal)) {
+                    sel.value = oldVal;
+                } else if(sel.options.length > 0) {
+                    sel.value = sel.options[0].value;
+                }
+                selectDisk(sel.value);
+            }
+
+            function selectDisk(diskName) {
+                currentDiskName = diskName;
+                selectedPart = null;
+                updatePartButtons();
+
+                // Pulisci visualizzazione precedente
+                container.querySelector('.disk-info-text').innerText = "";
+                container.querySelector('#visual-bar').innerHTML = "";
+                container.querySelector('#part-table-body').innerHTML = "";
+                
+                const disk = fullData.lsblk.blockdevices.find(d => d.name === diskName);
+                if(!disk) return;
+
+                container.querySelector('.disk-info-text').innerText = `Model: ${disk.model || 'N/A'} | Serial: ${disk.serial || 'N/A'} | Table: ${disk.pttype || 'N/A'}`;
+
+                const bar = container.querySelector('#visual-bar');
+                const tbody = container.querySelector('#part-table-body');
+                bar.innerHTML = ""; tbody.innerHTML = ""; // Reset esplicito
+
+                const totalSize = parseInt(disk.size) || 1; // Evita divisione per zero
+                // Fix: Ensure parts is an array even if children is null/undefined
+                let parts = (disk.children && Array.isArray(disk.children)) ? disk.children : [];
+                
+                parts.forEach(p => {
+                    const size = parseInt(p.size) || 0;
+                    const percent = (size / totalSize) * 100;
+                    
+                    const seg = document.createElement('div');
+                    seg.className = "part-segment";
+                    seg.style.width = (percent > 0 ? percent : 1) + "%"; // Minimo 1% per visibilità
+                    seg.style.backgroundColor = getFsColor(p.fstype);
+                    seg.innerHTML = `<span class="part-label">${p.name}</span><span class="part-size">${formatBytes(size)}</span>`;
+                    seg.title = `${p.name} - ${p.fstype || 'raw'} - ${formatBytes(size)}`;
+                    seg.onclick = () => selectPartition(p, seg);
+                    bar.appendChild(seg);
+
+                    const tr = document.createElement('tr');
+                    // Popola Used e Flags
+                    const usedText = p.fsused ? `${p.fsused} (${p["fsuse%"] || ''})` : '-';
+                    const flagsText = p.partflags || '-';
+                    
+                    tr.dataset.name = p.name;
+                    tr.innerHTML = `<td><i class="fas fa-hdd"></i></td><td>${p.name}</td><td>${p.fstype || 'raw'}</td><td>${p.mountpoint || ''}</td><td>${formatBytes(size)}</td><td>${usedText}</td><td>${flagsText}</td>`;
+                    tr.onclick = () => selectPartition(p, seg);
+                    tbody.appendChild(tr);
+                });
+
+                if (parts.length === 0) {
+                     tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding: 20px;">Nessuna partizione trovata o disco non inizializzato</td></tr>`;
+                     bar.innerHTML = `<div class="part-segment free" style="width:100%">Spazio non allocato / Raw</div>`;
+                }
+            }
+
+            function selectPartition(part, visualEl) {
+                selectedPart = { ...part, type: 'part' };
+                container.querySelectorAll('.part-segment').forEach(e => e.classList.remove('selected'));
+                container.querySelectorAll('.data-table tr').forEach(e => e.classList.remove('selected'));
+                // Usa CSS.escape per gestire nomi con caratteri speciali (es. mapper/vg-lv)
+                const tr = container.querySelector(`tr[data-name="${CSS.escape(part.name)}"]`);
+                if(tr) tr.classList.add('selected');
+                updatePartButtons();
+            }
+
+            function updatePartButtons() {
+                const btns = container.querySelector('.disk-actions');
+                if (!btns) return;
+                btns.style.display = 'flex';
+                const isPart = selectedPart && selectedPart.type === 'part';
+                
+                const setDisabled = (sel, val) => { const el = container.querySelector(sel); if(el) el.disabled = val; };
+
+                setDisabled('.btn-create-part', false);
+                setDisabled('.btn-delete-part', !isPart);
+                setDisabled('.btn-mount-part', !(isPart && !selectedPart.mountpoint));
+                setDisabled('.btn-unmount-part', !(isPart && selectedPart.mountpoint));
+                setDisabled('.btn-resize-part', !isPart);
+                setDisabled('.btn-check-fs', !isPart);
+                setDisabled('.btn-resize-fs', !isPart);
+                setDisabled('.btn-format-part', !isPart);
+            }
+
+            function getFsColor(fs) {
+                if(!fs) return "#555";
+                if(fs.includes("ext")) return "#1f6feb";
+                if(fs.includes("fat") || fs.includes("ntfs")) return "#3fb950";
+                if(fs.includes("swap")) return "#da3633";
+                if(fs.includes("LVM") || fs.includes("linux_raid")) return "#d29922";
+                return "#8b949e";
+            }
+
+            function formatBytes(bytes, decimals = 2) {
+                if (!+bytes) return '0 B';
+                const k = 1024;
+                const dm = decimals < 0 ? 0 : decimals;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+            }
+
+            // --- OPERATIONS ---
+            function doCreatePart() {
+                const size = container.querySelector('.cp-size').value;
+                const type = container.querySelector('.cp-type').value;
+                const fs = container.querySelector('.cp-fs').value;
+                // Simplified: assumes appending to end. Real impl needs start/end sectors.
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "part_op", sub: "create_part", device: "/dev/"+currentDiskName, type: type, fs: fs, start: "0%", end: size+"MB" } }));
+            }
+
+            function deletePartition() {
+                if(!selectedPart || !confirm(`Eliminare ${selectedPart.name}?`)) return;
+                const num = selectedPart.name.replace(currentDiskName, "").replace("p", ""); 
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "part_op", sub: "delete_part", device: "/dev/"+currentDiskName, number: num } }));
+            }
+
+            function openMountModal() {
+                if(!selectedPart) return;
+                container.querySelector('.mount-point-input').value = `/mnt/${selectedPart.name}`;
+                container.querySelector('.modal-mount').style.display='flex';
+            }
+            function doMountPart() {
+                const dst = container.querySelector('.mount-point-input').value;
+                if(selectedPart && dst) {
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "mount_dev", src: `/dev/${selectedPart.name}`, dst: dst } }));
+                }
+            }
+            function doUnmountPart() {
+                if(selectedPart && selectedPart.mountpoint && confirm(`Smontare ${selectedPart.name} da ${selectedPart.mountpoint}?`)) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "umount", path: selectedPart.mountpoint } }));
+            }
+
+            function doResizePart(force) {
+                if (typeof force !== 'boolean') force = false;
+                if(!selectedPart) return;
+                const targetSize = container.querySelector('.rp-size').value;
+                const num = selectedPart.name.replace(currentDiskName, "").replace("p", "");
+                const fs = selectedPart.fstype || "";
+                const mount = selectedPart.mountpoint || "";
+                
+                ws.send(JSON.stringify({ 
+                    type: "disk_command", 
+                    host_id: parseInt(currentId), term_id: termId,
+                    payload: { 
+                        action: "part_op", sub: "resize_part",
+                        device: "/dev/"+currentDiskName, partition: "/dev/"+selectedPart.name, 
+                        number: num, 
+                        start: parseFloat(selectedPart.start),
+                        current_size: parseFloat(selectedPart.size), 
+                        target_size: targetSize, 
+                        fs: fs, mount: mount,
+                        force: force
+                    } 
+                }));
+                container.querySelector('.modal-resize-part').style.display='none';
+            }
+
+            function doFsCheck() {
+                if(!selectedPart) return;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "fs_op", sub: "check", partition: "/dev/"+selectedPart.name, fs: selectedPart.fstype } }));
+                container.querySelector('.modal-fs-check').style.display='none';
+            }
+
+            function doFsResize() {
+                if(!selectedPart) return;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "fs_op", sub: "resize", partition: "/dev/"+selectedPart.name, fs: selectedPart.fstype, mount: selectedPart.mountpoint } }));
+                container.querySelector('.modal-fs-resize').style.display='none';
+            }
+
+            function doFormatPart() {
+                if(!selectedPart || !confirm(`Formatta ${selectedPart.name}? DATI PERSI!`)) return;
+                const fs = container.querySelector('.fmt-fs').value;
+                const label = container.querySelector('.fmt-label').value;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "part_op", sub: "format", partition: "/dev/"+selectedPart.name, fs: fs, label: label } }));
+            }
+
+            // --- LVM LOGIC ---
+            function renderLVM() { // Renamed from loadLVM
+                if (!fullData || !fullData.lvm) { console.warn("LVM data missing"); return; }
+
+                const pvs = Array.isArray(fullData.lvm.pvs) ? fullData.lvm.pvs : [];
+                const vgs = Array.isArray(fullData.lvm.vgs) ? fullData.lvm.vgs : [];
+                const lvs = Array.isArray(fullData.lvm.lvs) ? fullData.lvm.lvs : [];
+                
+                // Render PVs
+                const pvList = container.querySelector('#pv-list');
+                pvList.innerHTML = "";
+                if(pvs.length === 0) pvList.innerHTML = "<div style='padding:10px; color:#666'>Nessun PV trovato</div>";
+                pvs.forEach(pv => {
+                    const el = document.createElement('div');
+                    el.className = "lvm-item";
+                    const isFree = !pv.vg_name;
+                    el.innerHTML = `<div style="display:flex; justify-content:space-between"><b>${pv.name}</b><span style="font-size:0.8em">${formatBytes(pv.size)}</span></div>
+                                    <div style="font-size:0.8em; color:var(--text-dim); margin-bottom:5px">${isFree ? '<span style="color:var(--success)">Free</span>' : 'VG: '+pv.vg_name}</div>
+                                    <div style="display:flex; gap:5px">
+                                        <button class="btn-sec" style="padding:2px 6px; font-size:0.7em" onclick="window.resizePV('${pv.name}')" title="PV Resize (pvresize)"><i class="fas fa-expand-arrows-alt"></i> Resize</button>
+                                        ${isFree ? `<button class="btn-sec" style="padding:2px 6px; font-size:0.7em" onclick="window.delPV('${pv.name}')" title="Rimuovi"><i class="fas fa-trash"></i></button>` : ''}
+                                    </div>`;
+                    pvList.appendChild(el);
+                });
+
+                // Render VGs
+                const vgList = container.querySelector('#vg-list');
+                vgList.innerHTML = "";
+                if(vgs.length === 0) vgList.innerHTML = "<div style='padding:10px; color:#666'>Nessun VG trovato</div>";
+                vgs.forEach(vg => {
+                    const el = document.createElement('div');
+                    el.className = "lvm-item";
+                    const used = parseInt(vg.size) - parseInt(vg.free);
+                    const perc = (used / parseInt(vg.size)) * 100;
+                    el.innerHTML = `<div style="display:flex; justify-content:space-between"><b>${vg.name}</b><span style="font-size:0.8em">${formatBytes(vg.free)} Free</span></div>
+                                    <div class="lvm-bar"><div class="lvm-fill" style="width:${perc}%"></div></div>
+                                    <div style="font-size:0.7em; color:#888; margin-top:4px; display:flex; justify-content:space-between; align-items:center">
+                                        <span>${vg.lv_count} LVs | Total: ${formatBytes(vg.size)}</span>
+                                        <div style="display:flex; gap:5px">
+                                            <button class="btn-sec" style="padding:0 5px" onclick="window.openExtendVG('${vg.name}')" title="Estendi (vgextend)"><i class="fas fa-plus-circle"></i></button>
+                                            <button class="btn-sec" style="padding:0 5px" onclick="window.reduceVGMissing('${vg.name}')" title="Cleanup Missing (vgreduce)"><i class="fas fa-broom"></i></button>
+                                            <button class="btn-sec" style="padding:0 5px" onclick="window.delVG('${vg.name}')" title="Elimina"><i class="fas fa-trash"></i></button>
+                                        </div>
+                                    </div>`;
+                    el.onclick = () => selectVG(vg, lvs);
+                    vgList.appendChild(el);
+                });
+            }
+
+            function selectVG(vg, allLvs) {
+                selectedVG = vg;
+                container.querySelectorAll('.lvm-item').forEach(i => i.classList.remove('selected'));
+                container.querySelector('.btn-create-lv').disabled = false;
+                const lvList = container.querySelector('#lv-list');
+                lvList.innerHTML = "";
+                const vgLvs = allLvs.filter(l => l.vg_name === vg.name);
+                if(vgLvs.length === 0) lvList.innerHTML = "<div style='padding:10px; color:#666'>Nessun LV</div>";
+                vgLvs.forEach(lv => {
+                    const el = document.createElement('div');
+                    el.className = "lvm-item";
+                    el.innerHTML = `<div style="display:flex; justify-content:space-between"><b>${lv.name}</b><span style="font-size:0.8em">${formatBytes(lv.size)}</span></div>
+                                    <div style="margin-top:5px; display:flex; gap:5px">
+                                        <button class="btn-sec" style="padding:2px 6px; font-size:0.7em" onclick="window.openResizeLV('${vg.name}', '${lv.name}')" title="Resize"><i class="fas fa-ruler-horizontal"></i></button>
+                                        <button class="btn-sec" style="padding:2px 6px; font-size:0.7em" onclick="window.delLV('${vg.name}', '${lv.name}')" title="Elimina"><i class="fas fa-trash"></i></button>
+                                    </div>`;
+                    lvList.appendChild(el);
+                });
+            }
+
+            // --- LVM ACTIONS ---
+            function doCreatePV() {
+                const dev = container.querySelector('.cpv-device').value;
+                if(dev) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "lvm_op", sub: "create_pv", device: dev } }));
+            }
+            window.delPV = (dev) => { if(confirm(`Rimuovere PV ${dev}?`)) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "lvm_op", sub: "remove_pv", device: dev } })); };
+            
+            window.resizePV = (dev) => {
+                if(confirm(`Eseguire pvresize su ${dev}? Utile dopo aver esteso la partizione.`)) {
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), payload: { action: "lvm_op", sub: "resize_pv", device: dev } }));
+                }
+            };
+
+            function openCreateVGModal() {
+                const sel = container.querySelector('.cvg-pvs'); sel.innerHTML = "";
+                const freePvs = (fullData.lvm.pvs || []).filter(p => !p.vg_name);
+                freePvs.forEach(p => { const o = document.createElement('option'); o.value = p.name; o.innerText = `${p.name} (${formatBytes(p.size)})`; sel.appendChild(o); });
+                container.querySelector('.modal-create-vg').style.display='flex';
+            }
+            function doCreateVG() {
+                const name = container.querySelector('.cvg-name').value;
+                const opts = Array.from(container.querySelector('.cvg-pvs').selectedOptions).map(o => o.value).join(' ');
+                if(name && opts) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "create_vg", name: name, devices: opts } }));
+            }
+            window.delVG = (name) => { if(confirm(`Eliminare VG ${name}?`)) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "remove_vg", name: name } })); };
+            window.reduceVGMissing = (name) => {
+                if(confirm(`Eseguire vgreduce --removemissing su ${name}?`)) {
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "reduce_vg_missing", name: name } }));
+                }
+            };
+
+            window.openExtendVG = (name) => {
+                selectedVG = { name: name }; // Mock obj
+                const sel = container.querySelector('.evg-pv'); sel.innerHTML = "";
+                const freePvs = (fullData.lvm.pvs || []).filter(p => !p.vg_name);
+                if(freePvs.length === 0) return alert("Nessun PV libero disponibile.");
+                freePvs.forEach(p => { const o = document.createElement('option'); o.value = p.name; o.innerText = p.name; sel.appendChild(o); });
+                container.querySelector('.modal-extend-vg').style.display='flex';
+            };
+            function doExtendVG() {
+                const dev = container.querySelector('.evg-pv').value;
+                if(selectedVG && dev) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "extend_vg", name: selectedVG.name, device: dev } }));
+            }
+
+            window.delLV = (vg, lv) => {
+                if(confirm(`Eliminare LV ${lv}?`)) {
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "remove_lv", path: `/dev/${vg}/${lv}` } }));
+                }
+            };
+            
+            window.openResizeLV = (vg, lv) => {
+                selectedLV = { path: `/dev/${vg}/${lv}` };
+                container.querySelector('.modal-resize-lv').style.display='flex';
+            };
+            function doResizeLV() {
+                const size = container.querySelector('.rlv-size').value;
+                if(selectedLV && size) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "resize_lv", path: selectedLV.path, size: size } }));
+            }
+
+            function doCreateLV() {
+                const name = container.querySelector('.clv-name').value;
+                const size = container.querySelector('.clv-size').value;
+                if(name && size && selectedVG) {
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "lvm_op", sub: "create_lv", vg: selectedVG.name, name: name, size: size } }));
+                }
+            }
+
+            // --- RAID LOGIC ---
+            function renderRAID() {
+                const list = container.querySelector('#raid-list-container');
+                list.innerHTML = "";
+                if (!fullData.raid || !fullData.raid.arrays || fullData.raid.arrays.length === 0) {
+                     list.innerHTML = `<div style="padding:20px; text-align:center; color:var(--text-dim)">Nessun array RAID rilevato (mdstat vuoto).</div>
+                     <div class="cmd-output" style="max-height:150px; margin-top:10px; font-size:0.8em; color:#666; white-space:pre-wrap; font-family:monospace;">${fullData.raid.mdstat || ''}</div>`;
+                     return;
+                }
+
+                fullData.raid.arrays.forEach(arr => {
+                    const card = document.createElement('div');
+                    card.className = "info-card";
+                    card.style.marginBottom = "15px";
+                    
+                    const statusColor = arr.state === 'active' ? 'var(--success)' : 'var(--danger)';
+                    const statusIcon = arr.state === 'active' ? '<i class="fas fa-check-circle"></i>' : '<i class="fas fa-exclamation-triangle"></i>';
+                    
+                    let devHtml = (arr.devices || []).map(d => `<span style="background:#21262d; padding:2px 6px; border-radius:4px; font-size:0.85em; margin-right:5px;">${d}</span>`).join('');
+                    
+                    card.innerHTML = `
+                        <div class="card-title" style="border-bottom:1px solid var(--border); padding-bottom:8px; margin-bottom:10px;">
+                            <span style="font-size:1.1em; color:white"><i class="fas fa-cubes"></i> /dev/${arr.name}</span>
+                            <span style="font-size:0.9em; color:${statusColor}">${statusIcon} ${arr.state.toUpperCase()}</span>
+                        </div>
+                        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:0.9em; margin-bottom:10px;">
+                            <div><b>Level:</b> ${arr.level}</div>
+                            <div><b>Size:</b> ${formatBytes(parseInt(arr.size_blocks)*1024)}</div>
+                            <div><b>Status:</b> <span style="font-family:monospace">${arr.status_graph || 'N/A'}</span></div>
+                            <div><b>Action:</b> ${arr.sync_action || 'Idle'}</div>
+                        </div>
+                        <div style="margin-bottom:10px;">
+                            <div style="font-size:0.8em; color:var(--text-dim); margin-bottom:5px;">Devices:</div>
+                            <div>${devHtml}</div>
+                        </div>
+                        <div style="display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:10px;">
+                            <button class="btn-sec" style="font-size:0.8em; padding:4px 10px;" onclick="window.raidDetail('/dev/${arr.name}')"><i class="fas fa-info-circle"></i> Detail</button>
+                            <button class="btn-sec" style="font-size:0.8em; padding:4px 10px; color:var(--warning)" onclick="window.raidStop('/dev/${arr.name}')"><i class="fas fa-stop"></i> Stop</button>
+                            <button class="btn-sec" style="font-size:0.8em; padding:4px 10px; color:var(--danger)" onclick="window.raidRemove('/dev/${arr.name}')"><i class="fas fa-trash"></i> Remove</button>
+                        </div>
+                    `;
+                    list.appendChild(card);
+                });
+            }
+
+            function doCreateRaid() {
+                const name = container.querySelector('.raid-name').value;
+                const level = container.querySelector('.raid-level').value;
+                const devs = container.querySelector('.raid-devs').value;
+                if(!name || !devs) return alert("Compila tutti i campi");
+                const devCount = devs.trim().split(/\s+/).length;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "raid_op", sub: "create", name: name, level: level, devices: devs, dev_count: devCount.toString() } }));
+                container.querySelector('.modal-create-raid').style.display='none';
+            }
+            
+            window.raidDetail = (dev) => {
+                 ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "raid_op", sub: "detail", device: dev } }));
+            };
+            window.raidStop = (dev) => {
+                if(confirm(`Stop RAID array ${dev}?`))
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "raid_op", sub: "stop", device: dev } }));
+            };
+            window.raidRemove = (dev) => {
+                if(confirm(`Remove RAID array ${dev}? This is destructive!`))
+                    ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "raid_op", sub: "remove", device: dev } }));
+            };
+
+            // --- MOUNT MANAGER ---
+            function mountDev() {
+                const src = container.querySelector('.mnt-src').value;
+                const dst = container.querySelector('.mnt-dst').value;
+                const type = container.querySelector('.mnt-type').value;
+                const opts = container.querySelector('.mnt-opts').value;
+                const user = container.querySelector('.mnt-user').value;
+                const pass = container.querySelector('.mnt-pass').value;
+                const isIso = container.querySelector('.mnt-iso').checked;
+                const addFstab = container.querySelector('.mnt-fstab').checked;
+
+                if(!src || !dst) return alert("Sorgente e Destinazione obbligatori");
+                
+                ws.send(JSON.stringify({ 
+                    type: "disk_command", host_id: parseInt(currentId), term_id: termId,
+                    payload: { action: "mount_dev", src: src, dst: dst, type: type, opts: opts, user: user, pass: pass, is_iso: isIso, add_fstab: addFstab } 
+                }));
+            }
+            function loadMounts() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_mounts" } })); }
+            function renderMounts(list) {
+                const tbody = container.querySelector('.mount-body');
+                if(!tbody) return;
+                tbody.innerHTML = "";
+                list.forEach(m => {
+                    const isReal = m.device.startsWith('/dev/');
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td><span style="${isReal?'color:var(--accent);font-weight:bold':''}">${m.device}</span></td><td>${m.mount}</td><td>${m.type}</td><td style="font-size:0.8em;color:var(--text-dim)">${m.opts}</td><td><button class="action-btn" style="color:var(--danger);padding:2px 6px;font-size:0.8em" data-action="mount-umount" data-path="${m.mount}">Umount</button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+
+            // --- FSTAB GUI ---
+            function loadFstabGui() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_fstab_entries" } })); }
+            function renderFstabGui(entries) {
+                const tbody = container.querySelector('.fstab-gui-body');
+                tbody.innerHTML = "";
+                entries.forEach(e => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td>${e.device}</td><td>${e.mount}</td><td>${e.type}</td><td>${e.opts}</td><td>${e.dump}</td><td>${e.pass}</td><td><button class="btn-sec" style="color:var(--danger);padding:2px 6px" onclick="window.delFstabEntry('${e.raw.replace(/'/g, "\\'")}')"><i class="fas fa-trash"></i></button></td>`;
+                    tbody.appendChild(tr);
+                });
+            }
+            function addFstabEntry() {
+                const dev = container.querySelector('.fs-dev').value;
+                const mnt = container.querySelector('.fs-mnt').value;
+                const type = container.querySelector('.fs-type').value || "auto";
+                const opts = container.querySelector('.fs-opts').value || "defaults";
+                const dump = container.querySelector('.fs-dump').value || "0";
+                const pass = container.querySelector('.fs-pass').value || "0";
+                if(!dev || !mnt) return alert("Device e Mount Point richiesti");
+                const line = `${dev} ${mnt} ${type} ${opts} ${dump} ${pass}`;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "add_fstab_entry", line: line } }));
+            }
+            window.delFstabEntry = (rawLine) => {
+                if(confirm("Rimuovere questa riga da fstab?")) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "remove_fstab_entry", raw: rawLine } }));
+            };
+
+            // --- SWAP & RAMDISK ---
+            function loadSwap() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_swap" } })); }
+            function renderSwap(data) { 
+                const b=container.querySelector('.swap-body'); b.innerHTML=""; 
+                if(Array.isArray(data)) {
+                    data.forEach(s => {
+                        const activeBtn = s.active 
+                            ? `<button class="action-btn" data-action="swap-off" data-path="${s.path}" title="Disattiva" style="color:var(--warning)">OFF</button>`
+                            : `<button class="action-btn" data-action="swap-on" data-path="${s.path}" title="Attiva" style="color:var(--success)">ON</button>`;
+                        
+                        b.innerHTML+=`<tr>
+                            <td>${s.path}</td>
+                            <td>${s.type}</td>
+                            <td>${s.size}</td>
+                            <td>${s.used}</td>
+                            <td>${s.priority}</td>
+                            <td>
+                                ${activeBtn}
+                                <button class="action-btn" data-action="swap-del" data-path="${s.path}" title="Elimina File" style="color:var(--danger)"><i class="fas fa-trash"></i></button>
+                            </td>
+                        </tr>`;
+                    });
+                }
+            }
+            function createSwap() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "create_swap", path: container.querySelector('.sw-path').value, size: container.querySelector('.sw-size').value } })); }
+            function enableSwap(path) { const p = path || prompt("Percorso swap (es. /dev/sdb2 o /swapfile):"); if(p) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "swap_on", path: p } })); }
+            function swapOff(p) { if(confirm("Off?")) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "swap_off", path: p } })); }
+            function deleteSwap(p) { if(confirm(`Eliminare definitivamente lo swap ${p}?`)) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_swap", path: p } })); }
+
+            function loadRamdisk() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_ramdisks" } })); }
+            function renderRamdisk(l) { 
+                container.querySelector('.ramdisk-container').innerHTML = l.map(r=>`
+                    <div class="info-card">
+                        <div class="card-title">
+                            <span style="color:var(--accent); font-size:0.9em">${r.mount}</span>
+                            <button class="action-btn" data-action="ram-umount" data-path="${r.mount}" style="color:var(--danger); padding:2px 6px;"><i class="fas fa-trash"></i></button>
+                        </div>
+                        <div style="font-size:0.85em; margin-top:5px; display:flex; justify-content:space-between;">
+                            <span>Size: <b>${r.size}</b></span>
+                            <span>Used: <b>${r.used}</b> (${r.use})</span>
+                        </div>
+                        <div class="disk-linear-container" style="height:4px; margin-top:5px;">
+                            <div class="disk-linear-fill" style="width:${r.use}; background:var(--info)"></div>
+                        </div>
+                    </div>`).join(''); 
+            }
+            function createRamdisk() { ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "create_ramdisk", mount: container.querySelector('.rd-mount').value, size: container.querySelector('.rd-size').value } })); }
+            function umountRam(p) { if(confirm("Unmount?")) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "umount", path: p } })); }
+
+            // --- SPACE ANALYZER ---
+            function initAnalyzer() {
+                const sel = container.querySelector('.analyzer-disk-select');
+                sel.innerHTML = '<option value="">Seleziona Partizione...</option>';
+                if(!fullData || !fullData.lsblk || !fullData.lsblk.blockdevices) return;
+                
+                const addOpt = (name, mount, size, used, label) => {
+                    const opt = document.createElement('option');
+                    opt.value = mount;
+                    opt.dataset.size = size; opt.dataset.used = used; opt.dataset.name = name;
+                    opt.innerText = `${name} (${mount}) - ${label || ''}`;
+                    sel.appendChild(opt);
+                };
+
+                const traverse = (devs) => {
+                    devs.forEach(d => {
+                        if(d.mountpoint) addOpt(d.name, d.mountpoint, d.size, d.fsused, d.label);
+                        if(d.children) traverse(d.children);
+                    });
+                };
+                traverse(fullData.lsblk.blockdevices);
+            }
+
+            function updateAnalyzerHeader() {
+                const sel = container.querySelector('.analyzer-disk-select');
+                const opt = sel.selectedOptions[0];
+                const bar = container.querySelector('.analyzer-usage-bar-container');
+                
+                if(!opt || !opt.value) { bar.style.display = 'none'; return; }
+                
+                bar.style.display = 'block';
+                const size = parseInt(opt.dataset.size);
+                const used = parseInt(opt.dataset.used) || 0; // fsused might be null
+                const perc = size > 0 ? (used / size) * 100 : 0;
+                
+                container.querySelector('.an-part-label').innerText = `${opt.dataset.name} (${opt.value})`;
+                container.querySelector('.an-part-details').innerText = `${formatBytes(used)} / ${formatBytes(size)}`;
+                container.querySelector('.an-part-fill').style.width = perc + "%";
+                container.querySelector('.an-part-perc-text').innerText = perc.toFixed(1) + "%";
+            }
+
+            function runAnalysis(path) {
+                container.querySelector('.analyzer-tree-container').innerHTML = `<div style="padding:20px; text-align:center"><i class="fas fa-circle-notch fa-spin"></i> Analisi in corso: ${path}...</div>`;
+                ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "analyze_space", path: path } }));
+            }
+
+            function renderAnalysis(data) {
+                const cont = container.querySelector('.analyzer-tree-container');
+                cont.innerHTML = "";
+
+                const pathDisplay = container.querySelector('#analyzer-current-path');
+                if(pathDisplay) pathDisplay.innerText = data.path;
+                
+                // Header per tornare su se non siamo alla root
+                const currentRoot = container.querySelector('.analyzer-disk-select').value;
+                if(data.path !== currentRoot && data.path.length > currentRoot.length) {
+                    const upDiv = document.createElement('div');
+                    upDiv.className = "analyzer-tree-row";
+                    upDiv.innerHTML = `<div class="analyzer-content"><i class="fas fa-level-up-alt"></i> ..</div><div></div><div></div>`;
+                    upDiv.onclick = () => {
+                        // Calcola parent path
+                        const parts = data.path.split('/').filter(p=>p);
+                        parts.pop();
+                        const parent = parts.length === 0 ? "/" : "/" + parts.join("/");
+                        runAnalysis(parent);
+                    };
+                    cont.appendChild(upDiv);
+                }
+
+                data.items.forEach(item => {
+                    const perc = data.total > 0 ? (item.size / data.total) * 100 : 0;
+                    const row = document.createElement('div');
+                    row.className = "analyzer-tree-row";
+                    row.dataset.path = item.path;
+                    row.dataset.isdir = item.is_dir;
+                    row.innerHTML = `<div class="analyzer-bg-bar" style="width:${perc}%"></div>
+                                     <div class="analyzer-content"><i class="fas ${item.is_dir?'fa-folder':'fa-file'} an-icon ${item.is_dir?'':'file'}"></i> <span class="analyzer-name">${item.name}</span></div>
+                                     <div class="analyzer-size">${formatBytes(item.size)}</div><div class="analyzer-perc">${perc.toFixed(1)}%</div>`;
+                    row.onclick = () => { if(item.is_dir) runAnalysis(item.path); };
+                    cont.appendChild(row);
+                });
+            }
+
+            // --- CONTEXT MENU ---
+            const ctxMenu = container.querySelector('#disk-ctx-menu');
+            container.querySelector('#view-part').addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const partRow = e.target.closest('.part-segment') || e.target.closest('tr');
+                if(partRow && partRow.dataset.name) selectPartition(partRow.dataset.name);
+                else return;
+
+                if(!selectedPart) return;
+
+                ctxMenu.style.display = 'block';
+                ctxMenu.style.left = `${e.clientX}px`;
+                ctxMenu.style.top = `${e.clientY}px`;
+            });
+            document.addEventListener('click', () => ctxMenu.style.display = 'none');
+            ctxMenu.addEventListener('click', (e) => {
+                const action = e.target.closest('.ctx-item')?.dataset.action;
+                if(!action) return;
+                if(action === 'mount') openMountModal();
+                if(action === 'unmount') doUnmountPart();
+                if(action === 'format') container.querySelector('.modal-format').style.display='flex';
+                if(action === 'resize') container.querySelector('.modal-resize-part').style.display='flex';
+                if(action === 'delete') deletePartition();
+                ctxMenu.style.display = 'none';
+            });
+
+            // Analyzer Context Menu
+            const anCtxMenu = container.querySelector('#analyzer-ctx-menu');
+            container.querySelector('.analyzer-tree-container').addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                const row = e.target.closest('.analyzer-tree-row');
+                if(!row || !row.dataset.path) return;
+                analyzerTarget = { path: row.dataset.path, isDir: row.dataset.isdir === 'true', parentPath: container.querySelector('.analyzer-disk-select').value }; // Approx parent
+                
+                anCtxMenu.style.display = 'block';
+                anCtxMenu.style.left = `${e.clientX}px`; anCtxMenu.style.top = `${e.clientY}px`;
+            });
+            
+            anCtxMenu.addEventListener('click', (e) => {
+                const action = e.target.closest('.ctx-item')?.dataset.action;
+                if(!action || !analyzerTarget) return;
+                if(action === 'an-scan' && analyzerTarget.isDir) runAnalysis(analyzerTarget.path);
+                if(action === 'an-open') {
+                    if (typeof appInstance !== 'undefined') {
+                        if(!window.AppState) window.AppState = {};
+                        window.AppState.targetExplorer = { path: analyzerTarget.path, type: analyzerTarget.isDir ? 'dir' : 'file' };
+                        appInstance.loadPage('explorer.html');
+                    }
+                }
+                if(action === 'an-delete') { if(confirm(`Eliminare definitivamente ${analyzerTarget.path}?`)) ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "delete_item", path: analyzerTarget.path } })); }
+                anCtxMenu.style.display = 'none';
+            });
+            document.addEventListener('click', () => anCtxMenu.style.display = 'none');
+
+        })();
+    </script>
+</div>

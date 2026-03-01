@@ -1,0 +1,87 @@
+<style>
+    .lang-container { padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .lang-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 8px; padding: 20px; }
+    .lang-status { font-family: monospace; white-space: pre-wrap; color: #ccc; background: #000; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.85em; }
+    .lang-sel { width: 100%; background: #0d1117; color: white; border: 1px solid var(--border); padding: 8px; border-radius: 4px; margin-bottom: 10px; }
+</style>
+
+<div class="usr-header">
+    <div class="usr-title">Lingua, Locale e Tastiera</div>
+</div>
+
+<div class="lang-container">
+    <div class="lang-card" style="grid-column: span 2;">
+        <label style="color:var(--text-dim)">Stato Corrente (localectl)</label>
+        <div class="lang-status" id="lang-status">Loading...</div>
+    </div>
+
+    <div class="lang-card">
+        <label style="color:var(--text-dim); display:block; margin-bottom:5px;">Imposta Locale (LANG)</label>
+        <select class="lang-sel" id="sel-locale"><option>Loading...</option></select>
+        <button class="btn-action" style="width:100%" id="btn-set-locale">Applica Locale</button>
+        
+        <div style="margin-top:20px; border-top:1px solid var(--border); padding-top:10px;">
+            <label style="color:var(--text-dim); display:block; margin-bottom:5px;">Genera Locale (Debian/Ubuntu)</label>
+            <input type="text" class="lang-sel" id="inp-gen-locale" placeholder="es: it_IT.UTF-8">
+            <button class="btn-action" style="width:100%" id="btn-gen-locale">Genera & Imposta</button>
+        </div>
+    </div>
+
+    <div class="lang-card">
+        <label style="color:var(--text-dim); display:block; margin-bottom:5px;">Imposta Keymap Console</label>
+        <select class="lang-sel" id="sel-keymap"><option>Loading...</option></select>
+        <button class="btn-action" style="width:100%" id="btn-set-keymap">Applica Keymap</button>
+    </div>
+</div>
+
+<div style="padding: 0 20px 20px 20px; text-align: right;">
+    <button class="btn btn-primary" id="btn-refresh-lang"><i class="fas fa-sync"></i> Aggiorna</button>
+</div>
+
+<script>
+    (function(app) {
+        if(!app) return;
+        const wrapper = app.container.querySelector('#admin-sub-view');
+        const currentId = app.hostId;
+        const wsId = app.workspaceId || 0;
+        const termId = `${wsId}:adm-lang-` + Date.now();
+        let ws = null;
+
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+        if(ws) {
+            ws.onopen = () => {
+                ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_locale_info" } }));
+            };
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if(msg.type === "admin_locale_info") {
+                    wrapper.querySelector('#lang-status').innerText = msg.payload.status;
+                    populateSelect('#sel-locale', msg.payload.locales);
+                    populateSelect('#sel-keymap', msg.payload.keymaps);
+                }
+                if(msg.type === "admin_op_res") alert(msg.payload.msg);
+            };
+        }
+
+        function populateSelect(selId, data) {
+            const sel = wrapper.querySelector(selId);
+            sel.innerHTML = "";
+            const lines = data.split('\n');
+            lines.forEach(l => {
+                if(l.trim()) {
+                    const o = document.createElement('option'); o.value = l.trim(); o.innerText = l.trim();
+                    sel.appendChild(o);
+                }
+            });
+        }
+
+        wrapper.querySelector('#btn-refresh-lang').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_locale_info" } }));
+        wrapper.querySelector('#btn-set-locale').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_locale", locale: wrapper.querySelector('#sel-locale').value } }));
+        wrapper.querySelector('#btn-set-keymap').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "set_keymap", keymap: wrapper.querySelector('#sel-keymap').value } }));
+        wrapper.querySelector('#btn-gen-locale').onclick = () => ws.send(JSON.stringify({ type: "admin_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "gen_locale", locale: wrapper.querySelector('#inp-gen-locale').value } }));
+
+    })(arguments[0]);
+</script>

@@ -1,0 +1,456 @@
+<div class="pkg-module-wrapper">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    
+    <style>
+        .pkg-module-wrapper {
+            display: flex; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --text-main: #c9d1d9; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --info: #2f81f7;
+        }
+
+        .pkg-module-wrapper * { box-sizing: border-box; }
+        
+        /* Sidebar Scoped */
+        .pkg-sidebar { 
+            width: 220px; min-width: 220px; flex-shrink: 0;
+            background: var(--bg-panel); border-right: 1px solid var(--border); 
+            display: flex; flex-direction: column; padding: 20px; 
+        }
+        .pkg-sidebar h3 { color: var(--accent); font-size: 0.9em; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 20px; display:flex; align-items:center; gap:10px; }
+        
+        .nav-item { padding: 10px 15px; margin-bottom: 5px; cursor: pointer; border-radius: 4px; color: var(--text-dim); transition: 0.2s; display: flex; align-items: center; gap: 10px; font-size: 0.9em; }
+        .nav-item:hover { background: #21262d; color: white; }
+        .nav-item.active { background: var(--accent); color: white; }
+
+        /* Main Content */
+        .main-wrapper { 
+            flex: 1; display: flex; flex-direction: column; height: 100%; overflow: hidden; position: relative; 
+            min-width: 0;
+        }
+        .view-panel { display: none; flex: 1; flex-direction: column; padding: 25px; overflow-y: auto; }
+        .view-panel.active-view { display: flex; }
+
+        .panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 1px solid var(--border); padding-bottom: 15px; flex-shrink: 0; }
+        
+        /* Action Cards */
+        .actions-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; flex-shrink: 0; }
+        .action-card { background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; padding: 15px; text-align: center; cursor: pointer; transition: 0.2s; }
+        .action-card:hover { border-color: var(--accent); background: #21262d; }
+        .action-card i { font-size: 2em; margin-bottom: 10px; color: var(--text-dim); }
+        .action-card.primary:hover i { color: var(--accent); }
+        .action-card.warning:hover i { color: var(--warning); }
+        .action-card.danger:hover i { color: var(--danger); }
+        .action-title { font-weight: bold; font-size: 0.9em; }
+        .action-desc { font-size: 0.75em; color: var(--text-dim); margin-top: 5px; }
+
+        /* Terminal Output */
+        .console-wrapper { flex: 1; background: #000; border: 1px solid var(--border); border-radius: 6px; padding: 15px; overflow-y: auto; font-family: monospace; font-size: 0.85em; color: #ccc; white-space: pre-wrap; display: flex; flex-direction: column; }
+        .console-line { border-bottom: 1px solid #111; }
+        .console-info { color: var(--info); }
+
+        /* Tables */
+        .pkg-table { width: 100%; border-collapse: collapse; font-size: 0.85em; }
+        .pkg-table th { text-align: left; padding: 10px; background: #21262d; color: var(--text-dim); position: sticky; top: 0; }
+        .pkg-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+        .pkg-row:hover { background: #161b22; }
+        
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 0.75em; font-weight: bold; }
+        .badge-install { background: rgba(35, 134, 54, 0.2); color: var(--success); }
+        .badge-hold { background: rgba(210, 153, 34, 0.2); color: var(--warning); }
+
+        /* Inputs */
+        .search-bar { display: flex; gap: 10px; margin-bottom: 15px; flex-shrink: 0; }
+        input[type="text"] { flex: 1; background: #0d1117; border: 1px solid var(--border); color: white; padding: 10px; border-radius: 4px; font-family: inherit; }
+        
+        /* Buttons */
+        .btn { padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border); background: transparent; color: white; cursor: pointer; font-size: 0.8em; display: inline-flex; align-items: center; gap: 5px; }
+        .btn:hover { background: #21262d; }
+        .btn-sm { font-size: 0.75em; padding: 4px 8px; }
+        .btn-primary { background: var(--accent); border-color: var(--accent); }
+        .btn-danger { color: var(--danger); border-color: var(--danger); }
+        .btn-danger:hover { background: var(--danger); color: white; }
+
+        /* Modal & Overlay */
+        .local-modal { display: none; position: absolute; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; }
+        .modal-content { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 500px; display: flex; flex-direction: column; gap: 15px; }
+        
+        .loading-overlay { display: none; position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; color: var(--accent); font-size: 1.5em; font-weight: bold; z-index: 50; flex-direction: column; gap: 10px; backdrop-filter: blur(2px); }
+    </style>
+
+    <div class="pkg-sidebar">
+        <h3><i class="fas fa-box-open"></i> PackMan</h3>
+        <div class="nav-item active" data-view="dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</div>
+        <div class="nav-item" data-view="installed"><i class="fas fa-cubes"></i> Installati</div>
+        <div class="nav-item" data-view="search"><i class="fas fa-search"></i> Cerca & Installa</div>
+        <div class="nav-item" data-view="repos"><i class="fas fa-server"></i> Repository</div>
+    </div>
+
+    <div class="main-wrapper">
+        
+        <div id="view-dashboard" class="view-panel active-view" style="position: relative;">
+            <div class="loading-overlay"><i class="fas fa-circle-notch fa-spin"></i> Esecuzione in corso...</div>
+
+            <div class="panel-header">
+                <h3>Gestione Sistema (APT/RPM)</h3>
+                <div style="font-size:0.8em; color:var(--text-dim)">Gestore rilevato: <span class="pkg-manager-name" style="color:white; font-weight:bold">AUTO</span></div>
+            </div>
+
+            <div class="actions-grid">
+                <div class="action-card primary" data-action="update">
+                    <i class="fas fa-sync-alt"></i>
+                    <div class="action-title">Update Cache</div>
+                    <div class="action-desc">Aggiorna lista pacchetti</div>
+                </div>
+                <div class="action-card primary" data-action="upgrade">
+                    <i class="fas fa-arrow-circle-up"></i>
+                    <div class="action-title">Upgrade Sistema</div>
+                    <div class="action-desc">Aggiorna pacchetti installati</div>
+                </div>
+                <div class="action-card warning" data-action="dist_upgrade">
+                    <i class="fas fa-rocket"></i>
+                    <div class="action-title">Dist / Full Upgrade</div>
+                    <div class="action-desc">Aggiornamento major version</div>
+                </div>
+                <div class="action-card" data-action="clean">
+                    <i class="fas fa-broom"></i>
+                    <div class="action-title">Clean & Autoremove</div>
+                    <div class="action-desc">Pulisci cache e dipendenze orfane</div>
+                </div>
+                <div class="action-card danger" data-action="unlock_apt">
+                    <i class="fas fa-unlock-alt"></i>
+                    <div class="action-title">Rimuovi Lock</div>
+                    <div class="action-desc">Sblocca forzatamente APT</div>
+                </div>
+                <div class="action-card warning" data-action="fix_broken">
+                    <i class="fas fa-band-aid"></i>
+                    <div class="action-title">Fix Broken</div>
+                    <div class="action-desc">Ripara installazioni fallite</div>
+                </div>
+            </div>
+
+            <div class="panel-header" style="margin-bottom:5px"><h4>Console Output</h4></div>
+            <div class="console-wrapper pkg-console">
+                <div class="console-line console-info">Pronto. Seleziona un'azione.</div>
+            </div>
+        </div>
+
+        <div id="view-installed" class="view-panel">
+            <div class="panel-header">
+                <h3>Pacchetti Installati</h3>
+                <button class="btn btn-reload-installed"><i class="fas fa-sync"></i> Ricarica</button>
+            </div>
+            <div class="search-bar">
+                <input type="text" class="filter-installed" placeholder="Filtra per nome pacchetto...">
+            </div>
+            <div style="flex:1; overflow-y:auto; border:1px solid var(--border); border-radius:6px;">
+                <table class="pkg-table">
+                    <thead><tr><th>Pacchetto</th><th>Versione</th><th>Stato</th><th>Azioni</th></tr></thead>
+                    <tbody class="body-installed"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="view-search" class="view-panel">
+            <div class="panel-header">
+                <h3>Cerca nei Repository</h3>
+                <button class="btn btn-warning btn-open-deb-modal"><i class="fas fa-cloud-download-alt"></i> Install from URL</button>
+            </div>
+            <div class="search-bar">
+                <input type="text" class="input-search-repo" placeholder="Nome pacchetto da cercare (es: nginx, htop)...">
+                <button class="btn btn-primary btn-do-search"><i class="fas fa-search"></i> Cerca</button>
+            </div>
+            <div style="flex:1; overflow-y:auto; border:1px solid var(--border); border-radius:6px;">
+                <table class="pkg-table">
+                    <thead><tr><th>Pacchetto</th><th>Descrizione</th><th>Azioni</th></tr></thead>
+                    <tbody class="body-search">
+                        <tr><td colspan="3" style="text-align:center; padding:20px; color:#555">Effettua una ricerca per vedere i risultati</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <div id="view-repos" class="view-panel">
+            <div class="panel-header">
+                <h3>Gestione Repository (Sources)</h3>
+                <button class="btn btn-primary btn-open-repo-modal"><i class="fas fa-plus"></i> Aggiungi Repo</button>
+            </div>
+            <div class="console-wrapper repo-list" style="color:var(--text-main); font-family: 'JetBrains Mono';"></div>
+        </div>
+
+    </div>
+
+    <div class="local-modal repoModal">
+        <div class="modal-content">
+            <h3>Aggiungi Repository</h3>
+            <label>Tipo (PPA o URL)</label>
+            <input type="text" class="new-repo-line" placeholder="es: ppa:obsproject/wireshark oppure deb http://...">
+            <div style="font-size:0.8em; color:var(--text-dim)">Debian/Ubuntu: PPA o riga deb. Fedora/RHEL: URL del file .repo.</div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-close-modal">Annulla</button>
+                <button class="btn btn-primary btn-add-repo">Aggiungi</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="local-modal debModal">
+        <div class="modal-content">
+            <h3>Install Package from URL</h3>
+            <label>URL del pacchetto (.deb / .rpm)</label>
+            <input type="text" class="deb-url-input" placeholder="https://example.com/package.rpm">
+            <div style="font-size:0.8em; color:var(--text-dim)">Supporta <b>APT</b> (.deb) e <b>DNF</b> (.rpm) in base al sistema rilevato.</div>
+            <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+                <button class="btn btn-close-modal">Annulla</button>
+                <button class="btn btn-primary btn-install-deb">Installa</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("[PackMan] Missing appInstance"); return; }
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:pkg-` + Date.now();
+
+            let ws = null;
+
+            (function init() {
+                // WebSocket Setup
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//${window.location.host}/ws/client`;
+                try { ws = new WebSocket(wsUrl); } catch(e) {}
+
+                // --- BINDINGS ---
+                const bind = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('click', fn); };
+                const bindInput = (sel, fn) => { const el = container.querySelector(sel); if(el) el.addEventListener('keyup', fn); };
+
+                // Nav
+                container.querySelectorAll('.nav-item').forEach(item => {
+                    item.addEventListener('click', () => {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        item.classList.add('active');
+                        container.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active-view'));
+                        const viewId = item.dataset.view;
+                        container.querySelector(`#view-${viewId}`).classList.add('active-view');
+                        
+                        if(viewId === 'installed') loadInstalled();
+                        if(viewId === 'repos') loadRepos();
+                    });
+                });
+
+                // Dashboard Actions (Card Grid Delegation)
+                const actionsGrid = container.querySelector('.actions-grid');
+                if (actionsGrid) {
+                    actionsGrid.addEventListener('click', (e) => {
+                        const card = e.target.closest('.action-card');
+                        if(card) runPkgOp(card.dataset.action);
+                    });
+                }
+
+                // Installed
+                bind('.btn-reload-installed', loadInstalled);
+                bindInput('.filter-installed', (e) => filterTable('.body-installed', e.target.value));
+                
+                // Delegation for Installed Table Buttons
+                container.querySelector('.body-installed').addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if(!btn) return;
+                    if(btn.dataset.action) runPkgOp(btn.dataset.action, btn.dataset.pkg);
+                });
+
+                // Search
+                bind('.btn-do-search', searchRepo);
+                
+                // Delegation for Search Result Buttons
+                container.querySelector('.body-search').addEventListener('click', (e) => {
+                    const btn = e.target.closest('button');
+                    if(btn && btn.dataset.action === 'install') runPkgOp('install', btn.dataset.pkg);
+                });
+
+                // Repos
+                bind('.btn-open-repo-modal', () => container.querySelector('.repoModal').style.display='flex');
+                bind('.btn-close-modal', () => container.querySelector('.repoModal').style.display='none');
+                bind('.btn-add-repo', addRepo);
+
+                // Install DEB URL
+                bind('.btn-open-deb-modal', () => container.querySelector('.debModal').style.display='flex');
+                bind('.btn-install-deb', installDebUrl);
+
+                // --- WS LOGIC ---
+                if(ws) {
+                    ws.onopen = () => {
+                        ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                        ws.send(JSON.stringify({ type: "pkg_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "detect_manager" } }));
+                    };
+
+                    ws.onmessage = (e) => {
+                        const msg = JSON.parse(e.data);
+                        if(msg.host_id != currentId) return;
+
+                        if(msg.type === "pkg_output_stream") appendConsole(msg.payload);
+                        if(msg.type === "pkg_op_res") {
+                            toggleLoading(false); // FIX: Nascondi l'overlay
+                            appendConsole("\n>>> " + msg.payload.msg + " [" + msg.payload.status + "]");
+                            if(msg.payload.status === "success" && container.querySelector('#view-repos').classList.contains('active-view')) loadRepos();
+                        }
+                        if(msg.type === "pkg_installed_list") renderInstalled(msg.payload);
+                        if(msg.type === "pkg_search_results") renderSearch(msg.payload);
+                        if(msg.type === "pkg_repo_list") container.querySelector('.repo-list').innerText = msg.payload;
+                        if(msg.type === "pkg_manager_info") container.querySelector('.pkg-manager-name').innerText = msg.payload.toUpperCase();
+                    };
+                }
+
+                // --- FUNCTIONS ---
+                function runPkgOp(action, pkgName = "") {
+                    if(!confirm("Confermi l'operazione: " + action + " " + pkgName + "?")) return;
+                    
+                    if (!ws || ws.readyState !== WebSocket.OPEN) {
+                        alert("Errore: Connessione WebSocket non attiva. Riprova tra poco.");
+                        return;
+                    }
+
+                    // Switch to dashboard for logs (Safe navigation)
+                    try {
+                        container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                        const dashNav = container.querySelector('.nav-item[data-view="dashboard"]');
+                        if(dashNav) dashNav.classList.add('active');
+                        
+                        container.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active-view'));
+                        const dashView = container.querySelector('#view-dashboard');
+                        if(dashView) dashView.classList.add('active-view');
+                    } catch(e) { console.error("Error switching view", e); }
+                    
+                    // toggleLoading(true); // RIMOSSO: Non blocchiamo la UI, mostriamo la console
+                    container.querySelector('.pkg-console').innerHTML = `<div class="console-line">> Avvio comando: ${action} ${pkgName}...</div>`;
+                    
+                    ws.send(JSON.stringify({ 
+                        type: "pkg_command", host_id: parseInt(currentId), term_id: termId,
+                        payload: { action: action, package: pkgName } 
+                    }));
+                }
+
+                function toggleLoading(show) { container.querySelector('.loading-overlay').style.display = show ? 'flex' : 'none'; }
+
+                function appendConsole(text) {
+                    const c = container.querySelector('.pkg-console');
+                    // Optimization: Handle large outputs and limit DOM elements
+                    const fragment = document.createDocumentFragment();
+                    // Replace \r with \n to break lines, then split to handle progress bars gracefully
+                    const lines = text.replace(/\r/g, '\n').split('\n');
+                    
+                    lines.forEach(line => {
+                        if(!line.trim()) return;
+                        const div = document.createElement('div');
+                        div.className = 'console-line';
+                        div.innerText = line;
+                        fragment.appendChild(div);
+                    });
+                    c.appendChild(fragment);
+                    
+                    // Keep buffer size reasonable to prevent browser freeze (max 300 lines)
+                    while (c.childElementCount > 300) {
+                        c.removeChild(c.firstChild);
+                    }
+                    c.scrollTop = c.scrollHeight;
+                }
+
+                function loadInstalled() {
+                    container.querySelector('.body-installed').innerHTML = '<tr><td colspan="4">Caricamento...</td></tr>';
+                    ws.send(JSON.stringify({ type: "pkg_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_installed" } }));
+                }
+
+                function renderInstalled(list) {
+                    const tbody = container.querySelector('.body-installed');
+                    tbody.innerHTML = "";
+                    list.forEach(p => {
+                        const isHold = p.status.includes("hold");
+                        const tr = document.createElement('tr');
+                        tr.className = "pkg-row";
+                        tr.innerHTML = `
+                            <td style="font-weight:bold; color:white">${p.name}</td>
+                            <td style="color:var(--text-dim)">${p.version}</td>
+                            <td><span class="badge ${isHold ? 'badge-hold' : 'badge-install'}">${p.status}</span></td>
+                            <td>
+                                <button class="btn btn-sm btn-danger" data-action="remove" data-pkg="${p.name}" title="Rimuovi"><i class="fas fa-trash"></i></button>
+                                <button class="btn btn-sm" data-action="reinstall" data-pkg="${p.name}" title="Reinstalla"><i class="fas fa-sync"></i></button>
+                                <button class="btn btn-sm" data-action="${isHold?'unhold':'hold'}" data-pkg="${p.name}" title="${isHold?'Sblocca':'Blocca Versione'}">
+                                    <i class="fas ${isHold?'fa-lock-open':'fa-lock'}"></i>
+                                </button>
+                            </td>`;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                function searchRepo() {
+                    const q = container.querySelector('.input-search-repo').value;
+                    if(!q) return;
+                    container.querySelector('.body-search').innerHTML = '<tr><td colspan="3">Ricerca in corso...</td></tr>';
+                    ws.send(JSON.stringify({ type: "pkg_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "search", query: q } }));
+                }
+
+                function renderSearch(list) {
+                    const tbody = container.querySelector('.body-search');
+                    tbody.innerHTML = "";
+                    if(!list || list.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="3">Nessun risultato trovato.</td></tr>';
+                        return;
+                    }
+                    list.forEach(p => {
+                        const tr = document.createElement('tr');
+                        tr.className = "pkg-row";
+                        tr.innerHTML = `
+                            <td style="font-weight:bold; color:white">${p.name}</td>
+                            <td style="color:var(--text-dim); font-size:0.8em">${p.desc}</td>
+                            <td><button class="btn btn-sm btn-primary" data-action="install" data-pkg="${p.name}"><i class="fas fa-download"></i> Installa</button></td>`;
+                        tbody.appendChild(tr);
+                    });
+                }
+
+                function loadRepos() { ws.send(JSON.stringify({ type: "pkg_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "list_repos" } })); }
+                
+                function addRepo() {
+                    const repo = container.querySelector('.new-repo-line').value;
+                    if(repo) {
+                        runPkgOp('add_repo', repo);
+                        container.querySelector('.repoModal').style.display='none';
+                    }
+                }
+
+                function installDebUrl() {
+                    const url = container.querySelector('.deb-url-input').value;
+                    if(url) {
+                        if(!confirm("Installare da URL: " + url + "?")) return;
+                        container.querySelector('.debModal').style.display='none'; // Chiudi subito
+                        
+                        // Switch to dashboard for logs
+                        try {
+                            container.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+                            container.querySelector('.nav-item[data-view="dashboard"]').classList.add('active');
+                            container.querySelectorAll('.view-panel').forEach(p => p.classList.remove('active-view'));
+                            container.querySelector('#view-dashboard').classList.add('active-view');
+                        } catch(e) {}
+                        
+                        // toggleLoading(true); // RIMOSSO
+                        container.querySelector('.pkg-console').innerHTML = `<div class="console-line">> Download & Install: ${url}...</div>`;
+                        
+                        ws.send(JSON.stringify({ type: "pkg_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "install_url", url: url } }));
+                    }
+                }
+
+                function filterTable(selector, query) {
+                    const regex = new RegExp(query, 'i');
+                    container.querySelectorAll(`${selector} tr`).forEach(r => {
+                        r.style.display = regex.test(r.innerText) ? '' : 'none';
+                    });
+                }
+
+                appInstance.registerCleanup(() => { if(ws) ws.close(); });
+            })();
+        })();
+    </script>
+</div>

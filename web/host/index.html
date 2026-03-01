@@ -1,0 +1,159 @@
+<div id="host-module-template" style="display:none">
+    <div class="h-wrapper">
+        <div class="h-menu-container"></div>
+        <div class="h-content-area"></div>
+    </div>
+</div>
+
+<style>
+    /* Layout: Menu sopra, Contenuto sotto */
+    .h-wrapper { 
+        display: flex; flex-direction: column; 
+        width: 100%; height: 100%; 
+        background-color: #0d1117; color: #c9d1d9; 
+        overflow: hidden; font-family: 'JetBrains Mono', monospace; 
+    }
+    
+    .h-menu-container { 
+        flex-shrink: 0; width: 100%; 
+        background-color: #161b22; border-bottom: 1px solid #30363d; 
+        z-index: 10; 
+    }
+    
+    .h-content-area { 
+        flex: 1; position: relative; overflow: hidden; 
+        display: flex; flex-direction: column; 
+        background-color: #000; 
+    }
+</style>
+
+<script>
+    window.HostAppClass = class HostApp {
+        constructor(containerEl, hostId, hostName, workspaceId) {
+            this.container = containerEl;
+            this.hostId = parseInt(hostId, 10); // Assicura che sia INTERO per il confronto
+            this.hostName = hostName;
+            this.workspaceId = workspaceId || 0;
+            this.cleanupHandlers = [];
+        }
+
+        async init() {
+            // 1. Carica Menu (se container esiste)
+            const menuContainer = this.container.querySelector('.h-menu-container');
+            if(menuContainer) {
+                try {
+                    const res = await fetch('/host/menu.html');
+                    
+                    // Se il menu non esiste, logga errore ma PROSEGUI a caricare la dashboard
+                    if(!res.ok) throw new Error(`Menu status ${res.status}`);
+                    
+                    const htmlContent = await res.text();
+                    const parser = new DOMParser();
+                    const doc = parser.parseFromString(htmlContent, 'text/html');
+
+                    // Inietta stili menu
+                    doc.querySelectorAll('style').forEach(s => this.container.appendChild(s));
+                    
+                    // Inietta HTML menu
+                    const tempBody = doc.body;
+                    tempBody.querySelectorAll('script, style').forEach(el => el.remove());
+                    menuContainer.innerHTML = tempBody.innerHTML;
+
+                    // Esegui script menu
+                    const scripts = parser.parseFromString(htmlContent, 'text/html').querySelectorAll('script');
+                    scripts.forEach(script => {
+                        try { 
+                            // Passa 'this' come 'appInstance' allo script del menu
+                            (new Function('appInstance', script.innerText))(this); 
+                        } catch(e) { console.error("[HostApp] Menu Script Error:", e); }
+                    });
+
+                } catch(e) {
+                    console.error("[HostApp] Menu Load Failed:", e);
+                    menuContainer.innerHTML = `<div style="padding:5px; color:red; font-size:0.8em">Menu Error: ${e.message}</div>`;
+                }
+            }
+
+            // 2. Carica Dashboard (Sempre, anche se il menu fallisce)
+            this.loadPage('dashboard.html', null);
+        }
+
+        destroy() {
+            // Pulisci risorse (websocket, event listeners)
+            this.runCleanup();
+            this.container.innerHTML = '';
+        }
+
+        async loadPage(pageName, element, mode = null) {
+            // Cleanup pagina precedente
+            this.runCleanup();
+
+            // Update UI Menu (Active State)
+            const menuContainer = this.container.querySelector('.h-menu-container');
+            if (menuContainer) {
+                menuContainer.querySelectorAll('.h-item').forEach(el => el.classList.remove('active', 'active-root'));
+                if(element) {
+                    if (typeof element === 'string') {
+                        // Se passato come selettore (es. caricamento iniziale)
+                        const target = menuContainer.querySelector(element);
+                        if (target) target.classList.add(mode === 'root' ? 'active-root' : 'active');
+                    } else {
+                        // Se passato come elemento DOM (click)
+                        element.classList.add(mode === 'root' ? 'active-root' : 'active');
+                    }
+                }
+            }
+
+            const contentArea = this.container.querySelector('.h-content-area');
+            contentArea.innerHTML = '<div style="display:flex;height:100%;align-items:center;justify-content:center;color:#666"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+
+            // Fetch Pagina con Timestamp
+            let url = `/host/${pageName}?id=${this.hostId}&t=${Date.now()}`;
+            if(mode) url += `&mode=${mode}`;
+
+            try {
+                const resp = await fetch(url);
+                if(!resp.ok) throw new Error(`HTTP ${resp.status}`);
+                const html = await resp.text();
+                
+                contentArea.innerHTML = html;
+
+                // Esegui Script Pagina (Dashboard, Terminal, etc.)
+                const scripts = contentArea.querySelectorAll('script');
+                scripts.forEach(oldScript => {
+                    const code = oldScript.textContent;
+                    try {
+                        // CRUCIALE: Passiamo 'appInstance' e 'hostId' allo script interno
+                        const dynamicFn = new Function('appInstance', 'hostId', code);
+                        dynamicFn(this, this.hostId); 
+                    } catch(err) { 
+                        console.error(`[HostApp] Script Error in ${pageName}:`, err); 
+                    }
+                });
+
+                // Carica CSS Pagina
+                contentArea.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
+                    const nl = document.createElement('link');
+                    nl.rel = 'stylesheet'; nl.href = l.href;
+                    document.head.appendChild(nl); 
+                });
+
+            } catch(e) {
+                contentArea.innerHTML = `<div style="color:#da3633; padding:20px;">Load Error: ${e.message}</div>`;
+            }
+        }
+
+        registerCleanup(fn) {
+            // Stack cleanup handlers (don't overwrite)
+            this.cleanupHandlers.push(fn);
+        }
+
+        runCleanup() {
+            while (this.cleanupHandlers.length > 0) {
+                const fn = this.cleanupHandlers.pop();
+                try { fn(); } catch(e) { console.error("[HostApp] Cleanup error:", e); }
+            }
+        }
+    }
+    
+</script>

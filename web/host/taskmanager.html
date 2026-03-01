@@ -1,0 +1,778 @@
+<div class="taskmgr-module-wrapper">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+    <style>
+        .taskmgr-module-wrapper {
+            display: flex; flex-direction: column; width: 100%; height: 100%; overflow: hidden;
+            background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace;
+            position: relative; box-sizing: border-box; user-select: none;
+            --bg-body: #0d1117; --bg-panel: #161b22; --border: #30363d;
+            --accent: #238636; --highlight: #1f6feb; --text-dim: #8b949e;
+            --danger: #da3633; --warning: #d29922; --success: #2ea043;
+        }
+        .taskmgr-module-wrapper * { box-sizing: border-box; }
+
+        /* --- TOP STATS BAR (Sticky) --- */
+        .tm-stats-bar {
+            display: grid; grid-template-columns: 2fr 2fr 2fr; gap: 15px;
+            padding: 15px; background: var(--bg-panel); border-bottom: 1px solid var(--border);
+            flex-shrink: 0; 
+            z-index: 4; /* Abbassato per evitare sovrapposizioni col menu dropdown principale */
+            position: sticky; top: 0;
+        }
+
+        .stat-card { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; }
+        .stat-header { font-size: 0.8em; color: var(--text-dim); display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;}
+        .stat-value { font-size: 1.1em; font-weight: bold; color: white; }
+        .progress-bg { width: 100%; height: 6px; background: #30363d; border-radius: 3px; overflow: hidden; margin-top: 5px; }
+        .progress-fill { height: 100%; transition: width 0.5s ease; }
+
+        /* CPU Cores Grid */
+        .cpu-cores-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; margin-top: 8px; max-height: 60px; overflow-y: auto; }
+        .core-bar-wrapper { height: 25px; background: #161b22; border: 1px solid #30363d; position: relative; display: flex; align-items: flex-end; }
+        .core-fill { width: 100%; background: var(--highlight); transition: height 0.3s; opacity: 0.8; }
+        .core-label { position: absolute; bottom: 0; left: 0; width: 100%; text-align: center; font-size: 0.6em; color: rgba(255,255,255,0.5); pointer-events: none; }
+
+        /* Detailed Memory Bar */
+        .mem-detailed-bar { display: flex; height: 15px; width: 100%; background: #30363d; border-radius: 4px; overflow: hidden; margin-top: 5px; }
+        .mem-seg { height: 100%; transition: width 0.5s ease; }
+        .mem-used { background: var(--warning); }
+        .mem-cache { background: var(--accent); }
+        .mem-free { background: #30363d; }
+        
+        .mem-legend { display: flex; gap: 10px; font-size: 0.7em; margin-top: 5px; color: var(--text-dim); }
+        .legend-item { display: flex; align-items: center; gap: 4px; }
+        .legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+
+        /* Stat Details Row (inside card) */
+        .stat-details-row { display: flex; justify-content: space-between; margin-top: 10px; font-size: 0.8em; color: var(--text-dim); border-top: 1px solid #30363d; padding-top: 5px; }
+        .stat-details-row div { display: flex; gap: 5px; }
+        .stat-details-row span { color: #e6edf3; font-weight: bold; }
+
+        .fill-cpu { background: var(--highlight); } .fill-mem { background: var(--warning); } .fill-swp { background: var(--danger); }
+
+        /* --- TOOLBAR CONTROLS --- */
+        .tm-controls-bar {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 10px 15px; background: #0d1117; border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .tm-search-box {
+            position: relative; width: 250px;
+        }
+        .tm-search-box input {
+            width: 100%; padding: 6px 10px 6px 30px; border-radius: 4px; border: 1px solid var(--border);
+            background: #161b22; color: white; font-family: inherit; font-size: 0.9em; outline: none;
+        }
+        .tm-search-box input:focus { border-color: var(--highlight); }
+        .tm-search-box i { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-dim); }
+
+        /* --- PROCESS TABLE --- */
+        .tm-table-container { flex: 1; overflow: auto; position: relative; min-height: 0; }
+        .tm-table { width: max-content; min-width: 100%; border-collapse: collapse; font-size: 0.85em; table-layout: auto; }
+        .tm-table th { 
+            text-align: left; padding: 10px; background: #161b22; color: var(--accent); 
+            border-bottom: 2px solid var(--border); position: sticky; top: 0; 
+            z-index: 3; /* Abbassato per stare sotto la top bar e menu */
+            cursor: pointer;
+        }
+        .tm-table th:hover { color: white; background: #21262d; }
+
+        .tm-table td { padding: 4px 10px; border-bottom: 1px solid #21262d; white-space: nowrap; cursor: default; overflow: hidden; text-overflow: ellipsis; }
+        
+        .tm-row:hover { background-color: #21262d; }
+        .tm-row.selected { background-color: rgba(31, 111, 235, 0.15); }
+        .tm-row.row-hidden { display: none; }
+
+        /* Tree View Styling */
+        .proc-comm { display: flex; align-items: center; overflow: hidden; }
+        .tree-spacer { display: inline-block; width: 15px; } 
+        .tree-line { border-left: 1px solid #444; width: 15px; height: 14px; display: inline-block; margin-right: 2px; }
+        
+        .tree-toggle { cursor: pointer; margin-right: 5px; width: 12px; text-align: center; color: var(--text-dim); transition: transform 0.2s; font-size: 0.9em; }
+        .tree-toggle:hover { color: white; }
+        .tree-toggle.collapsed { transform: rotate(-90deg); }
+        .tree-toggle.invisible { visibility: hidden; } 
+        
+        .comm-text { font-weight: bold; color: #e6edf3; margin-right: 6px; }
+        .args-text { color: var(--text-dim); font-style: italic; font-size: 0.9em; }
+
+        .state-R { color: var(--success); font-weight: bold; } 
+        .state-S { color: var(--text-dim); } 
+        .state-Z { color: var(--danger); font-weight: bold; background: rgba(218, 54, 51, 0.2); padding: 0 4px; border-radius: 3px;} 
+        .user-root { color: var(--warning); } 
+        .val-high { color: var(--danger); font-weight: bold; } 
+
+        /* --- CONTEXT MENU --- */
+        .context-menu {
+            display: none; position: fixed; z-index: 9999;
+            background: var(--bg-panel); border: 1px solid var(--border);
+            border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9);
+            min-width: 200px; padding: 5px 0;
+        }
+
+        .ctx-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: var(--text-main); font-size: 0.9em; transition: 0.2s; }
+        .ctx-item:hover { background: var(--accent); color: white; }
+        .ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
+        .ctx-danger:hover { background: var(--danger); }
+
+        /* --- SIDE DETAILS PANEL --- */
+        .tm-details-panel {
+            position: absolute; top: 0; right: -600px; width: 600px; height: 100%;
+            background: var(--bg-panel); border-left: 1px solid var(--border);
+            z-index: 100; transition: right 0.3s cubic-bezier(0.25, 0.8, 0.25, 1); display: flex; flex-direction: column;
+            box-shadow: -5px 0 20px rgba(0,0,0,0.5);
+        }
+        .tm-details-panel.open { right: 0; }
+        
+        .tm-panel-header { padding: 15px; border-bottom: 1px solid var(--border); font-weight: bold; display: flex; justify-content: space-between; align-items: center; background: #161b22; }
+        .tm-panel-body { padding: 0; overflow-y: auto; flex: 1; background: #0d1117; }
+
+        .tm-tabs { display: flex; background: #161b22; border-bottom: 1px solid var(--border); }
+        .tm-tab { padding: 10px 20px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); font-size: 0.9em; transition: 0.2s; }
+        .tm-tab.active { background: #0d1117; color: white; border-top: 2px solid var(--accent); }
+        .tm-tab:hover { color: white; background: #222; }
+        .tm-raw-content { padding: 15px; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; color: #ccc; line-height: 1.4; }
+        
+        .tm-footer { padding: 8px 20px; background: var(--bg-panel); border-top: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; font-size: 0.8em; color: var(--text-dim); flex-shrink: 0; }
+    </style>
+
+    <div class="tm-stats-bar">
+        <div class="stat-card">
+            <div class="stat-header"><span>CPU (<span id="lbl-cpu-count">0</span> Cores)</span><span id="lbl-cpu">0%</span></div>
+            <div class="cpu-cores-grid" id="cpu-cores-container"></div>
+            <div style="font-size:0.7em; color:var(--text-dim); margin-top:5px; text-align:right">Freq: <span id="lbl-cpu-freq" style="color:var(--highlight)">--</span></div>
+            <div class="stat-details-row">
+                <div>Load: <span id="lbl-load" style="color:var(--accent)">0.0</span></div>
+                <div>Tasks: <span id="lbl-tasks">0</span></div>
+                <div>Zombies: <span id="lbl-zombies" style="color:var(--danger)">0</span></div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-header"><span>Memory</span><span id="lbl-mem">0/0 GB</span></div>
+            <div class="mem-detailed-bar">
+                <div id="bar-mem-used" class="mem-seg mem-used" style="width: 0%" title="Used"></div>
+                <div id="bar-mem-cache" class="mem-seg mem-cache" style="width: 0%" title="Buff/Cache"></div>
+            </div>
+            <div class="mem-legend">
+                <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div> Used</div>
+                <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div> Cache</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#30363d"></div> Free</div>
+            </div>
+            <div class="stat-details-row">
+                <div style="width:100%; display:flex; flex-direction:column; gap:2px;">
+                    <div style="display:flex; justify-content:space-between; font-size:0.9em;"><span>Swap</span><span id="lbl-swp" style="color:var(--text-dim)">0/0 MB</span></div>
+                    <div class="progress-bg" style="height:4px;"><div id="bar-swp" class="progress-fill fill-swp" style="width: 0%"></div></div>
+                </div>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-header"><span>Disks (I/O & Space)</span></div>
+            <div id="disk-list-container" style="flex:1; overflow-y:auto; max-height:110px; font-size:0.8em; display:flex; flex-direction:column; gap:8px; padding-right:5px;"></div>
+        </div>
+    </div>
+
+    <div class="tm-controls-bar">
+        <div style="font-size: 0.85em; color: var(--text-dim)">
+            <i class="fas fa-list-ul"></i> Elenco Processi
+        </div>
+        <div style="display:flex; align-items:center; gap:8px">
+            <div class="tm-search-box">
+                <i class="fas fa-search"></i>
+                <input type="text" id="tm-search" placeholder="Filtra per PID o Nome...">
+            </div>
+            <button id="btn-open-cmd" title="Apri terminale" style="padding:6px 10px; border:1px solid var(--border); background:transparent; color:white; border-radius:4px; cursor:pointer;"><i class="fas fa-terminal"></i></button>
+        </div>
+    </div>
+
+    <div class="tm-table-container">
+        <table class="tm-table">
+            <thead>
+                <tr>
+                    <th class="sort-btn" data-sort="pid" style="width:70px">PID</th>
+                    <th class="sort-btn" data-sort="user" style="width:100px">USER</th>
+                    <th style="width:60px">PRI</th>
+                    <th class="sort-btn" data-sort="cpu" style="width:70px">CPU%</th>
+                    <th class="sort-btn" data-sort="mem" style="width:70px">MEM%</th>
+                    <th class="sort-btn" data-sort="virt" style="width:80px">VIRT</th>
+                    <th class="sort-btn" data-sort="disk_r" style="width:80px">DISK R</th>
+                    <th class="sort-btn" data-sort="disk_w" style="width:80px">DISK W</th>
+                    <th class="sort-btn" data-sort="time" style="width:80px">TIME</th>
+                    <th class="sort-btn" data-sort="start" style="width:120px">STARTED</th>
+                    <th style="width:60px">ST</th>
+                    <th>COMMAND</th>
+                </tr>
+            </thead>
+            <tbody id="proc-body">
+                <tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim)">Inizializzazione...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Terminal panel (hidden until opened) -->
+    <div id="tm-terminal-panel" style="display:none; height:260px; border-top:1px solid var(--border); background:#000;">
+        <div style="height:100%; padding:6px; box-sizing:border-box;">
+            <div id="tm-terminal-embed" class="terminal-embed"></div>
+        </div>
+    </div>
+
+    <div class="tm-footer">
+        <span><i class="fas fa-mouse-pointer"></i> Tasto Destro per Opzioni. Click <i class="fas fa-caret-down"></i> per espandere/collassare albero.</span>
+        <div style="display:flex; gap:10px; align-items:center">
+            <span id="conn-status" style="color:var(--warning)">Connecting...</span>
+            <button class="action-btn" id="btn-refresh-now" style="padding:2px 8px; font-size:0.9em; background:transparent; border:1px solid var(--border); color:white; border-radius:4px; cursor:pointer;"><i class="fas fa-sync"></i></button>
+        </div>
+    </div>
+
+    <div id="proc-ctx-menu" class="context-menu">
+        <div class="ctx-item" data-action="details"><i class="fas fa-info-circle" style="width:20px"></i> Dettagli & Files</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" data-action="stop"><i class="fas fa-pause" style="width:20px"></i> Sospendi (SIGSTOP)</div>
+        <div class="ctx-item" data-action="cont"><i class="fas fa-play" style="width:20px"></i> Riprendi (SIGCONT)</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" data-action="hup"><i class="fas fa-sync" style="width:20px"></i> Ricarica (SIGHUP)</div>
+        <div class="ctx-item" data-action="renice"><i class="fas fa-tachometer-alt" style="width:20px"></i> Cambia Priorità</div>
+        <div class="ctx-item" data-action="ionice"><i class="fas fa-hdd" style="width:20px"></i> IO Priority</div>
+        <div class="ctx-item ctx-danger" data-action="term"><i class="fas fa-times" style="width:20px"></i> Termina (SIGTERM)</div>
+        <div class="ctx-item ctx-danger" data-action="kill"><i class="fas fa-skull" style="width:20px"></i> Uccidi (SIGKILL)</div>
+    </div>
+
+    <div id="term-ctx-menu" class="context-menu">
+        <div class="ctx-item" data-action="copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="ctx-item" data-action="paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" style="color:#8b949e; font-size:0.8em; padding-left:10px; cursor:default">SCREEN</div>
+        <div class="ctx-item" data-action="screen-new"><i class="fas fa-plus-square"></i> New Screen</div>
+        <div class="ctx-item" data-action="screen-list"><i class="fas fa-list"></i> List Screens</div>
+        <div class="ctx-item" data-action="screen-resume"><i class="fas fa-play-circle"></i> Resume Screen</div>
+        <div class="ctx-item" data-action="screen-detach"><i class="fas fa-sign-out-alt"></i> Detach Screen</div>
+    </div>
+
+    <div class="tm-details-panel" id="panel-details">
+            <div class="tm-panel-header">
+                <span>Dettagli PID: <span id="det-pid" style="color:var(--highlight); font-family:monospace"></span></span>
+                <i class="fas fa-times btn-close-panel" style="cursor:pointer"></i>
+            </div>
+            <div class="tm-tabs">
+                <div class="tm-tab active" data-tab="files">File Aperti (lsof)</div>
+                <div class="tm-tab" data-tab="net">Connessioni Rete</div>
+                <div class="tm-tab" data-tab="env">Variabili Ambiente</div>
+            </div>
+            <div class="tm-panel-body">
+                <div id="det-content" class="tm-raw-content">Seleziona una tab...</div>
+            </div>
+    </div>
+
+    <script>
+        (function() {
+            if (typeof appInstance === 'undefined') { console.error("AppInstance not found"); return; }
+            const container = appInstance.container.querySelector('.taskmgr-module-wrapper');
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            
+            let ws = null;
+            let processData = [];  
+            let selectedPid = null;
+            let sortField = 'pid'; // Default tree view
+            let sortAsc = true;
+            let pollInterval;
+            let currentDetailTab = 'files';
+            let collapsedPids = new Set();
+            let currentSearchTerm = ''; // Termine di ricerca
+            // Monitoring / terminal ids for bridge routing
+            const monitorTermId = `${wsId}:tm-mon-` + Date.now();
+            let tmTermId = null; // interactive terminal id when opened
+            let tmTerm = null; // Terminal instance
+            let tmFit = null;
+
+            // Listener per barra di ricerca
+            container.querySelector('#tm-search').addEventListener('input', (e) => {
+                currentSearchTerm = e.target.value.toLowerCase().trim();
+                renderTable(); // Ri-renderizza con filtro applicato
+            });
+
+            // --- WEBSOCKET CONNECTION ---
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            try { ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`); } catch(e) {}
+
+            if(ws) {
+                ws.onopen = () => {
+                    container.querySelector('#conn-status').innerHTML = '<span style="color:var(--success)">● Live</span>';
+                    console.log('[TM] WS open - subscribing monitorTermId=', monitorTermId);
+                    // Subscribe with monitorTermId so the bridge can route tm_update correctly
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: monitorTermId }));
+                    startLoop();
+                };
+                ws.onclose = () => { container.querySelector('#conn-status').innerText = "Disconnected"; console.log('[TM] WS closed'); };
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    console.log('[TM] WS received:', msg.type, 'term_id=', msg.term_id);
+                    // tm_update: main stats + process list (routed using monitorTermId)
+                    if(msg.type === "tm_update") {
+                        // Only process updates intended for this monitor term (or if none provided)
+                        if(!msg.term_id || msg.term_id === monitorTermId) {
+                            updateStats(msg.payload.stats);
+                            processData = msg.payload.procs || [];
+                            renderTable();
+                        } else {
+                            console.log('[TM] tm_update ignored for term_id=', msg.term_id);
+                        }
+                    }
+                    if(msg.type === "tm_details") {
+                        if(!msg.term_id || msg.term_id === monitorTermId) container.querySelector('#det-content').innerText = msg.payload || "Nessun dato.";
+                    }
+                    if(msg.type === "tm_op_res") {
+                        if(!msg.term_id || msg.term_id === monitorTermId) {
+                            alert(msg.payload.msg);
+                            if(msg.payload.status === 'success') { container.querySelector('#panel-details').classList.remove('open'); fetchData(); }
+                        }
+                    }
+                    // ssh_output for interactive terminal
+                    if(msg.type === "ssh_output" && msg.term_id && tmTerm && msg.term_id === tmTermId) {
+                        try { tmTerm.write(msg.payload); } catch(e) { console.error("[TM] Error writing to terminal:", e); }
+                    }
+                };
+            }
+
+            function startLoop() { fetchData(); pollInterval = setInterval(fetchData, 3000); }
+            function fetchData() { 
+                console.log('[TM] fetchData -> sending taskmgr_command get_all with term_id=', monitorTermId);
+                if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "taskmgr_command", host_id: parseInt(currentId), term_id: monitorTermId, payload: { action: "get_all" } })); 
+            }
+
+            // --- RENDERING ---
+            function updateStats(s) {
+                if(!s) return;
+                
+                // CPU Overall & Cores
+                container.querySelector('#lbl-cpu').innerText = s.cpu_perc.toFixed(1) + "%";
+                container.querySelector('#lbl-cpu-count').innerText = s.cpu_count || 0;
+                container.querySelector('#lbl-cpu-freq').innerText = s.cpu_freq || "--";
+                
+                const coresContainer = container.querySelector('#cpu-cores-container');
+                coresContainer.innerHTML = ""; // Rebuild cores (simple way)
+                if (s.cpu_cores) {
+                    s.cpu_cores.forEach((usage, idx) => {
+                        const div = document.createElement('div');
+                        div.className = 'core-bar-wrapper';
+                        div.title = `Core ${idx}: ${usage.toFixed(1)}%`;
+                        div.innerHTML = `<div class="core-fill" style="height:${usage}%"></div><div class="core-label">${idx}</div>`;
+                        coresContainer.appendChild(div);
+                    });
+                }
+
+                // Memory Detailed
+                container.querySelector('#lbl-mem').innerText = `${(s.mem_used/1024).toFixed(1)}/${(s.mem_total/1024).toFixed(1)} GB`;
+                const cachePerc = s.mem_total > 0 ? (s.mem_buff / s.mem_total) * 100 : 0;
+                container.querySelector('#bar-mem-used').style.width = s.mem_perc + "%";
+                container.querySelector('#bar-mem-cache').style.width = cachePerc + "%";
+
+                container.querySelector('#lbl-swp').innerText = `${s.swp_used}/${s.swp_total} MB`;
+                container.querySelector('#bar-swp').style.width = s.swp_perc + "%";
+                
+                container.querySelector('#lbl-load').innerText = s.load_avg;
+                container.querySelector('#lbl-tasks').innerText = s.procs;
+                container.querySelector('#lbl-zombies').innerText = s.zombies;
+                
+                // Disk Widget
+                const diskList = container.querySelector('#disk-list-container');
+                diskList.innerHTML = "";
+                if(s.disks) {
+                    s.disks.forEach(d => {
+                        const totalStr = d.total > 0 ? formatBytes(d.total) : "N/A";
+                        const freeStr = d.total > 0 ? formatBytes(d.free) : "";
+                        const perc = d.total > 0 ? d.perc : 0;
+                        
+                        diskList.innerHTML += `
+                        <div style="border-bottom:1px solid #21262d; padding-bottom:5px;">
+                            <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
+                                <span style="color:#e6edf3; font-weight:bold">${d.name}</span>
+                                <span><span style="color:#238636">R:${d.read_speed}</span> <span style="color:#d29922">W:${d.write_speed}</span></span>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; color:var(--text-dim); font-size:0.9em;">
+                                <span>${freeStr} free</span> <span>${perc}% of ${totalStr}</span>
+                            </div>
+                            <div class="progress-bg" style="height:4px; margin-top:2px; background:#21262d"><div class="progress-fill" style="width:${perc}%; background:#e3b341"></div></div>
+                        </div>`;
+                    });
+                }
+            }
+
+            function renderTable() {
+                const tbody = container.querySelector('#proc-body');
+                let list = [...processData];
+
+                // FILTRO DI RICERCA
+                if (currentSearchTerm !== '') {
+                    list = list.filter(p => {
+                        return p.comm.toLowerCase().includes(currentSearchTerm) || 
+                               p.pid.toString().includes(currentSearchTerm) ||
+                               (p.args && p.args.toLowerCase().includes(currentSearchTerm));
+                    });
+                }
+
+                // TREE VIEW LOGIC (Disabilitata temporaneamente se c'è una ricerca in corso per evitare rami spezzati)
+                const isTree = (sortField === 'pid' && sortAsc && currentSearchTerm === '');
+
+                if (isTree) {
+                    // Mappa PID -> Children
+                    const childrenMap = {};
+                    list.forEach(p => {  
+                        if (!childrenMap[p.ppid]) childrenMap[p.ppid] = [];
+                        childrenMap[p.ppid].push(p);
+                    });
+
+                    // Radici
+                    const pidSet = new Set(list.map(x => x.pid));
+                    const roots = list.filter(p => !pidSet.has(p.ppid) || p.ppid === 0);
+                    roots.sort((a,b) => a.pid - b.pid);
+                    
+                    const visited = new Set();
+                    const finalTree = [];
+                    
+                    const buildTree = (nodes, depth) => {
+                        nodes.sort((a,b) => a.pid - b.pid);
+                        nodes.forEach(p => {
+                            if(visited.has(p.pid)) return;
+                            visited.add(p.pid);
+                            
+                            p._depth = depth;
+                            p._hasChildren = (childrenMap[p.pid] && childrenMap[p.pid].length > 0);
+                            finalTree.push(p);
+                            
+                            if (p._hasChildren && !collapsedPids.has(p.pid)) {
+                                buildTree(childrenMap[p.pid], depth + 1);
+                            }
+                        });
+                    };
+                    
+                    buildTree(roots, 0);
+                    list = finalTree;
+
+                } else {
+                    // Flat sorting
+                    list.sort((a, b) => {
+                        let va = a[sortField], vb = b[sortField];
+                        if (typeof va === 'string') { va = va.toLowerCase(); vb = vb.toLowerCase(); }
+                        if (va < vb) return sortAsc ? -1 : 1;
+                        if (va > vb) return sortAsc ? 1 : -1;
+                        return 0;
+                    });
+                }
+
+                let html = "";
+                list.forEach(p => {
+                    let stateClass = p.state === 'R' ? 'state-R' : (p.state === 'Z' ? 'state-Z' : 'state-S');
+                    let userClass = p.user === 'root' ? 'user-root' : '';
+                    let cpuStyle = p.cpu > 50 ? 'val-high' : '';
+                    let memStyle = p.mem > 50 ? 'val-high' : '';
+                    let virtStr = formatBytes(p.virt * 1024); // p.virt is in KB
+                    let diskRStr = formatBytes(p.disk_r);
+                    let diskWStr = formatBytes(p.disk_w);
+                    let startShort = p.start ? (p.start.split(' ').slice(1,3).join(' ') + ' ' + p.start.split(' ')[3].substring(0,5)) : "";
+                    // Indentazione
+                    let indent = "";
+                    if (isTree) {
+                        for(let i=0; i<p._depth; i++) indent += `<span class="tree-spacer"></span>`;
+                        if (p._hasChildren) {
+                            const icon = collapsedPids.has(p.pid) ? 'fa-caret-right' : 'fa-caret-down';
+                            indent += `<i class="fas ${icon} tree-toggle" data-pid="${p.pid}"></i>`;
+                        } else {
+                            indent += `<span class="tree-spacer"></span>`;
+                        }
+                    }
+
+                    // Evidenzia testo cercato
+                    let commText = p.comm;
+                    if(currentSearchTerm !== '' && commText.toLowerCase().includes(currentSearchTerm)) {
+                        // Semplice higlight (case insensitive)
+                        const regex = new RegExp(`(${currentSearchTerm})`, "gi");
+                        commText = commText.replace(regex, "<span style='background:rgba(255,255,0,0.3)'>$1</span>");
+                    }
+
+                    const cmdHtml = `<div class="proc-comm">${indent}<span class="comm-text">${commText}</span> <span class="args-text">${p.args}</span></div>`;
+
+                    // Create row element manually to attach events safely
+                    // But since we are building a string for innerHTML, we can't attach events here easily without re-querying.
+                    // Better approach: Use data attributes and delegate or attach after render.
+                    // Given the structure, let's build the string but remove inline handlers that use window.*
+                    
+                    html += `<tr class="tm-row" data-pid="${p.pid}">
+                        <td style="color:var(--text-dim)">${p.pid}</td>
+                        <td class="${userClass}">${p.user}</td>
+                        <td>${p.nice}</td>
+                        <td class="${cpuStyle}">${p.cpu.toFixed(1)}%</td>
+                        <td class="${memStyle}">${p.mem.toFixed(1)}%</td>
+                        <td style="color:var(--text-dim)">${virtStr}</td>
+                        <td style="color:var(--text-dim); font-size:0.9em">${diskRStr}</td>
+                        <td style="color:var(--text-dim); font-size:0.9em">${diskWStr}</td>
+                        <td style="font-family:monospace; color:var(--text-dim)">${p.time}</td>
+                        <td style="font-size:0.8em; color:var(--text-dim)" title="${p.start}">${startShort}</td>
+                        <td class="${stateClass}">${p.state}</td>
+                        <td title="${p.args}">${cmdHtml}</td>
+                    </tr>`;
+                });
+                
+                if(list.length === 0 && processData.length > 0) {
+                    html = `<tr><td colspan="7" style="text-align:center; padding:20px; color:var(--text-dim)">Nessun processo trovato per la ricerca "${currentSearchTerm}"</td></tr>`;
+                }
+
+                tbody.innerHTML = html;
+                
+                // Attach events locally to avoid window.* conflicts
+                tbody.querySelectorAll('.tm-row').forEach(row => {
+                    const pid = parseInt(row.dataset.pid);
+                    row.addEventListener('click', () => selectRow(row));
+                    row.addEventListener('contextmenu', (e) => openCtx(e, pid));
+                });
+            }
+
+            // --- INTERACTION ---
+            
+            // Toggle Tree Node
+            container.addEventListener('click', (e) => {
+                if (e.target.classList.contains('tree-toggle')) {
+                    e.stopPropagation();
+                    const pid = parseInt(e.target.dataset.pid);
+                    if (collapsedPids.has(pid)) collapsedPids.delete(pid);
+                    else collapsedPids.add(pid);
+                    renderTable();
+                }
+            });
+
+            const tmSort = (f) => {
+                if(sortField === f) sortAsc = !sortAsc;
+                else { sortField = f; sortAsc = false; }
+                if (f === 'pid') sortAsc = true; 
+                renderTable();
+            }
+
+            const selectRow = (el) => {
+                container.querySelectorAll('.tm-row').forEach(r => r.classList.remove('selected'));
+                el.classList.add('selected');
+            }
+
+            const openCtx = (e, pid) => {
+                e.preventDefault();
+                selectedPid = pid;
+                const menu = container.querySelector('#proc-ctx-menu');
+                
+                menu.style.left = e.clientX + "px";
+                menu.style.top = e.clientY + "px";
+                menu.style.display = "block";
+                
+                const closeMenu = () => { menu.style.display='none'; document.removeEventListener('click', closeMenu); };
+                document.addEventListener('click', closeMenu);
+            }
+
+            container.querySelector('#proc-ctx-menu').addEventListener('click', (e) => {
+                const item = e.target.closest('.ctx-item');
+                if(!item || !selectedPid) return;
+                const act = item.dataset.action;
+
+                if(act === 'details') { openDetails(selectedPid); }
+                else if(act === 'renice') {
+                    const val = prompt("Nuovo valore Nice (-20 a 19):", "0");
+                    if(val !== null) sendCmd("exec_raw", { cmd: `renice -n ${val} -p ${selectedPid}` });
+                } else if(act === 'ionice') {
+                    const cls = prompt("Classe IO (1=Realtime, 2=BestEffort, 3=Idle):", "2");
+                    if(cls !== null) sendCmd("exec_raw", { cmd: `ionice -c ${cls} -p ${selectedPid}` });
+                } else {
+                    let cmd = "";
+                    if(act === 'term') cmd = `kill -15 ${selectedPid}`;
+                    if(act === 'kill') cmd = `kill -9 ${selectedPid}`;
+                    if(act === 'hup') cmd = `kill -HUP ${selectedPid}`;
+                    if(act === 'stop') cmd = `kill -STOP ${selectedPid}`;
+                    if(act === 'cont') cmd = `kill -CONT ${selectedPid}`;
+                    if(cmd && confirm(`Eseguire azione su PID ${selectedPid}?`)) sendCmd("exec_raw", { cmd: cmd });
+                }
+            });
+
+            // Terminal Context Menu
+            const termEmbed = container.querySelector('#tm-terminal-embed');
+            const termCtxMenu = container.querySelector('#term-ctx-menu');
+            
+            termEmbed.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                termCtxMenu.style.left = e.clientX + 'px';
+                termCtxMenu.style.top = e.clientY + 'px';
+                termCtxMenu.style.display = 'block';
+            });
+
+            document.addEventListener('click', (e) => { if(!e.target.closest('#term-ctx-menu')) termCtxMenu.style.display = 'none'; });
+
+            termCtxMenu.addEventListener('click', async (e) => {
+                const item = e.target.closest('.ctx-item');
+                if(!item) return;
+                termCtxMenu.style.display = 'none';
+                const action = item.dataset.action;
+                const send = (d) => { if(ws && tmTermId) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: tmTermId, payload: d })); };
+
+                if(action === 'copy') {
+                    const sel = tmTerm.getSelection(); if(sel) navigator.clipboard.writeText(sel);
+                } else if(action === 'paste') {
+                    const text = await navigator.clipboard.readText(); if(text) send(text);
+                } else if(action === 'screen-new') {
+                    const n = prompt("Nome Screen:"); if(n) send(`screen -S ${n}\n`);
+                } else if(action === 'screen-list') {
+                    send(`screen -ls\n`);
+                } else if(action === 'screen-resume') {
+                    const n = prompt("Nome Screen:"); if(n) send(`screen -r ${n}\n`);
+                } else if(action === 'screen-detach') {
+                    send('\x01d');
+                }
+            });
+
+            // Details Modal Logic
+            function openDetails(pid) {
+                container.querySelector('#det-pid').innerText = pid;
+                container.querySelector('#panel-details').classList.add('open');
+                loadDetailContent();
+            }
+            container.querySelectorAll('.tm-tab').forEach(t => {
+                t.addEventListener('click', () => {
+                    container.querySelectorAll('.tm-tab').forEach(x => x.classList.remove('active'));
+                    t.classList.add('active');
+                    currentDetailTab = t.dataset.tab;
+                    loadDetailContent();
+                });
+            });
+            function loadDetailContent() {
+                container.querySelector('#det-content').innerText = "Caricamento...";
+                sendCmd("get_details", { pid: selectedPid, type: currentDetailTab });
+            }
+            container.querySelectorAll('.btn-close-panel').forEach(b => {
+                b.addEventListener('click', () => container.querySelector('#panel-details').classList.remove('open'));
+            });
+            container.querySelector('#btn-refresh-now').addEventListener('click', () => { console.log('[TM] Manual refresh clicked'); fetchData(); });
+
+            function sendCmd(act, data) {
+                // Always include monitorTermId so bridge responses (tm_op_res, tm_details, tm_update) are routed back correctly
+                const msg = { type: "taskmgr_command", host_id: parseInt(currentId), term_id: monitorTermId, payload: { action: act, ...data } };
+                console.log('[TM] sendCmd ->', msg);
+                ws.send(JSON.stringify(msg));
+            }
+
+            // --- SORTABLE HEADERS ---
+            function updateSortIndicator() {
+                container.querySelectorAll('.tm-table th.sort-btn').forEach(th => {
+                    const f = th.dataset.sort;
+                    if (!f) return;
+                    th.innerText = th.getAttribute('data-label') || th.textContent.trim();
+                    if (f === sortField) th.innerText += sortAsc ? ' ▲' : ' ▼';
+                });
+            }
+
+            // Initialize sort buttons (store original label)
+            container.querySelectorAll('.tm-table th.sort-btn').forEach(th => {
+                th.setAttribute('data-label', th.textContent.trim());
+                th.style.userSelect = 'none';
+                th.addEventListener('click', () => {
+                        tmSort(th.dataset.sort);
+                    updateSortIndicator();
+                });
+            });
+            updateSortIndicator();
+
+            // --- INTERACTIVE TERMINAL (CMD) ---
+            function initTmTerminal() {
+                if (tmTerm) return; // already initialized
+                // Ensure xterm and fit addon available
+                if (typeof Terminal === 'undefined') {
+                    console.error('[TM] Terminal not loaded');
+                    return;
+                }
+                const FitAddonCtor = (typeof window.FitAddon?.FitAddon === 'function') ? window.FitAddon.FitAddon : (typeof window.FitAddon === 'function' ? window.FitAddon : null);
+                if (!FitAddonCtor) { console.error('[TM] FitAddon not available'); return; }
+
+                // Create terminal
+                tmTermId = `${wsId}:tm-term-` + Date.now();
+                tmTerm = new Terminal({ cursorBlink:true, fontSize:12, fontFamily:'"JetBrains Mono", monospace', theme:{ background:'#000000', foreground:'#c9d1d9' } });
+                tmFit = new FitAddonCtor();
+                tmTerm.loadAddon(tmFit);
+                const embed = container.querySelector('#tm-terminal-embed');
+                tmTerm.open(embed);
+                setTimeout(()=>{ try{ tmFit.fit(); }catch(e){} }, 120);
+
+                // Send initial input then resize to trigger shell and fix dimensions
+                setTimeout(()=>{
+                    try {
+                        if (ws && ws.readyState === WebSocket.OPEN) {
+                            // 1. Send input to create session
+                            ws.send(JSON.stringify({ type: 'ssh_input', host_id: parseInt(currentId), term_id: tmTermId, payload: '\r' }));
+                            // 2. Send resize to fix dimensions
+                            setTimeout(()=>{
+                                try { tmFit.fit(); } catch(e){}
+                                ws.send(JSON.stringify({ type: 'ssh_resize', host_id: parseInt(currentId), term_id: tmTermId, payload: { cols: tmTerm.cols, rows: tmTerm.rows } }));
+                            }, 200);
+                        }
+                    } catch(e){ console.error('[TM] init send error', e); }
+                }, 100);
+
+                // Relay local input to bridge
+                tmTerm.onData(data => {
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({ type: 'ssh_input', host_id: parseInt(currentId), term_id: tmTermId, payload: data }));
+                    }
+                });
+
+                // Resize Observer per il terminale
+                let resizeTimeout;
+                const resizeObserver = new ResizeObserver(() => {
+                    if (tmFit && tmTermId && tmTerm) {
+                        clearTimeout(resizeTimeout);
+                        resizeTimeout = setTimeout(() => {
+                            if (embed.offsetParent === null) return; // Skip if hidden
+                            try { tmFit.fit(); } catch(e){}
+                            if (ws && ws.readyState === WebSocket.OPEN && tmTerm.cols > 0 && tmTerm.rows > 0) {
+                                ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: tmTermId, payload: { cols: tmTerm.cols, rows: tmTerm.rows } }));
+                            }
+                        }, 50);
+                    }
+                });
+                resizeObserver.observe(embed);
+            }
+            
+            function formatBytes(bytes, decimals = 1) {
+                if (!+bytes) return '0 B';
+                const k = 1024;
+                const dm = decimals < 0 ? 0 : decimals;
+                const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+                const i = Math.floor(Math.log(bytes) / Math.log(k));
+                return `${parseFloat((bytes / Math.pow(k, i)).toFixed(dm))} ${sizes[i]}`;
+            }
+
+            // Button to toggle terminal panel
+            const btnCmd = container.querySelector('#btn-open-cmd');
+            if (btnCmd) btnCmd.addEventListener('click', () => {
+                const panel = container.querySelector('#tm-terminal-panel');
+                if (!panel) return;
+                if (panel.style.display === 'none' || panel.style.display === '') {
+                    panel.style.display = 'block';
+                    initTmTerminal();
+                    setTimeout(() => {
+                        if(tmFit) {
+                            try { tmFit.fit(); } catch(e){}
+                            if(ws && ws.readyState === WebSocket.OPEN && tmTermId) {
+                                ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: tmTermId, payload: { cols: tmTerm.cols, rows: tmTerm.rows } }));
+                            }
+                        }
+                    }, 100);
+                } else {
+                    panel.style.display = 'none';
+                }
+            });
+
+            appInstance.registerCleanup(() => {
+                if(ws) {
+                    if(ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: monitorTermId }));
+                    if(tmTermId && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: tmTermId }));
+                    ws.close();
+                }
+                if(pollInterval) clearInterval(pollInterval);
+            });
+
+        })();
+    </script>
+</div>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login // ShellDeck</title>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body { background: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        .login-box { background: #161b22; border: 1px solid #30363d; padding: 40px; border-radius: 8px; width: 300px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .title { text-align: center; font-size: 1.5em; margin-bottom: 30px; color: #e6edf3; font-weight: bold; }
+        .input-group { margin-bottom: 20px; }
+        label { display: block; margin-bottom: 8px; font-size: 0.8em; color: #8b949e; }
+        input { width: 100%; padding: 10px; background: #0d1117; border: 1px solid #30363d; color: #e6edf3; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+        input:focus { border-color: #58a6ff; outline: none; }
+        button { width: 100%; padding: 10px; background: #238636; color: white; border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; cursor: pointer; font-family: inherit; font-weight: bold; margin-top: 10px; }
+        button:hover { background: #2ea043; }
+        .error { color: #da3633; font-size: 0.8em; text-align: center; margin-top: 15px; display: none; }
+    </style>
+</head>
+<body>
+    <div class="login-box">
+        <div class="title">// ShellDeck</div>
+        <div class="input-group">
+            <label>Username</label>
+            <input type="text" id="user" autofocus>
+        </div>
+        <div class="input-group">
+            <label>Password</label>
+            <input type="password" id="pass">
+        </div>
+        <button onclick="doLogin()">Login</button>
+        <div class="error" id="error-msg"></div>
+    </div>
+    <script>
+        async function doLogin() {
+            const user = document.getElementById('user').value;
+            const pass = document.getElementById('pass').value;
+            const errEl = document.getElementById('error-msg');
+            
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+                const data = await res.json();
+                
+                if (res.ok && data.status === 'success') {
+                    window.location.href = '/';
+                } else {
+                    errEl.innerText = data.msg || "Login failed";
+                    errEl.style.display = 'block';
+                }
+            } catch (e) {
+                errEl.innerText = "Connection error";
+                errEl.style.display = 'block';
+            }
+        }
+        document.getElementById('pass').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') doLogin();
+        });
+    </script>
+</body>
+</html>
