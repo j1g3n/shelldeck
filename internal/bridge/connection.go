@@ -1,4 +1,4 @@
-package main
+package bridge
 
 import (
 	"bytes"
@@ -328,7 +328,7 @@ func connectToHQ(serverID int) {
 					sendToHQ("sftp_init_res", msg.HostID, msg.TermID, map[string]string{"status": "error", "msg": err.Error()})
 					return
 				}
-				_, _, err = client.SendRequest("keepalive@jconman", true, nil)
+				_, _, err = client.SendRequest("keepalive@shelldeck", true, nil)
 				if err != nil {
 					sendToHQ("sftp_init_res", msg.HostID, msg.TermID, map[string]string{"status": "error", "msg": "Keepalive check failed: " + err.Error()})
 				} else {

@@ -1,7 +1,7 @@
 <div class="services-module-wrapper">
     
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+    <link rel="stylesheet" href="/lib/css/all.min.css">
+    <link rel="stylesheet" href="/lib/css/xterm.css" />
 
     <style>
         .services-module-wrapper {
@@ -265,7 +265,7 @@
 
             (async function init() {
                 try {
-                    if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+                    if (typeof ace === 'undefined') await loadScript('lib/js/ace.js');
                 } catch(e) { console.error(e); }
 
                 let svcEditor, rcEditor;

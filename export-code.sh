@@ -4,7 +4,7 @@
 # Script per esportare e splittare il codice su macOS/Linux
 # ==========================================
 
-OUTPUT_DIR="jconman_export"
+OUTPUT_DIR="shelldeck_export"
 MAX_BYTES=100000 # Circa 100KB
 
 # Colori per il terminale
@@ -35,7 +35,7 @@ PART_NUM=1
 CURRENT_BYTES=0
 
 get_current_file_path() {
-    echo "$OUTPUT_DIR/jconman_part_${PART_NUM}.txt"
+    echo "$OUTPUT_DIR/shelldeck_part_${PART_NUM}.txt"
 }
 
 CURRENT_FILE=$(get_current_file_path)

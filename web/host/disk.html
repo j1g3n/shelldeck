@@ -1,6 +1,6 @@
 <div class="disk-module-wrapper">
     
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/lib/css/all.min.css">
 
     <style>
         .disk-module-wrapper {
@@ -498,7 +498,7 @@
             });
 
             (async function init() {
-                try { if (typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js'); } catch(e) {}
+                try { if (typeof ace === 'undefined') await loadScript('lib/js/ace.js'); } catch(e) {}
                 
                 if(typeof ace !== 'undefined') {
                     fstabEditor = ace.edit(container.querySelector('#fstab-editor'));

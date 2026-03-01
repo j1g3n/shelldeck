@@ -1,5 +1,5 @@
 <div class="dashboard-wrapper">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="/lib/css/all.min.css">
 
     <style>
         .dashboard-wrapper { background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace; padding: 20px; height: 100%; width: 100%; display: flex; flex-direction: column; overflow-y: auto; overflow-x: hidden; box-sizing: border-box; }
@@ -532,9 +532,9 @@
                 // Carica Xterm in background
                 setTimeout(async () => {
                     try {
-                        loadStyle("https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css");
-                        await loadScript("https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js");
-                        await loadScript("https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js");
+                        loadStyle("lib/css/xterm.min.css");
+                        await loadScript("/lib/js/xterm.min.js");
+                        await loadScript("/lib/js/xterm-addon-fit.min.js");
                         
                         initMiniTerm();
                         

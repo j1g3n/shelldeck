@@ -1,4 +1,4 @@
-package main
+package bridge
 
 import (
 	"encoding/base64"
@@ -546,7 +546,7 @@ func handleAdminCommand(hostID int, termID string, payload map[string]interface{
 		} else if op == "unload" {
 			cmd = fmt.Sprintf("%smodprobe -r %s", cmdPrefix, mod)
 		} else if op == "blacklist" {
-			cmd = fmt.Sprintf("%ssh -c 'echo \"blacklist %s\" >> /etc/modprobe.d/blacklist-jconman.conf'", cmdPrefix, mod)
+			cmd = fmt.Sprintf("%ssh -c 'echo \"blacklist %s\" >> /etc/modprobe.d/blacklist-shelldeck.conf'", cmdPrefix, mod)
 		}
 		out, err := runSingleCommand(client, cmd)
 		if err != nil {

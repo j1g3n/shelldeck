@@ -82,7 +82,7 @@
         });
 
         async function init() {
-            if(typeof ace === 'undefined') await loadScript('https://cdnjs.cloudflare.com/ajax/libs/ace/1.4.12/ace.js');
+            if(typeof ace === 'undefined') await loadScript('lib/js/ace.js');
             if(typeof ace !== 'undefined') {
                 editor = ace.edit(wrapper.querySelector('#passwd-ace'));
                 editor.setTheme("ace/theme/monokai"); editor.session.setMode("ace/mode/text");

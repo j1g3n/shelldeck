@@ -1,4 +1,4 @@
-package main
+package bridge
 
 import (
 	"crypto/rand"
@@ -69,7 +69,7 @@ func ensureClient(hostID int, workspaceID int) (*ssh.Client, error) {
 	// Check if a client exists
 	if client, exists := sshClients[clientKey]; exists && client != nil {
 		// If it exists, check if it's alive
-		_, _, err := client.SendRequest("keepalive@jconman", true, nil)
+		_, _, err := client.SendRequest("keepalive@shelldeck", true, nil)
 		if err == nil {
 			// It's alive, unlock and return
 			sshClientsMu.Unlock()

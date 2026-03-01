@@ -1,4 +1,4 @@
-module jconman
+module shelldeck
 
 go 1.25.6
 

@@ -1,4 +1,4 @@
-package main
+package bridge
 
 import (
 	"bytes"
@@ -295,8 +295,8 @@ func showServerForm(existing *ServerConfig) {
 	nameEntry.SetPlaceHolder("My Server (Optional)")
 
 	urlEntry := widget.NewEntry()
-	urlEntry.SetPlaceHolder("localhost:3000")
-	urlEntry.Text = "localhost:3000"
+	urlEntry.SetPlaceHolder("localhost:9112")
+	urlEntry.Text = "localhost:9112"
 
 	userEntry := widget.NewEntry()
 	userEntry.SetPlaceHolder("admin")
@@ -393,6 +393,10 @@ func showServerForm(existing *ServerConfig) {
 	if existing == nil && len(getServers()) == 0 {
 		objects = append(objects, widget.NewLabelWithStyle("Welcome to ShellDeck Bridge", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}))
 		objects = append(objects, widget.NewLabel("Please configure your first server connection."))
+
+		note := widget.NewLabel("Please note: if this is your server's first run, default user and password is 'admin'.\nDefault port is 9112. Remember to change your password.\nIf you are connecting to an existing server, be sure the user exists on server.")
+		note.Wrapping = fyne.TextWrapWord
+		objects = append(objects, note)
 	}
 	objects = append(objects, form)
 	w.SetContent(container.NewVBox(objects...))

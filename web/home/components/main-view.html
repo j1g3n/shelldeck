@@ -240,7 +240,7 @@
         if (!window.AppState.currentProtocol) window.AppState.currentProtocol = 'all';
 
         if (!window.AppState.viewModeInit) {
-            const savedMode = localStorage.getItem('jconman_view_mode');
+            const savedMode = localStorage.getItem('shelldeck_view_mode');
             if (savedMode) window.AppState.viewMode = savedMode;
             
             // Init active tunnels state
@@ -654,7 +654,7 @@
 
     window.setViewMode = function(mode, el) {
         window.AppState.viewMode = mode;
-        localStorage.setItem('jconman_view_mode', mode);
+        localStorage.setItem('shelldeck_view_mode', mode);
         
         // Update buttons in the active view
         const container = document.querySelector('.host-view-instance.active') || document.getElementById('home-view');

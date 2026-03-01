@@ -470,14 +470,14 @@
                 console.log("[Terminal] Init started.");
                 try {
                     console.log("[Terminal] Loading xterm scripts...");
-                    loadStyle('https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css');
+                    loadStyle('lib/css/xterm.min.css');
                     
                     // Carica Terminal PRIMA
-                    await loadScript('https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js');
+                    await loadScript('/lib/js/xterm.min.js');
                     console.log("[Terminal] Terminal.js loaded.");
                     
                     // Poi carica FitAddon
-                    await loadScript('https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js');
+                    await loadScript('/lib/js/xterm-addon-fit.min.js');
                     console.log("[Terminal] FitAddon script loaded.");
                     
                 } catch(e) {

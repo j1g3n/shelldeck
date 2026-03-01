@@ -3,7 +3,7 @@
 # ==========================================
 
 # Cartella di output e dimensione massima per file (in caratteri, ~100KB)
-$OutputDir = "jconman_export"
+$OutputDir = "shelldeck_export"
 $MaxChars = 100000 
 
 # Estensioni e cartelle da ignorare
@@ -44,7 +44,7 @@ $PartNum = 1
 $CurrentChars = 0
 
 function Get-CurrentFilePath {
-    return "$OutputDir\jconman_part_$PartNum.txt"
+    return "$OutputDir\shelldeck_part_$PartNum.txt"
 }
 
 # 1. Crea l'indice della struttura

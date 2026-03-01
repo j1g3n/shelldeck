@@ -1,4 +1,4 @@
-package main
+package bridge
 
 import (
 	"database/sql"
@@ -23,7 +23,12 @@ type ServerConfig struct {
 }
 
 func initConfigDB() {
-	const dbPath = "cmd/bridge/connection.db"
+	// Assicura che la cartella esista
+	if _, err := os.Stat("data/client"); os.IsNotExist(err) {
+		os.MkdirAll("data/client", 0755)
+	}
+
+	const dbPath = "data/client/connection.db"
 	var err error
 	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
 		file, err := os.Create(dbPath)
