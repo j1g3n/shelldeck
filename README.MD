@@ -63,7 +63,7 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Zero-Touch Provisioning:** If the configuration or DB is missing, the server auto-generates them, falling back to a safe port (`9112`) and generating the necessary schema automatically.
 
 
-## 📥 Download (Ready-to-use Binaries) v0.5.1 UPDATE!!
+## 📥 Download (Ready-to-use Binaries) v0.5.2 UPDATE!!
 
 You don't need to build from source! Download the latest compiled binaries for your operating system directly:
 
