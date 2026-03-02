@@ -12,6 +12,7 @@ shelldeck-server*
 shelldeck-bridge*
 shelldeck-client*
 shelldeck-standalone*
+shelldeck-standalone
 
 # 2. Database generati dinamicamente (Contengono dati sensibili)
 *.db
