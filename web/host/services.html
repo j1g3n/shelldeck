@@ -91,6 +91,14 @@
         .svc-table th.sortable { cursor: pointer; user-select: none; }
         .svc-table th.sortable:hover { color: var(--text-main); }
         .svc-table th.active-sort { color: var(--accent); }
+
+        /* Sub-tabs */
+        .sub-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; background: #161b22; }
+        .sub-tab { padding: 8px 15px; cursor: pointer; color: var(--text-dim); border-right: 1px solid var(--border); font-size: 0.9em; }
+        .sub-tab:hover { background: #21262d; color: white; }
+        .sub-tab.active { background: var(--bg-body); color: var(--accent); border-top: 2px solid var(--accent); font-weight: bold; }
+        .sub-content { display: none; flex-direction: column; height: 100%; }
+        .sub-content.active { display: flex; }
     </style>
 
     <div class="svc-sidebar">
@@ -138,35 +146,61 @@
         <div id="view-crontab" class="main-content">
             <div class="panel-header">
                 <h3>Schedulazione (Crontab Utente)</h3>
-                <div style="display:flex; gap:10px">
+            </div>
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-target="cron-user-list">Lista</div>
+                <div class="sub-tab" data-target="cron-user-bulk">Bulk Editor</div>
+            </div>
+            
+            <div id="cron-user-list" class="sub-content active">
+                <div style="display:flex; gap:10px; margin-bottom:10px; justify-content:flex-end">
                     <button class="btn btn-add-cron-user"><i class="fas fa-plus"></i> Aggiungi Job</button>
                     <div class="btn-half-container">
                         <button class="action-btn btn-half btn-danger-light btn-clear-cron-user" title="Svuota"><i class="fas fa-trash"></i></button>
                         <button class="action-btn btn-half btn-refresh-cron-user" title="Aggiorna"><i class="fas fa-sync"></i></button>
                     </div>
                 </div>
+                <table class="svc-table">
+                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 120px;">Azioni</th></tr></thead>
+                    <tbody class="cron-tbody"></tbody>
+                </table>
             </div>
-            <table class="svc-table">
-                <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 80px;">Azioni</th></tr></thead>
-                <tbody class="cron-tbody"></tbody>
-            </table>
+            <div id="cron-user-bulk" class="sub-content">
+                <div class="editor-wrapper" style="margin-bottom:10px"><div class="ace-div" id="cron-user-editor"></div></div>
+                <div style="text-align:right"><button class="btn btn-save-cron-user-bulk">Salva Bulk</button></div>
+            </div>
         </div>
 
         <div id="view-cronroot" class="main-content">
             <div class="panel-header">
                 <h3 style="color:var(--warning)">Schedulazione (Crontab ROOT)</h3>
-                <div style="display:flex; gap:10px">
+                <div style="display:flex; align-items:center; gap:10px">
+                    <label style="font-size:0.8em; color:var(--text-dim); margin:0">Utente:</label>
+                    <select id="cron-root-user-select" style="background:#0d1117; border:1px solid var(--border); color:white; padding:5px; border-radius:4px; min-width:150px;"><option value="root">root</option></select>
+                </div>
+            </div>
+            <div class="sub-tabs">
+                <div class="sub-tab active" data-target="cron-root-list">Lista</div>
+                <div class="sub-tab" data-target="cron-root-bulk">Bulk Editor</div>
+            </div>
+
+            <div id="cron-root-list" class="sub-content active">
+                <div style="display:flex; gap:10px; margin-bottom:10px; justify-content:flex-end">
                     <button class="btn btn-add-cron-root"><i class="fas fa-plus"></i> Aggiungi Job</button>
                     <div class="btn-half-container">
                         <button class="action-btn btn-half btn-danger-light btn-clear-cron-root" title="Svuota"><i class="fas fa-trash"></i></button>
                         <button class="action-btn btn-half btn-refresh-cron-root" title="Aggiorna"><i class="fas fa-sync"></i></button>
                     </div>
                 </div>
+                <table class="svc-table">
+                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 120px;">Azioni</th></tr></thead>
+                    <tbody class="cronroot-tbody"></tbody>
+                </table>
             </div>
-            <table class="svc-table">
-                <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 80px;">Azioni</th></tr></thead>
-                <tbody class="cronroot-tbody"></tbody>
-            </table>
+            <div id="cron-root-bulk" class="sub-content">
+                <div class="editor-wrapper" style="margin-bottom:10px"><div class="ace-div" id="cron-root-editor"></div></div>
+                <div style="text-align:right"><button class="btn btn-save-cron-root-bulk">Salva Bulk</button></div>
+            </div>
         </div>
 
         <div id="view-rclocal" class="main-content">
@@ -268,9 +302,10 @@
                     if (typeof ace === 'undefined') await loadScript('lib/js/ace.js');
                 } catch(e) { console.error(e); }
 
-                let svcEditor, rcEditor;
+                let svcEditor, rcEditor, cronUserEditor, cronRootEditor;
                 let cronLines = [], cronRootLines = [];
                 let isCronRootEdit = false;
+                let editingCronIndex = -1; // -1 for new, >=0 for edit
                 let lastServices = [];
                 let serviceStats = {};
                 let currentSort = { field: 'name', asc: true };
@@ -286,6 +321,12 @@
                     
                     rcEditor = ace.edit(container.querySelector("#rc-editor-div")); 
                     rcEditor.setTheme("ace/theme/monokai"); rcEditor.session.setMode("ace/mode/sh");
+
+                    cronUserEditor = ace.edit(container.querySelector("#cron-user-editor"));
+                    cronUserEditor.setTheme("ace/theme/monokai"); cronUserEditor.session.setMode("ace/mode/sh");
+
+                    cronRootEditor = ace.edit(container.querySelector("#cron-root-editor"));
+                    cronRootEditor.setTheme("ace/theme/monokai"); cronRootEditor.session.setMode("ace/mode/sh");
                 }
 
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -342,10 +383,31 @@ WantedBy=multi-user.target`
                         
                         if(viewId === 'systemd') loadSystemd();
                         if(viewId === 'crontab') loadCron(false);
-                        if(viewId === 'cronroot') loadCron(true);
+                        if(viewId === 'cronroot') { loadCronUsers(); loadCron(true); }
                         if(viewId === 'rclocal') { loadRcLocal(); if(rcEditor) rcEditor.resize(); }
                     });
                 });
+
+                // Sub-tabs logic
+                container.querySelectorAll('.sub-tab').forEach(t => {
+                    t.addEventListener('click', () => {
+                        const parent = t.closest('.main-content');
+                        parent.querySelectorAll('.sub-tab').forEach(x => x.classList.remove('active'));
+                        t.classList.add('active');
+                        parent.querySelectorAll('.sub-content').forEach(c => c.classList.remove('active'));
+                        parent.querySelector('#'+t.dataset.target).classList.add('active');
+                        
+                        if(t.dataset.target === 'cron-user-bulk' && cronUserEditor) {
+                            cronUserEditor.setValue(cronLines.join('\n'), -1); cronUserEditor.resize();
+                        }
+                        if(t.dataset.target === 'cron-root-bulk' && cronRootEditor) {
+                            cronRootEditor.setValue(cronRootLines.join('\n'), -1); cronRootEditor.resize();
+                        }
+                    });
+                });
+
+                // Cron Root User Select
+                container.querySelector('#cron-root-user-select').addEventListener('change', () => loadCron(true));
 
                 // Systemd
                 bind('.btn-refresh-sysd', loadSystemd);
@@ -414,14 +476,18 @@ WantedBy=multi-user.target`
                 bind('.btn-add-cron-user', () => openCronModal(false));
                 bind('.btn-clear-cron-user', () => clearCrontab(false));
                 bind('.btn-refresh-cron-user', () => loadCron(false));
+                bind('.btn-save-cron-user-bulk', () => saveCronBulk(false));
                 
                 bind('.btn-add-cron-root', () => openCronModal(true));
                 bind('.btn-clear-cron-root', () => clearCrontab(true));
                 bind('.btn-refresh-cron-root', () => loadCron(true));
+                bind('.btn-save-cron-root-bulk', () => saveCronBulk(true));
 
                 // Cron Actions Delegation (User & Root)
                 const cronAction = (e, isRoot) => {
                     const btn = e.target.closest('button');
+                    if(!btn) return;
+                    if(btn.dataset.action === 'edit') editCron(parseInt(btn.dataset.index), isRoot);
                     if(btn && btn.dataset.action === 'delete') deleteCron(parseInt(btn.dataset.index), isRoot);
                 };
                 container.querySelector('.cron-tbody').addEventListener('click', (e) => cronAction(e, false));
@@ -477,8 +543,27 @@ WantedBy=multi-user.target`
                         if(msg.type === "cron_list") {
                             const raw = msg.payload.payload || "";
                             const lines = raw.split('\n').filter(l => l.trim() !== ""); // Filtra righe vuote
-                            if (msg.payload.is_root) { cronRootLines = lines; renderCronTable(true); } 
-                            else { cronLines = lines; renderCronTable(false); }
+                            if (msg.payload.is_root) { 
+                                cronRootLines = lines; 
+                                renderCronTable(true);
+                                if(cronRootEditor) cronRootEditor.setValue(cronRootLines.join('\n'), -1);
+                            } 
+                            else { 
+                                cronLines = lines; 
+                                renderCronTable(false); 
+                                if(cronUserEditor) cronUserEditor.setValue(cronLines.join('\n'), -1);
+                            }
+                        }
+
+                        if(msg.type === "cron_users_list") {
+                            const sel = container.querySelector('#cron-root-user-select');
+                            const current = sel.value;
+                            sel.innerHTML = "";
+                            let users = msg.payload || [];
+                            if(!users.includes('root')) users.unshift('root');
+                            users.forEach(u => { const opt = document.createElement('option'); opt.value = u; opt.innerText = u; sel.appendChild(opt); });
+                            if(current && Array.from(sel.options).some(o => o.value === current)) sel.value = current;
+                            else sel.value = "root";
                         }
                         
                         if(msg.type === "rclocal_content") {
@@ -659,7 +744,7 @@ WantedBy=multi-user.target`
                         } else {
                             let p = l.trim().split(/\s+/);
                             if(p.length >= 6) {
-                                tr.innerHTML = `<td style="color:var(--accent);font-weight:bold">${p.slice(0,5).join(" ")}</td><td>${p.slice(5).join(" ")}</td><td><button class="action-btn" style="color:var(--danger)" data-action="delete" data-index="${i}"><i class="fas fa-trash"></i></button></td>`;
+                                tr.innerHTML = `<td style="color:var(--accent);font-weight:bold">${p.slice(0,5).join(" ")}</td><td>${p.slice(5).join(" ")}</td><td><button class="action-btn" data-action="edit" data-index="${i}"><i class="fas fa-edit"></i></button><button class="action-btn" style="color:var(--danger)" data-action="delete" data-index="${i}"><i class="fas fa-trash"></i></button></td>`;
                             } else {
                                 tr.innerHTML = `<td>?</td><td colspan="2">${l}</td>`;
                             }
@@ -668,24 +753,94 @@ WantedBy=multi-user.target`
                     });
                 }
 
-                function openCronModal(r) { isCronRootEdit=r; container.querySelector('.modal-cron').style.display='flex'; }
+                function openCronModal(r) { 
+                    isCronRootEdit=r; 
+                    editingCronIndex = -1; // New mode
+                    container.querySelector('.c-min').value = "*";
+                    container.querySelector('.c-hour').value = "*";
+                    container.querySelector('.c-day').value = "*";
+                    container.querySelector('.c-month').value = "*";
+                    container.querySelector('.c-wday').value = "*";
+                    container.querySelector('.c-cmd').value = "";
+                    container.querySelector('.modal-cron').style.display='flex'; 
+                }
+
+                function editCron(index, isRoot) {
+                    isCronRootEdit = isRoot;
+                    editingCronIndex = index;
+                    const lines = isRoot ? cronRootLines : cronLines;
+                    const line = lines[index];
+                    if(!line) return;
+                    
+                    const parts = line.trim().split(/\s+/);
+                    if(parts.length >= 6) {
+                        container.querySelector('.c-min').value = parts[0];
+                        container.querySelector('.c-hour').value = parts[1];
+                        container.querySelector('.c-day').value = parts[2];
+                        container.querySelector('.c-month').value = parts[3];
+                        container.querySelector('.c-wday').value = parts[4];
+                        container.querySelector('.c-cmd').value = parts.slice(5).join(" ");
+                        container.querySelector('.modal-cron').style.display='flex';
+                    } else {
+                        alert("Formato riga non valido per l'editor visuale. Usa il Bulk Editor.");
+                    }
+                }
+
+                function loadCronUsers() {
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_list_users" } }));
+                }
+
+                function loadCron(r) { 
+                    let user = "";
+                    if (r) user = container.querySelector('#cron-root-user-select').value;
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_list", as_root: r, user: user } })); 
+                }
+
+                function saveCron(r) { 
+                    let user = "";
+                    if (r) user = container.querySelector('#cron-root-user-select').value;
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_save", as_root: r, content: (r?cronRootLines:cronLines).join("\n")+"\n", user: user } })); 
+                }
+
                 function addCronEntry() {
                     let cmd=container.querySelector('.c-cmd').value; if(!cmd) return;
                     let sched=`${container.querySelector('.c-min').value} ${container.querySelector('.c-hour').value} ${container.querySelector('.c-day').value} ${container.querySelector('.c-month').value} ${container.querySelector('.c-wday').value}`;
-                    if(isCronRootEdit) cronRootLines.push(`${sched} ${cmd}`); else cronLines.push(`${sched} ${cmd}`);
+                    
+                    const newLine = `${sched} ${cmd}`;
+                    const targetList = isCronRootEdit ? cronRootLines : cronLines;
+
+                    if(editingCronIndex >= 0) {
+                        targetList[editingCronIndex] = newLine;
+                    } else {
+                        targetList.push(newLine);
+                    }
+                    
                     saveCron(isCronRootEdit);
                     container.querySelector('.modal-cron').style.display='none';
                 }
                 function deleteCron(i, r) { if(r) cronRootLines.splice(i,1); else cronLines.splice(i,1); saveCron(r); }
                 function clearCrontab(r) { if(confirm("Svuotare?")) { if(r) cronRootLines=[]; else cronLines=[]; saveCron(r); } }
-                function saveCron(r) { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_save", as_root: r, content: (r?cronRootLines:cronLines).join("\n")+"\n" } })); }
+                
+                function saveCronBulk(isRoot) {
+                    const editor = isRoot ? cronRootEditor : cronUserEditor;
+                    const content = editor.getValue();
+                    const lines = content.split('\n').filter(l => l.trim() !== "");
+                    if(isRoot) cronRootLines = lines; else cronLines = lines;
+                    saveCron(isRoot);
+                }
 
                 // RC Local
                 function loadRcLocal() { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_read" } })); }
                 function saveRcLocal() { ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_save", content: rcEditor.getValue() } })); }
                 function deleteRcLocal() { if(confirm("Eliminare?")) ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "rc_delete" } })); }
 
-                appInstance.registerCleanup(() => { if(ws) ws.close(); if(svcEditor) svcEditor.destroy(); if(rcEditor) rcEditor.destroy(); });
+                appInstance.registerCleanup(() => { 
+                    if(ws) ws.close(); 
+                    if(svcEditor) svcEditor.destroy(); 
+                    if(rcEditor) rcEditor.destroy();
+                    if(cronUserEditor) cronUserEditor.destroy();
+                    if(cronRootEditor) cronRootEditor.destroy();
+                });
             })();
         })();
     </script>

@@ -637,11 +637,23 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		runSingleCommand(client, cmdPrefix+"systemctl daemon-reload")
 		sendToHQ("svc_op_res", hostID, termID, map[string]string{"status": "success"})
 
+	case "cron_list_users":
+		// Try common locations for crontabs
+		cmd := fmt.Sprintf("%sls -1 /var/spool/cron/crontabs/ 2>/dev/null || %sls -1 /var/spool/cron/ 2>/dev/null || %sls -1 /var/spool/cron/tabs/ 2>/dev/null", cmdPrefix, cmdPrefix, cmdPrefix)
+		out, _ := runSingleCommand(client, cmd)
+		users := strings.Fields(out)
+		sendToHQ("cron_users_list", hostID, termID, users)
+
 	case "cron_list":
 		asRoot, _ := payload["as_root"].(bool)
+		targetUser, _ := payload["user"].(string)
 		c := "crontab -l"
 		if asRoot {
-			c = cmdPrefix + "crontab -l"
+			if targetUser != "" {
+				c = fmt.Sprintf("%scrontab -u %s -l", cmdPrefix, targetUser)
+			} else {
+				c = cmdPrefix + "crontab -l"
+			}
 		}
 		out, err := runSingleCommand(client, c)
 		if err != nil && (strings.Contains(strings.ToLower(out), "no crontab") || strings.Contains(strings.ToLower(err.Error()), "exit status")) {
@@ -652,6 +664,7 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 	case "cron_save":
 		content, _ := payload["content"].(string)
 		asRoot, _ := payload["as_root"].(bool)
+		targetUser, _ := payload["user"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(content))
 
 		// Usa file temporaneo per evitare conflitti di stdin con sudo
@@ -664,7 +677,11 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 
 		var cmd string
 		if asRoot {
-			cmd = fmt.Sprintf("%scrontab %s", cmdPrefix, tmpFile)
+			if targetUser != "" {
+				cmd = fmt.Sprintf("%scrontab -u %s %s", cmdPrefix, targetUser, tmpFile)
+			} else {
+				cmd = fmt.Sprintf("%scrontab %s", cmdPrefix, tmpFile)
+			}
 		} else {
 			cmd = fmt.Sprintf("crontab %s", tmpFile)
 		}

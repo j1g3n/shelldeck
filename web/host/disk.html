@@ -339,7 +339,10 @@
                 <div class="disk-linear-container"><div class="disk-linear-fill an-part-fill"></div><div class="an-part-perc-text"></div></div>
             </div>
             <div class="analyzer-tree-header" style="display:grid; grid-template-columns: 3fr 1fr 1fr 1.5fr; padding:10px; background:#161b22; font-weight:bold; border-bottom:1px solid var(--border); border-radius: 6px 6px 0 0; color:var(--text-dim); font-size:0.9em;">
-                <div>Path <span id="analyzer-current-path" style="font-weight:normal; color:var(--accent); margin-left:10px; font-family:monospace;"></span></div><div style="text-align:right">Size</div><div style="text-align:right">%</div><div style="text-align:right; margin-right:10px">Modified</div>
+                <div class="an-sort-btn" data-sort="name" style="cursor:pointer; display:flex; align-items:center; overflow:hidden;">Path <i class="fas fa-sort" style="margin-left:5px"></i> <span id="analyzer-current-path" style="font-weight:normal; color:var(--accent); margin-left:10px; font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></span></div>
+                <div class="an-sort-btn" data-sort="size" style="text-align:right; cursor:pointer">Size <i class="fas fa-sort"></i></div>
+                <div class="an-sort-btn" data-sort="size" style="text-align:right; cursor:pointer">% <i class="fas fa-sort"></i></div>
+                <div class="an-sort-btn" data-sort="mtime" style="text-align:right; margin-right:10px; cursor:pointer">Modified <i class="fas fa-sort"></i></div>
             </div>
             <div class="analyzer-tree-container" style="flex:1; overflow-y:auto; border:1px solid var(--border); border-top:none; background:#0d1117;">
                 <div style="padding:20px; text-align:center; color:var(--text-dim)">Seleziona una partizione e premi Scan per iniziare l'analisi.</div>
@@ -490,6 +493,8 @@
             let selectedVG = null;
             let analyzerTarget = null; // Per context menu analyzer
             let fstabEditor = null;
+            let analyzerData = null;
+            let analyzerSort = { field: 'size', asc: false };
 
             // --- INIT ---
             const loadScript = (src) => new Promise((resolve) => {
@@ -584,6 +589,17 @@
                 // Analyzer
                 bind('.btn-analyze-refresh', () => { const v = container.querySelector('.analyzer-disk-select').value; if(v) runAnalysis(v); });
                 container.querySelector('.analyzer-disk-select').addEventListener('change', updateAnalyzerHeader);
+                
+                container.querySelectorAll('.an-sort-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const field = btn.dataset.sort;
+                        if(analyzerSort.field === field) analyzerSort.asc = !analyzerSort.asc;
+                        else { analyzerSort.field = field; analyzerSort.asc = (field === 'name'); }
+                        
+                        updateAnalyzerSortIcons();
+                        if(analyzerData) renderAnalysis(analyzerData, true);
+                    });
+                });
 
                 container.querySelectorAll('.btn-close-modal').forEach(b => b.addEventListener('click', () => container.querySelectorAll('.local-modal').forEach(m => m.style.display='none')));
 
@@ -1231,7 +1247,28 @@
                 ws.send(JSON.stringify({ type: "disk_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "analyze_space", path: path } }));
             }
 
-            function renderAnalysis(data) {
+            function updateAnalyzerSortIcons() {
+                container.querySelectorAll('.an-sort-btn i').forEach(i => i.className = 'fas fa-sort');
+                container.querySelectorAll(`.an-sort-btn[data-sort="${analyzerSort.field}"] i`).forEach(i => {
+                    i.className = analyzerSort.asc ? 'fas fa-sort-up' : 'fas fa-sort-down';
+                });
+            }
+
+            function renderAnalysis(data, fromCache = false) {
+                if (!fromCache) analyzerData = data;
+                else data = analyzerData;
+                
+                if (!data) return;
+
+                data.items.sort((a, b) => {
+                    let valA = a[analyzerSort.field], valB = b[analyzerSort.field];
+                    if (analyzerSort.field === 'name') { valA = valA.toLowerCase(); valB = valB.toLowerCase(); }
+                    if (valA < valB) return analyzerSort.asc ? -1 : 1;
+                    if (valA > valB) return analyzerSort.asc ? 1 : -1;
+                    return 0;
+                });
+                updateAnalyzerSortIcons();
+
                 const cont = container.querySelector('.analyzer-tree-container');
                 cont.innerHTML = "";
 
