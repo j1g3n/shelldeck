@@ -63,22 +63,22 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Zero-Touch Provisioning:** If the configuration or DB is missing, the server auto-generates them, falling back to a safe port (`9112`) and generating the necessary schema automatically.
 
 
-## 📥 Download (Ready-to-use Binaries)
+## 📥 Download (Ready-to-use Binaries) v0.5.1 UPDATE!!
 
 You don't need to build from source! Download the latest compiled binaries for your operating system directly:
 
 ### 🐧 Linux (amd64)
-* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/server-linux)
-* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/bridge-linux)
-* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/standalone-Linux)
+* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-server-linux)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-bridge-linux)
+* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-standalone-linux)
 
 ### 🪟 Windows (amd64)
-* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-server-windows.exe)
-* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-bridge-windows.exe)
-* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-standalone-windows.exe)
+* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-server-windows.exe)
+* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-bridge-windows.exe)
+* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-standalone-windows.exe)
 
 *(🍎 Mac OS builds coming very soon!)*
-### DOWNLOAD WEB FOLDER and put it on the binary root folder
+
 > 📦 **[View all Releases and Changelogs here](https://github.com/j1g3n/shelldeck/releases)**
 
 ## 🚀 Quick Start (Installation)
@@ -90,12 +90,8 @@ Shelldeck is a single compiled Go binary. No external dependencies required.
 # Clone the repository
 git clone https://github.com/j1g3n/shelldeck.git
 cd shelldeck
-
-# Build the Server (Linux example)
-GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o shelldeck-server ./cmd/server
-
-# Build the Bridge (Client for your OS, e.g., Windows)
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o shelldeck-bridge.exe ./cmd/bridge
+chmod +x build.sh
+./build.sh
 ```
 
 ### 2. Run the Server
