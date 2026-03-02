@@ -722,13 +722,13 @@
                 // Context menu for Browser Grid Items
                 const browserItem = e.target.closest('.browser-item');
                 if (browserItem) {
-                    selectedContextItem = { getAttribute: (attr) => browserItem.dataset[attr], checked: true }; // Mock checkbox interface
+                    selectedContextItem = browserItem.querySelector('.file-check');
                     showContextMenu(container.querySelector('.context-menu'), e.clientX, e.clientY);
                 }
                 // Context menu for Browser List Items (Table Rows)
                 const tableRow = e.target.closest('.browser-table tr');
                 if (tableRow && tableRow.dataset.name) {
-                    selectedContextItem = { getAttribute: (attr) => tableRow.dataset[attr], checked: true };
+                    selectedContextItem = tableRow.querySelector('.file-check');
                     showContextMenu(container.querySelector('.context-menu'), e.clientX, e.clientY);
                 }
             });
