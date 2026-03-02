@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title> ShellDeck (BETA)0.5</title>
-    <link href="/lib/css/j/lib/js/xterm-addon-fit.min.js" rel="stylesheet">
+    <link href="lib/js/xterm-addon-fit.min.js" rel="stylesheet">
     <link rel="stylesheet" href="/lib/css/all.min.css">
     <style>
         :root {
@@ -521,10 +521,6 @@
                     if(!res.ok) return;
                     const workspaces = await res.json() || [];
                     window.AppState.workspaces = workspaces;
-                    
-                    if (!window.AppState.currentWorkspaceId && workspaces.length > 0) {
-                        window.AppState.currentWorkspaceId = workspaces[0].id;
-                    }
 
                     document.querySelectorAll('.workspace-selector').forEach(sel => {
                         sel.innerHTML = '<option value="" disabled selected>Workspace</option>';
@@ -537,10 +533,21 @@
 
             loadData: async function() {
                 try {
-                    const wsId = window.AppState.currentWorkspaceId || 0;
-                    const res = await window.apiFetch(`/api/tree?workspace_id=${wsId}`);
+                    let wsId = window.AppState.currentWorkspaceId;
+                    let url = '/api/tree';
+                    if (wsId) url += `?workspace_id=${wsId}`;
+
+                    const res = await window.apiFetch(url);
                     if(!res.ok) throw new Error("API Error");
                     const data = await res.json();
+                    
+                    // Aggiorna l'ID con quello reale restituito dal server (che riflette il preferito salvato)
+                    if (data.workspace_id) {
+                        window.AppState.currentWorkspaceId = data.workspace_id;
+                        wsId = data.workspace_id;
+                        document.querySelectorAll('.workspace-selector').forEach(s => s.value = wsId);
+                    }
+
                     const hosts = (data.hosts || []).map(h => ({...h, workspace_id: wsId}));
                     
                     // Aggiorna AppState

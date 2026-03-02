@@ -126,10 +126,11 @@ type Host struct {
 }
 
 type QuickConnectReq struct {
-	Protocol string `json:"protocol"`
-	IP       string `json:"ip"`
-	User     string `json:"user"`
-	Password string `json:"password"`
+	Protocol    string `json:"protocol"`
+	IP          string `json:"ip"`
+	User        string `json:"user"`
+	Password    string `json:"password"`
+	WorkspaceID int    `json:"workspace_id"`
 }
 
 // Request struct per API varie
@@ -1171,7 +1172,7 @@ func Start() {
 			}
 		}
 
-		rows, err := targetDB.Query("SELECT id, parent_id, name, bg_color, text_color, user, jump_ip, jump_port, jump_user, jump_host_id FROM groups")
+		rows, err := targetDB.Query("SELECT id, parent_id, name, COALESCE(bg_color, ''), COALESCE(text_color, ''), COALESCE(user, ''), COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), jump_host_id FROM groups")
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
@@ -1183,8 +1184,8 @@ func Start() {
 			groups = append(groups, g)
 		}
 
-		rows2, err := targetDB.Query(`SELECT id, group_id, name, ip, user, protocol, favorite, jump_ip, 
-			CASE WHEN enc_key != '' THEN 1 ELSE 0 END as has_key 
+		rows2, err := targetDB.Query(`SELECT id, group_id, name, ip, COALESCE(user, ''), protocol, favorite, COALESCE(jump_ip, ''), 
+			CASE WHEN enc_key IS NOT NULL AND enc_key != '' THEN 1 ELSE 0 END as has_key 
 			FROM hosts WHERE is_temp = 0`)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1217,14 +1218,18 @@ func Start() {
 
 		if wsID != "" && wsID != "0" {
 			var dbPath, encKey string
-			if err := usersDB.QueryRow("SELECT db_path, encryption_key FROM groups WHERE id = ?", wsID).Scan(&dbPath, &encKey); err == nil {
-				if tempDB, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on"); err == nil {
-					targetDB = tempDB
-					defer tempDB.Close()
-				}
-				if encKey != "" {
-					reqKey = []byte(encKey)
-				}
+			log.Printf("Requesting credentials for Host %s in Workspace %s", id, wsID)
+			if err := usersDB.QueryRow("SELECT db_path, encryption_key FROM groups WHERE id = ?", wsID).Scan(&dbPath, &encKey); err != nil {
+				return c.Status(404).SendString("Workspace not found")
+			}
+			tempDB, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+			if err != nil {
+				return c.Status(500).SendString("Error opening workspace DB: " + err.Error())
+			}
+			targetDB = tempDB
+			defer tempDB.Close()
+			if encKey != "" {
+				reqKey = []byte(encKey)
 			}
 		}
 
@@ -1232,14 +1237,18 @@ func Start() {
 		var groupID sql.NullInt64
 
 		// 1. Prendi le credenziali dirette dell'host e il suo group_id
-		err := targetDB.QueryRow(`SELECT group_id, ip, user, enc_password, enc_key, enc_passphrase, protocol, 
-			jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id,
-			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port
+		err := targetDB.QueryRow(`SELECT group_id, ip, COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), protocol, 
+			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), jump_host_id,
+			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, '')
 			FROM hosts WHERE id = ?`, id).
 			Scan(&groupID, &h.IP, &h.User, &h.EncPassword, &h.EncKey, &h.EncPassphrase, &h.Protocol,
 				&h.JumpIP, &h.JumpPort, &h.JumpUser, &h.EncJumpPass, &h.JumpHostID,
 				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort)
 		if err != nil {
+			if err != sql.ErrNoRows {
+				log.Printf("DB Error in host-credentials: %v", err)
+				return c.Status(500).SendString("DB Error: " + err.Error())
+			}
 			return c.Status(404).SendString("Host not found")
 		}
 
@@ -1266,8 +1275,8 @@ func Start() {
 			var g Group
 			var parentID sql.NullInt64
 
-			err := targetDB.QueryRow(`SELECT parent_id, user, enc_password, enc_key, enc_passphrase, 
-				jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id FROM groups WHERE id = ?`, *currentGroupID).
+			err := targetDB.QueryRow(`SELECT parent_id, COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
+				COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), jump_host_id FROM groups WHERE id = ?`, *currentGroupID).
 				Scan(&parentID, &g.User, &g.EncPassword, &g.EncKey, &g.EncPassphrase, &g.JumpIP, &g.JumpPort, &g.JumpUser, &g.EncJumpPass, &g.JumpHostID)
 			if err != nil {
 				break // Errore o gruppo non trovato, interrompi
@@ -1331,7 +1340,8 @@ func Start() {
 			var jGroupID sql.NullInt64
 
 			// Recupera credenziali del Jump Host
-			err := targetDB.QueryRow("SELECT group_id, ip, user, enc_password, enc_key, enc_passphrase FROM hosts WHERE id = ?", *finalJumpHostID).
+			err := targetDB.QueryRow(`SELECT group_id, ip, COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, '') 
+				FROM hosts WHERE id = ?`, *finalJumpHostID).
 				Scan(&jGroupID, &jIP, &jUser, &jEncPass, &jEncKey, &jEncPhrase)
 
 			if err == nil {
@@ -1345,7 +1355,8 @@ func Start() {
 				for currentJGroupID != nil && (jUser == "" || jEncPass == "") {
 					var gUser, gEncPass string
 					var parentID sql.NullInt64
-					err := targetDB.QueryRow("SELECT parent_id, user, enc_password FROM groups WHERE id = ?", *currentJGroupID).Scan(&parentID, &gUser, &gEncPass)
+					err := targetDB.QueryRow(`SELECT parent_id, COALESCE(user, ''), COALESCE(enc_password, '') 
+						FROM groups WHERE id = ?`, *currentJGroupID).Scan(&parentID, &gUser, &gEncPass)
 					if err != nil {
 						break
 					}
@@ -1458,7 +1469,8 @@ func Start() {
 		}
 
 		var oldEncPass, oldEncKey, oldEncPhrase, oldEncJump string
-		targetDB.QueryRow("SELECT enc_password, enc_key, enc_passphrase, enc_jump_pass FROM hosts WHERE id=?", id).
+		targetDB.QueryRow(`SELECT COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), COALESCE(enc_jump_pass, '') 
+			FROM hosts WHERE id=?`, id).
 			Scan(&oldEncPass, &oldEncKey, &oldEncPhrase, &oldEncJump)
 
 		encPass := oldEncPass
@@ -1579,13 +1591,35 @@ func Start() {
 			return c.Status(400).SendString("Payload invalido")
 		}
 
-		encPass, err := encrypt(req.Password)
+		name := fmt.Sprintf("Quick: %s", req.IP)
+
+		// Seleziona il DB corretto in base al workspace_id
+		targetDB := db
+		key := MasterKey
+
+		if req.WorkspaceID > 0 {
+			var dbPath, encKey string
+			if err := usersDB.QueryRow("SELECT db_path, encryption_key FROM groups WHERE id = ?", req.WorkspaceID).Scan(&dbPath, &encKey); err != nil {
+				return c.Status(404).SendString("Workspace not found")
+			}
+			tempDB, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on")
+			if err != nil {
+				return c.Status(500).SendString("Error opening workspace DB: " + err.Error())
+			}
+			targetDB = tempDB
+			migrateDB(targetDB) // Assicura che lo schema sia aggiornato prima di scrivere
+			defer tempDB.Close()
+			if encKey != "" {
+				key = []byte(encKey)
+			}
+		}
+
+		encPass, err := encryptWithKey(req.Password, key)
 		if err != nil {
 			return c.Status(500).SendString("Encryption error: " + err.Error())
 		}
-		name := fmt.Sprintf("Quick: %s", req.IP)
 
-		res, err := db.Exec(`INSERT INTO hosts (name, ip, user, protocol, enc_password, is_temp) VALUES (?, ?, ?, ?, ?, 1)`,
+		res, err := targetDB.Exec(`INSERT INTO hosts (name, ip, user, protocol, enc_password, is_temp) VALUES (?, ?, ?, ?, ?, 1)`,
 			name, req.IP, req.User, req.Protocol, encPass)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1750,7 +1784,8 @@ func Start() {
 
 		// Prendi i vecchi valori criptati
 		var oldEncPass, oldEncKey, oldEncPhrase, oldEncJump string
-		targetDB.QueryRow("SELECT enc_password, enc_key, enc_passphrase, enc_jump_pass FROM groups WHERE id=?", id).Scan(&oldEncPass, &oldEncKey, &oldEncPhrase, &oldEncJump)
+		targetDB.QueryRow(`SELECT COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), COALESCE(enc_jump_pass, '') 
+			FROM groups WHERE id=?`, id).Scan(&oldEncPass, &oldEncKey, &oldEncPhrase, &oldEncJump)
 
 		encPass := oldEncPass
 		if g.Password != "" {
@@ -1814,12 +1849,42 @@ func Start() {
 		return c.SendStatus(200)
 	})
 
+	app.Put("/api/groups/:id/move", authReq, func(c *fiber.Ctx) error {
+		id := c.Params("id")
+		var req MoveGroupReq
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString("Bad Request")
+		}
+
+		targetDB, _, shouldClose, err := getTargetDBAndKey(c)
+		if err != nil {
+			return c.Status(500).SendString("DB Error: " + err.Error())
+		}
+		if shouldClose {
+			defer targetDB.Close()
+		}
+
+		_, err = targetDB.Exec("UPDATE groups SET parent_id = ? WHERE id = ?", req.ParentID, id)
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.SendStatus(200)
+	})
+
 	app.Post("/api/groups/:id/copy", authReq, func(c *fiber.Ctx) error {
 		id := c.Params("id")
+		targetDB, _, shouldClose, err := getTargetDBAndKey(c)
+		if err != nil {
+			return c.Status(500).SendString("DB Error: " + err.Error())
+		}
+		if shouldClose {
+			defer targetDB.Close()
+		}
+
 		var g Group
-		err := db.QueryRow(`SELECT parent_id, name, bg_color, text_color, 
-			user, enc_password, enc_key, enc_passphrase, 
-			jump_ip, jump_port, jump_user, enc_jump_pass 
+		err = targetDB.QueryRow(`SELECT parent_id, name, COALESCE(bg_color, ''), COALESCE(text_color, ''), 
+			COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
+			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, '') 
 			FROM groups WHERE id = ?`, id).
 			Scan(&g.ParentID, &g.Name, &g.BgColor, &g.TextColor,
 				&g.User, &g.EncPassword, &g.EncKey, &g.EncPassphrase,
@@ -1829,8 +1894,8 @@ func Start() {
 			return c.Status(404).SendString("Gruppo non trovato")
 		}
 
-		newName := g.Name + " (Copia)"
-		res, err := db.Exec(`INSERT INTO groups 
+		newName := "Copia " + g.Name
+		res, err := targetDB.Exec(`INSERT INTO groups 
 			(parent_id, name, bg_color, text_color, user, enc_password, enc_key, enc_passphrase, jump_ip, jump_port, jump_user, enc_jump_pass) 
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			g.ParentID, newName, g.BgColor, g.TextColor,
@@ -1842,22 +1907,27 @@ func Start() {
 		}
 		newGroupID, _ := res.LastInsertId()
 
-		rows, err := db.Query(`SELECT name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
-			jump_ip, jump_port, jump_user, enc_jump_pass, 
-			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id
+		rows, err := targetDB.Query(`SELECT name, ip, COALESCE(user, ''), protocol, COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
+			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), 
+			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, ''), jump_host_id
 			FROM hosts WHERE group_id = ? AND is_temp = 0`, id)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
 		defer rows.Close()
 
+		var hostsToCopy []Host
 		for rows.Next() {
 			var h Host
 			rows.Scan(&h.Name, &h.IP, &h.User, &h.Protocol, &h.EncPassword, &h.EncKey, &h.EncPassphrase,
 				&h.JumpIP, &h.JumpPort, &h.JumpUser, &h.EncJumpPass,
 				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort, &h.JumpHostID)
+			hostsToCopy = append(hostsToCopy, h)
+		}
+		rows.Close()
 
-			db.Exec(`INSERT INTO hosts 
+		for _, h := range hostsToCopy {
+			targetDB.Exec(`INSERT INTO hosts 
 				(group_id, name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
 				jump_ip, jump_port, jump_user, enc_jump_pass, 
 				tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id) 

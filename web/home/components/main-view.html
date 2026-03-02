@@ -189,18 +189,18 @@
     <div class="utility-bar">
         <div class="quick-connect-wrapper">
             <div style="padding: 0 10px; color:#58a6ff"><i class="fas fa-bolt"></i></div>
-            <select id="main-qc-proto" class="qc-input" style="color:#8b949e; cursor:pointer;" onkeydown="window.handleMainQuickEnter(event)">
+            <select class="qc-input qc-proto" style="color:#8b949e; cursor:pointer;" onkeydown="window.handleMainQuickEnter(event)">
                 <option value="ssh">SSH</option>
                 <option value="sftp">SFTP</option>
             </select>
             <div class="qc-divider"></div>
-            <input type="text" id="main-qc-user" class="qc-input" placeholder="User" style="width:90px" onkeydown="window.handleMainQuickEnter(event)">
+            <input type="text" class="qc-input qc-user" placeholder="User" style="width:90px" onkeydown="window.handleMainQuickEnter(event)">
             <div class="qc-divider"></div>
-            <input type="text" id="main-qc-ip" class="qc-input" placeholder="Host / IP" style="flex: 1;" onkeydown="window.handleMainQuickEnter(event)">
+            <input type="text" class="qc-input qc-ip" placeholder="Host / IP" style="flex: 1;" onkeydown="window.handleMainQuickEnter(event)">
             <div class="qc-divider"></div>
-            <input type="password" id="main-qc-pass" class="qc-input" placeholder="Pass" style="width:90px" onkeydown="window.handleMainQuickEnter(event)">
+            <input type="password" class="qc-input qc-pass" placeholder="Pass" style="width:90px" onkeydown="window.handleMainQuickEnter(event)">
             
-            <button class="quick-connect-btn" onclick="window.mainQuickConnect()"><i class="fas fa-arrow-right"></i></button>
+            <button class="quick-connect-btn" onclick="window.mainQuickConnect(this)"><i class="fas fa-arrow-right"></i></button>
         </div>
         <button class="qc-compact-btn" onclick="window.openQuickConnectModal()">
             <i class="fas fa-bolt"></i> Quick Connect
@@ -221,7 +221,7 @@
             <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
             
             <div class="stylish-select-wrapper">
-                <select class="stylish-select workspace-selector" onchange="window.openWorkspaceTab(this.value)"></select>
+                <select class="stylish-select workspace-selector" onchange="window.openWorkspaceTab(this.value, this)"></select>
                 <i class="fas fa-chevron-down select-arrow"></i>
             </div>
             <i class="fas fa-star fav-ws-btn" id="ws-fav-btn" onclick="window.toggleWorkspaceFavorite()" title="Set as Default"></i>
@@ -280,20 +280,21 @@
     })();
 
     // --- WORKSPACE ACTIONS ---
-    window.openWorkspaceTab = function(wsId) {
+    window.openWorkspaceTab = function(wsId, sourceEl) {
         const id = parseInt(wsId);
         if (isNaN(id)) return;
         
-        if (!window.AppState) window.AppState = {};
-        window.AppState.currentWorkspaceId = id;
-        
-        // Ricarica i dati per il workspace selezionato
-        if (window.API && window.API.loadData) {
-            window.API.loadData();
+        // Trova il nome del workspace per il titolo del tab
+        const sel = sourceEl || document.querySelector('.workspace-selector');
+        let name = "Workspace " + id;
+        if(sel) {
+            const opt = sel.querySelector(`option[value="${id}"]`);
+            if(opt) name = opt.innerText;
         }
         
-        const btn = document.getElementById('ws-fav-btn');
-        if(btn) btn.classList.remove('active');
+        if (window.Tabs && window.Tabs.openWorkspace) {
+            window.Tabs.openWorkspace(id, name);
+        }
     }
 
     window.toggleWorkspaceFavorite = async function() {
@@ -457,7 +458,7 @@
         
         try {
             const wsId = window.AppState.currentWorkspaceId || 0;
-            await fetch(`/api/groups/${groupId}/move?workspace_id=${wsId}`, {
+            const res = await fetch(`/api/groups/${groupId}/move?workspace_id=${wsId}`, {
                 method: 'PUT',
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({ parent_id: parentId })
@@ -584,6 +585,64 @@
             this.activate(tabId);
         };
 
+        window.Tabs.openWorkspace = async function(wsId, title) {
+            const tabId = `tab-ws-${wsId}`; const viewId = `view-ws-${wsId}`;
+            if (document.getElementById(tabId)) { this.activate(tabId); return; }
+
+            const tabEl = document.createElement('div');
+            tabEl.className = 'tab'; tabEl.id = tabId;
+            tabEl.onclick = () => this.activate(tabId);
+            tabEl.innerHTML = `<i class="fas fa-layer-group"></i> <span class="tab-title">${title}</span> <i class="fas fa-times tab-close" onclick="window.Tabs.closeCustom('${tabId}', '${viewId}', event)"></i>`;
+            document.getElementById('tabs-bar').insertBefore(tabEl, document.getElementById('tabs-spacer'));
+
+            const viewEl = document.createElement('div');
+            viewEl.className = 'host-view-instance'; viewEl.id = viewId;
+            viewEl.innerHTML = '<div style="color:#666; display:flex; height:100%; align-items:center; justify-content:center"><i class="fas fa-circle-notch fa-spin fa-2x"></i></div>';
+            document.getElementById('views-container').appendChild(viewEl);
+
+            // Use 'loading' type initially to prevent activate() from crashing on missing data
+            this.openTabs[tabId] = { 
+                domTab: tabEl, domView: viewEl,
+                wsId: wsId,
+                type: 'loading'
+            };
+            this.activate(tabId);
+
+            try {
+                // 1. Scarica i dati del workspace
+                const res = await fetch(`/api/tree?workspace_id=${wsId}`);
+                if(!res.ok) throw new Error("API Error");
+                const data = await res.json();
+                const hosts = (data.hosts || []).map(h => ({...h, workspace_id: wsId}));
+
+                // 2. Aggiorna il tab con i dati e il tipo corretto
+                if (this.openTabs[tabId]) {
+                    this.openTabs[tabId].type = 'workspace';
+                    this.openTabs[tabId].data = { allGroups: data.groups || [], allHosts: hosts, wsId: wsId };
+                }
+
+                // 3. Carica l'HTML della vista
+                const resp = await fetch('components/main-view.html');
+                const html = await resp.text();
+                viewEl.innerHTML = html;
+                const scripts = viewEl.querySelectorAll('script');
+                scripts.forEach(s => { const script = document.createElement('script'); if (s.src) script.src = s.src; else script.textContent = s.textContent; viewEl.appendChild(script); });
+                
+                // POPULATE SELECTORS (Fix per tendina vuota)
+                if (window.API && window.API.loadWorkspaces) {
+                     window.API.loadWorkspaces(); 
+                }
+                
+                // 4. Re-attiva per applicare il contesto se è ancora il tab attivo
+                if (window.Tabs.activeTabId === tabId) {
+                    this.activate(tabId);
+                }
+            } catch(e) { 
+                console.error(e);
+                viewEl.innerHTML = `<div style="color:#da3633; padding:20px;">Error loading workspace: ${e.message}</div>`; 
+            }
+        };
+
         window.Tabs.openAppHost = async function(hostId, pageFile, iconClass) {
             const h = window.AppState.allHosts.find(x => x.id === hostId);
             const tabId = `tab-app-${hostId}`; const viewId = `view-app-${hostId}`;
@@ -639,18 +698,19 @@
     window.handleMainQuickEnter = function(e) { 
         if(e.key === 'Enter') {
             e.preventDefault();
-            window.mainQuickConnect(); 
+            window.mainQuickConnect(e.target); 
         }
     }
 
-    window.performQuickConnect = async function(proto, user, ip, pass) {
+    window.performQuickConnect = async function(proto, user, ip, pass, explicitWsId) {
         if(!ip) { alert("Inserisci Host/IP"); return; }
-        
+
+        const wsId = explicitWsId !== undefined ? parseInt(explicitWsId) : (parseInt(window.AppState.currentWorkspaceId) || 0);
         try {
             const res = await fetch('/api/quickconnect', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({ protocol: proto, ip: ip, user: user, password: pass })
+                body: JSON.stringify({ protocol: proto, ip: ip, user: user, password: pass, workspace_id: wsId })
             });
             if(res.status === 401) { window.location.href = '/login.html'; return; }
             if(!res.ok) throw new Error(await res.text());
@@ -668,28 +728,52 @@
                 jump_ip: null,
                 favorite: 0,
                 group_id: null,
-                workspace_id: window.AppState.currentWorkspaceId || 0
+                workspace_id: wsId
             };
             if(!window.AppState.allHosts) window.AppState.allHosts = [];
             window.AppState.allHosts.push(newHost);
             
             window.smartConnect(hostId, proto, ip);
             
-            // Clear inputs if they exist (main bar)
-            const uEl = document.getElementById('main-qc-user'); if(uEl) uEl.value = '';
-            const iEl = document.getElementById('main-qc-ip'); if(iEl) iEl.value = '';
-            const pEl = document.getElementById('main-qc-pass'); if(pEl) pEl.value = '';
         } catch(e) {
             alert("Errore Quick Connect: " + e.message);
         }
     }
 
-    window.mainQuickConnect = function() {
-        const proto = document.getElementById('main-qc-proto').value;
-        const user = document.getElementById('main-qc-user').value.trim();
-        const ip = document.getElementById('main-qc-ip').value.trim();
-        const pass = document.getElementById('main-qc-pass').value;
-        window.performQuickConnect(proto, user, ip, pass);
+    window.mainQuickConnect = async function(btn) {
+        let container = document;
+        if (btn && btn.closest) container = btn.closest('.layout-container');
+        else {
+             const active = document.querySelector('.host-view-instance.active .layout-container') || document.querySelector('.layout-container');
+             if(active) container = active;
+        }
+
+        const protoEl = container.querySelector('.qc-proto');
+        const userEl = container.querySelector('.qc-user');
+        const ipEl = container.querySelector('.qc-ip');
+        const passEl = container.querySelector('.qc-pass');
+
+        const proto = protoEl.value;
+        const user = userEl.value.trim();
+        const ip = ipEl.value.trim();
+        const pass = passEl.value;
+        
+        // Determina il Workspace ID dal tab attivo se possibile
+        let wsId = window.AppState.currentWorkspaceId;
+        if (window.Tabs && window.Tabs.activeTabId) {
+            const tab = window.Tabs.openTabs[window.Tabs.activeTabId];
+            // Se siamo in un tab workspace, usa quell'ID
+            if (tab && tab.type === 'workspace' && tab.data && tab.data.wsId) {
+                wsId = tab.data.wsId;
+            }
+        }
+        
+        await window.performQuickConnect(proto, user, ip, pass, wsId);
+        
+        // Clear inputs in the active container
+        if(userEl) userEl.value = '';
+        if(ipEl) ipEl.value = '';
+        if(passEl) passEl.value = '';
     }
 
     window.openQuickConnectModal = function() {
@@ -731,10 +815,9 @@
         const ip = document.getElementById('modal-qc-ip').value.trim();
         const user = document.getElementById('modal-qc-user').value.trim();
         const pass = document.getElementById('modal-qc-pass').value;
-        window.performQuickConnect(proto, user, ip, pass);
+        window.performQuickConnect(proto, user, ip, pass, window.AppState.currentWorkspaceId);
         modalEl.remove();
     }
-
     // --- FAVORITES TOGGLE ---
     window.toggleFavorite = async function(id, e) {
         if(e) e.stopPropagation();
@@ -1594,23 +1677,3 @@
         };
         // Reconnect logic could be added here
     }
-
-    // --- SYNC WORKSPACE STATE ON LOAD ---
-    (async function() {
-        try {
-            const res = await fetch('/api/tree');
-            if(res.ok) {
-                const data = await res.json();
-                if(data.workspace_id) {
-                    if(!window.AppState) window.AppState = {};
-                    window.AppState.currentWorkspaceId = data.workspace_id;
-                    
-                    // Sync Dropdowns UI
-                    document.querySelectorAll('.workspace-selector').forEach(s => {
-                        s.value = data.workspace_id;
-                    });
-                }
-            }
-        } catch(e) {}
-    })();
-</script>
