@@ -43,10 +43,9 @@ var (
 	db                 *sql.DB
 	usersDB            *sql.DB
 	currentWorkspaceID int
-	activeBridge       *websocket.Conn
+	activeBridges      = make(map[string]*websocket.Conn)
+	activeBridgeTokens = make(map[string]string)
 	bridgeMu           sync.Mutex
-	activeBridgeUser   string
-	activeBridgeToken  string
 	// Mappa: HostID -> Lista di client browser connessi
 	browserClients = make(map[int][]*websocket.Conn)
 	clientsMu      sync.Mutex
@@ -150,8 +149,9 @@ type MoveGroupReq struct {
 }
 
 type LoginReq struct {
-	Username string `json:"username"`
-	Password string `json:"password"`
+	Username   string `json:"username"`
+	Password   string `json:"password"`
+	ClientType string `json:"client_type"`
 }
 
 // Strutture per Admin API
@@ -511,16 +511,8 @@ func Start() {
 			return c.Status(401).JSON(fiber.Map{"status": "error", "msg": "Sessione non valida"})
 		}
 
-		// NUOVO: Forza la corrispondenza tra utente UI e utente bridge, se attivo
-		bridgeMu.Lock()
-		bridgeUser := activeBridgeUser
-		bridgeMu.Unlock()
-		if bridgeUser != "" && username != bridgeUser {
-			c.ClearCookie("session_id")
-			return c.Status(403).JSON(fiber.Map{"status": "error", "msg": "Conflitto utente. L'utente loggato deve corrispondere all'utente del bridge: " + bridgeUser})
-		}
-
 		c.Locals("user_id", uid)
+		c.Locals("username", username)
 		return c.Next()
 	}
 
@@ -552,11 +544,16 @@ func Start() {
 	app.Get("/api/autologin", func(c *fiber.Ctx) error {
 		token := c.Query("token")
 		bridgeMu.Lock()
-		validToken := activeBridgeToken
-		targetUser := activeBridgeUser
+		var targetUser string
+		for user, t := range activeBridgeTokens {
+			if t == token {
+				targetUser = user
+				break
+			}
+		}
 		bridgeMu.Unlock()
 
-		if token == "" || token != validToken || targetUser == "" {
+		if targetUser == "" {
 			return c.Status(401).SendString("Invalid or expired auto-login token")
 		}
 
@@ -599,6 +596,23 @@ func Start() {
 			return c.Status(401).JSON(fiber.Map{"status": "error", "msg": "Password errata"})
 		}
 		log.Printf("User %s logged in. ID: %d, GlobalAdmin: %v", req.Username, userID, isGlobalAdmin)
+
+		// Verifica se il bridge per questo utente è connesso
+		// Eccezione: Setup iniziale dal Bridge (client_type="bridge") o Global Admin
+		bridgeMu.Lock()
+		_, hasBridge := activeBridges[req.Username]
+		bridgeMu.Unlock()
+
+		// Enforce Token Login
+		if req.ClientType != "bridge" {
+			if hasBridge {
+				return c.Status(403).JSON(fiber.Map{"status": "error", "msg": "Accesso negato: Login manuale disabilitato. Usa il tasto 'Open Dashboard' dall'app Bridge."})
+			}
+			// Se il bridge NON è connesso, blocca solo gli utenti standard (Admin hanno fallback password)
+			if !isGlobalAdmin {
+				return c.Status(403).JSON(fiber.Map{"status": "error", "msg": "Accesso negato: Nessun Bridge attivo per questo utente. Collega prima il Bridge."})
+			}
+		}
 
 		// Recupera i workspace accessibili
 		var rows *sql.Rows
@@ -706,9 +720,11 @@ func Start() {
 
 		// Notifica il Bridge per salvare la preferenza
 		if req.Save {
+			username := c.Locals("username").(string)
 			bridgeMu.Lock()
-			if activeBridge != nil {
-				activeBridge.WriteJSON(JMessage{
+			bridge := activeBridges[username]
+			if bridge != nil {
+				bridge.WriteJSON(JMessage{
 					Type:    "save_workspace",
 					Payload: map[string]string{"id": strconv.Itoa(req.ID)},
 				})
@@ -1544,9 +1560,11 @@ func Start() {
 			},
 		}
 
+		username := c.Locals("username").(string)
 		bridgeMu.Lock()
-		if activeBridge != nil {
-			activeBridge.WriteJSON(msg)
+		bridge := activeBridges[username]
+		if bridge != nil {
+			bridge.WriteJSON(msg)
 			bridgeMu.Unlock()
 			return c.JSON(fiber.Map{"status": "success", "message": "Comando inviato al bridge"})
 		}
@@ -1860,18 +1878,17 @@ func Start() {
 	})
 
 	app.Get("/ws/bridge", websocket.New(func(c *websocket.Conn) {
-		bridgeMu.Lock()
-		activeBridge = c
-		bridgeMu.Unlock()
+		var currentUser string
 		log.Println("🔌 BRIDGE CONNESSO")
 
 		defer func() {
 			bridgeMu.Lock()
-			activeBridge = nil
-			activeBridgeUser = ""
-			activeBridgeToken = ""
+			if currentUser != "" {
+				delete(activeBridges, currentUser)
+				delete(activeBridgeTokens, currentUser)
+			}
 			bridgeMu.Unlock()
-			log.Println("❌ BRIDGE PERSO")
+			log.Printf("❌ BRIDGE PERSO (%s)", currentUser)
 		}()
 
 		for {
@@ -1937,12 +1954,16 @@ func Start() {
 					}
 
 					if authOK {
-						activeBridgeUser = user
-						activeBridgeToken = generateRandomKey(16)
+						currentUser = user
+						token := generateRandomKey(16)
+						bridgeMu.Lock()
+						activeBridges[user] = c
+						activeBridgeTokens[user] = token
+						bridgeMu.Unlock()
 						log.Printf("✅ Bridge autenticato come: %s", user)
 						c.WriteJSON(JMessage{
 							Type:    "bridge_welcome",
-							Payload: map[string]string{"token": activeBridgeToken},
+							Payload: map[string]string{"token": token},
 						})
 					} else {
 						log.Printf("⚠️ Bridge auth failed for user: %s", user)
@@ -2006,7 +2027,21 @@ func Start() {
 		}
 	}))
 
-	app.Get("/ws/client", websocket.New(func(c *websocket.Conn) {
+	// Middleware per estrarre utente dal cookie per WS Client
+	app.Get("/ws/client", func(c *fiber.Ctx) error {
+		cookie := c.Cookies("session_id")
+		if cookie == "" {
+			return c.Status(401).SendString("Unauthorized")
+		}
+		var username string
+		err := usersDB.QueryRow("SELECT u.username FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = ?", cookie).Scan(&username)
+		if err != nil {
+			return c.Status(401).SendString("Invalid Session")
+		}
+		c.Locals("username", username)
+		return c.Next()
+	}, websocket.New(func(c *websocket.Conn) {
+		username := c.Locals("username").(string)
 		var currentHostID int = 0
 		// Track TermIDs associated with this connection to ensure cleanup
 		activeTermIDs := make(map[string]bool)
@@ -2015,9 +2050,10 @@ func Start() {
 			// 1. Notify Bridge to close orphaned SSH sessions
 			if currentHostID != 0 && len(activeTermIDs) > 0 {
 				bridgeMu.Lock()
-				if activeBridge != nil {
+				bridge := activeBridges[username]
+				if bridge != nil {
 					for termID := range activeTermIDs {
-						activeBridge.WriteJSON(JMessage{
+						bridge.WriteJSON(JMessage{
 							Type:   "ssh_close",
 							HostID: currentHostID,
 							TermID: termID,
@@ -2080,9 +2116,10 @@ func Start() {
 				}
 
 				bridgeMu.Lock()
-				if activeBridge != nil {
+				bridge := activeBridges[username]
+				if bridge != nil {
 					log.Printf("[SERVER-TO-BRIDGE] Type: %s, HostID: %d, TermID: %s", msg.Type, msg.HostID, msg.TermID)
-					if err := activeBridge.WriteJSON(msg); err != nil {
+					if err := bridge.WriteJSON(msg); err != nil {
 						log.Printf("[SERVER-TO-BRIDGE-ERROR] %v", err)
 					}
 				} else {
@@ -2103,10 +2140,22 @@ func Start() {
 		if err != nil {
 			return c.Status(400).SendString("Invalid host_id query param")
 		}
+
+		cookie := c.Cookies("session_id")
+		var username string
+		if cookie != "" {
+			usersDB.QueryRow("SELECT u.username FROM users u JOIN sessions s ON u.id = s.user_id WHERE s.token = ?", cookie).Scan(&username)
+		}
+		if username == "" {
+			return c.Status(401).SendString("Unauthorized VNC")
+		}
+
 		c.Locals("host_id", hostID)
+		c.Locals("username", username)
 		return c.Next()
 	}, websocket.New(func(c *websocket.Conn) {
 		hostID := c.Locals("host_id").(int)
+		username := c.Locals("username").(string)
 
 		// 1. Get host details from DB
 		var h Host
@@ -2129,8 +2178,9 @@ func Start() {
 
 		// 3. Send connect command to bridge
 		bridgeMu.Lock()
-		if activeBridge != nil {
-			activeBridge.WriteJSON(JMessage{
+		bridge := activeBridges[username]
+		if bridge != nil {
+			bridge.WriteJSON(JMessage{
 				Type:   "vnc_connect",
 				HostID: hostID,
 				TermID: connID, // Using TermID to carry the ConnID
@@ -2155,8 +2205,9 @@ func Start() {
 			log.Printf("[VNC-PROXY] noVNC client for ConnID %s disconnected.", connID)
 			// Notify bridge
 			bridgeMu.Lock()
-			if activeBridge != nil {
-				activeBridge.WriteJSON(JMessage{Type: "vnc_disconnect", TermID: connID})
+			bridge := activeBridges[username]
+			if bridge != nil {
+				bridge.WriteJSON(JMessage{Type: "vnc_disconnect", TermID: connID})
 			}
 			bridgeMu.Unlock()
 			// Remove from our map
@@ -2177,8 +2228,9 @@ func Start() {
 			if mt == websocket.BinaryMessage {
 				b64data := base64.StdEncoding.EncodeToString(msg)
 				bridgeMu.Lock()
-				if activeBridge != nil {
-					activeBridge.WriteJSON(JMessage{
+				bridge := activeBridges[username]
+				if bridge != nil {
+					bridge.WriteJSON(JMessage{
 						Type:    "vnc_data",
 						HostID:  hostID,
 						TermID:  connID,

@@ -328,8 +328,9 @@ func showServerForm(existing *ServerConfig) {
 
 			loginURL := fmt.Sprintf("%s/api/login", url)
 			reqBody, _ := json.Marshal(map[string]string{
-				"username": userEntry.Text,
-				"password": passEntry.Text,
+				"username":    userEntry.Text,
+				"password":    passEntry.Text,
+				"client_type": "bridge",
 			})
 
 			resp, err := http.Post(loginURL, "application/json", bytes.NewBuffer(reqBody))
