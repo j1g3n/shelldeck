@@ -78,7 +78,7 @@ You don't need to build from source! Download the latest compiled binaries for y
 * [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5-beta/shelldeck-standalone-windows.exe)
 
 *(🍎 Mac OS builds coming very soon!)*
-
+### DOWNLOAD WEB FOLDER and put it on the binary root folder
 > 📦 **[View all Releases and Changelogs here](https://github.com/j1g3n/shelldeck/releases)**
 
 ## 🚀 Quick Start (Installation)
