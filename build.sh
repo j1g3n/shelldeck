@@ -26,11 +26,11 @@ chmod +x releases/linux/standalone/shelldeck-standalone-linux
 # ---------------------------------------------------------
 echo "🪟 Compilazione per Windows..."
 # Server
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o releases/windows/server/shelldeck-server.exe ./cmd/server
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o releases/windows/server/shelldeck-server-windows.exe ./cmd/server
 
 # Bridge (Estraiamo il file .exe dallo .zip generato)
 go run github.com/fyne-io/fyne-cross@latest windows -arch=amd64 -app-id=com.shelldeck.bridge -name=shelldeck-bridge ./cmd/bridge
-unzip -p fyne-cross/dist/windows-amd64/shelldeck-bridge.zip shelldeck-bridge.exe > releases/windows/bridge/shelldeck-bridge.exe
+unzip -p fyne-cross/dist/windows-amd64/shelldeck-bridge.zip shelldeck-bridge.exe > releases/windows/bridge/shelldeck-bridge-windows.exe
 
 # Standalone (Estraiamo il file .exe dallo .zip generato)
 go run github.com/fyne-io/fyne-cross@latest windows -arch=amd64 -app-id=com.shelldeck.standalone -name=shelldeck-standalone-windows ./cmd/standalone

@@ -15,7 +15,7 @@ shelldeck-standalone*
 shelldeck-standalone
 /releases/
 Icon.png
-
+uploadbin.sh
 # 2. Database generati dinamicamente (Contengono dati sensibili)
 *.db
 *.db-wal
