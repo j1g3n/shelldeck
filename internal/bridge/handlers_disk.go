@@ -32,6 +32,11 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 			lsblkCmd = fmt.Sprintf("%slsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL", cmdPrefix)
 			lsblkOut, err = runSingleCommand(client, lsblkCmd)
 		}
+		// TENTATIVO 3: Fallback assoluto (default columns) - Utile per sistemi custom/vecchi o ZFS che falliscono con colonne specifiche
+		if err != nil || !strings.Contains(lsblkOut, "blockdevices") {
+			lsblkCmd = fmt.Sprintf("%slsblk -J -b", cmdPrefix)
+			lsblkOut, err = runSingleCommand(client, lsblkCmd)
+		}
 
 		// Pulizia output JSON (rimuove eventuali warning sudo prima del JSON)
 		if idx := strings.Index(lsblkOut, "{"); idx > -1 {

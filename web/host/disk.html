@@ -743,6 +743,11 @@
                 let parts = (disk.children && Array.isArray(disk.children)) ? disk.children : [];
                 
                 parts.forEach(p => {
+                    // Normalize mountpoint (some lsblk versions return mountpoints array)
+                    if (!p.mountpoint && p.mountpoints && Array.isArray(p.mountpoints)) {
+                        p.mountpoint = p.mountpoints.join(", ");
+                    }
+
                     const size = parseInt(p.size) || 0;
                     const percent = (size / totalSize) * 100;
                     
