@@ -68,14 +68,14 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 You don't need to build from source! Download the latest compiled binaries for your operating system directly:
 
 ### 🐧 Linux (amd64)
-* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-server-linux)
-* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-bridge-linux)
-* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-standalone-linux)
+* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-server-linux)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-bridge-linux)
+* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-standalone-linux)
 
 ### 🪟 Windows (amd64)
-* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-server-windows.exe)
-* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-bridge-windows.exe)
-* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/v0.5.1-beta/shelldeck-standalone-windows.exe)
+* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-server-windows.exe)
+* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-bridge-windows.exe)
+* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-standalone-windows.exe)
 
 *(🍎 Mac OS builds coming very soon!)*
 
