@@ -538,12 +538,33 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 		duCmd := fmt.Sprintf("%sdu -ab --max-depth=1 --exclude=/proc --exclude=/sys --exclude=/dev %s 2>/dev/null | sort -nr", cmdPrefix, path)
 		duOut, _ := runSingleCommand(client, duCmd)
 
-		// 2. Identifica quali sono directory per permettere l'esplorazione
-		dirCmd := fmt.Sprintf("%sfind %s -maxdepth 1 -type d 2>/dev/null", cmdPrefix, path)
-		dirOut, _ := runSingleCommand(client, dirCmd)
-		dirMap := make(map[string]bool)
-		for _, d := range strings.Split(dirOut, "\n") {
-			dirMap[strings.TrimSpace(d)] = true
+		// 2. Ottieni metadati (Time, Type) per identificare directory e data modifica
+		// Usiamo find -exec stat per robustezza. Format: Timestamp|Type|Path
+		statCmd := fmt.Sprintf("%sfind %s -maxdepth 1 -exec stat -c '%%Y|%%F|%%n' {} + 2>/dev/null", cmdPrefix, path)
+		statOut, _ := runSingleCommand(client, statCmd)
+
+		metaMap := make(map[string]struct {
+			mtime int64
+			isDir bool
+		})
+
+		for _, line := range strings.Split(statOut, "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			parts := strings.SplitN(line, "|", 3)
+			if len(parts) < 3 {
+				continue
+			}
+			ts, _ := strconv.ParseInt(parts[0], 10, 64)
+			typeStr := strings.ToLower(parts[1])
+			fPath := parts[2]
+			isDir := strings.Contains(typeStr, "directory")
+			metaMap[fPath] = struct {
+				mtime int64
+				isDir bool
+			}{ts, isDir}
 		}
 
 		var items []map[string]interface{}
@@ -575,11 +596,20 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 				continue
 			}
 
+			meta, ok := metaMap[itemPath]
+			isDir := false
+			var mtime int64 = 0
+			if ok {
+				isDir = meta.isDir
+				mtime = meta.mtime
+			}
+
 			items = append(items, map[string]interface{}{
 				"name":   name,
 				"path":   itemPath,
 				"size":   size,
-				"is_dir": dirMap[itemPath],
+				"is_dir": isDir,
+				"mtime":  mtime,
 			})
 		}
 

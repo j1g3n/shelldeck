@@ -13,6 +13,8 @@ shelldeck-bridge*
 shelldeck-client*
 shelldeck-standalone*
 shelldeck-standalone
+/releases/
+Icon.png
 
 # 2. Database generati dinamicamente (Contengono dati sensibili)
 *.db
@@ -20,7 +22,7 @@ shelldeck-standalone
 *.db-shm
 *.sqlite
 *.sqlite3
-
+icon.png
 # 3. File di Configurazione (Specifici della singola installazione)
 config.json
 .env
@@ -35,6 +37,7 @@ config.json
 Thumbs.db
 ehthumbs.db
 .vscode/
+
 
 # 6. File temporanei di Go
 *.test

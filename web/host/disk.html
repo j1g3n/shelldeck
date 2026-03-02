@@ -103,7 +103,7 @@
         .editor-tool-btn:hover { background: #21262d; }
 
         /* ANALYZER STYLES */
-        .analyzer-tree-row { display: grid; grid-template-columns: 3fr 1fr 1fr; padding: 6px 10px; border-bottom: 1px solid #21262d; align-items: center; font-size: 0.9em; cursor: pointer; position: relative; }
+        .analyzer-tree-row { display: grid; grid-template-columns: 3fr 1fr 1fr 1.5fr; padding: 6px 10px; border-bottom: 1px solid #21262d; align-items: center; font-size: 0.9em; cursor: pointer; position: relative; }
         .analyzer-tree-row:hover { background: #21262d; }
         .analyzer-bg-bar { position: absolute; top: 2px; bottom: 2px; left: 0; background: rgba(35, 134, 54, 0.15); z-index: 0; pointer-events: none; transition: width 0.5s; }
         .analyzer-content { position: relative; z-index: 1; display: flex; align-items: center; gap: 8px; overflow: hidden; }
@@ -338,8 +338,8 @@
                 <div class="an-part-info"><span class="an-part-label" style="font-weight:bold; color:white"></span><span class="an-part-details"></span></div>
                 <div class="disk-linear-container"><div class="disk-linear-fill an-part-fill"></div><div class="an-part-perc-text"></div></div>
             </div>
-            <div class="analyzer-tree-header" style="display:grid; grid-template-columns: 3fr 1fr 1fr; padding:10px; background:#161b22; font-weight:bold; border-bottom:1px solid var(--border); border-radius: 6px 6px 0 0; color:var(--text-dim); font-size:0.9em;">
-                <div>Path <span id="analyzer-current-path" style="font-weight:normal; color:var(--accent); margin-left:10px; font-family:monospace;"></span></div><div style="text-align:right">Size</div><div style="text-align:right">%</div>
+            <div class="analyzer-tree-header" style="display:grid; grid-template-columns: 3fr 1fr 1fr 1.5fr; padding:10px; background:#161b22; font-weight:bold; border-bottom:1px solid var(--border); border-radius: 6px 6px 0 0; color:var(--text-dim); font-size:0.9em;">
+                <div>Path <span id="analyzer-current-path" style="font-weight:normal; color:var(--accent); margin-left:10px; font-family:monospace;"></span></div><div style="text-align:right">Size</div><div style="text-align:right">%</div><div style="text-align:right; margin-right:10px">Modified</div>
             </div>
             <div class="analyzer-tree-container" style="flex:1; overflow-y:auto; border:1px solid var(--border); border-top:none; background:#0d1117;">
                 <div style="padding:20px; text-align:center; color:var(--text-dim)">Seleziona una partizione e premi Scan per iniziare l'analisi.</div>
@@ -1243,7 +1243,7 @@
                 if(data.path !== currentRoot && data.path.length > currentRoot.length) {
                     const upDiv = document.createElement('div');
                     upDiv.className = "analyzer-tree-row";
-                    upDiv.innerHTML = `<div class="analyzer-content"><i class="fas fa-level-up-alt"></i> ..</div><div></div><div></div>`;
+                    upDiv.innerHTML = `<div class="analyzer-content"><i class="fas fa-level-up-alt"></i> ..</div><div></div><div></div><div></div>`;
                     upDiv.onclick = () => {
                         // Calcola parent path
                         const parts = data.path.split('/').filter(p=>p);
@@ -1256,13 +1256,15 @@
 
                 data.items.forEach(item => {
                     const perc = data.total > 0 ? (item.size / data.total) * 100 : 0;
+                    const dateStr = item.mtime ? new Date(item.mtime * 1000).toLocaleString() : '-';
                     const row = document.createElement('div');
                     row.className = "analyzer-tree-row";
                     row.dataset.path = item.path;
                     row.dataset.isdir = item.is_dir;
                     row.innerHTML = `<div class="analyzer-bg-bar" style="width:${perc}%"></div>
                                      <div class="analyzer-content"><i class="fas ${item.is_dir?'fa-folder':'fa-file'} an-icon ${item.is_dir?'':'file'}"></i> <span class="analyzer-name">${item.name}</span></div>
-                                     <div class="analyzer-size">${formatBytes(item.size)}</div><div class="analyzer-perc">${perc.toFixed(1)}%</div>`;
+                                     <div class="analyzer-size">${formatBytes(item.size)}</div><div class="analyzer-perc">${perc.toFixed(1)}%</div>
+                                     <div style="text-align:right; font-family:monospace; color:var(--text-dim); margin-right:10px; font-size:0.85em">${dateStr}</div>`;
                     row.onclick = () => { if(item.is_dir) runAnalysis(item.path); };
                     cont.appendChild(row);
                 });
