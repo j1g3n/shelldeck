@@ -209,6 +209,7 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 		p, _ := payload["path"].(string)
 		cm, _ := payload["chmod"].(string)
 		co, _ := payload["chown"].(string)
+		mx, _ := payload["make_executable"].(bool)
 		var err error
 		var out string
 		if cm != "" {
@@ -216,6 +217,9 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 		}
 		if err == nil && co != "" {
 			out, err = runSingleCommand(client, fmt.Sprintf("%schown %s \"%s\"", cmdPrefix, co, p))
+		}
+		if err == nil && mx {
+			out, err = runSingleCommand(client, fmt.Sprintf("%schmod +x \"%s\"", cmdPrefix, p))
 		}
 		if err != nil {
 			sendToHQ("fs_op_res", hostID, termID, map[string]string{"status": "error", "msg": err.Error() + ": " + out})

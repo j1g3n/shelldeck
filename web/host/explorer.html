@@ -310,6 +310,7 @@
                 <input type="text" class="chmod-val" placeholder="755">
                 <label>CHOWN (utente:gruppo)</label>
                 <input type="text" class="chown-val" placeholder="root:root">
+                <label style="display:flex; align-items:center; gap:10px; cursor:pointer; margin-top:5px; color:var(--text-main); font-size:0.9em;"><input type="checkbox" class="perm-exec-check"> Rendi eseguibile (+x)</label>
             </div>
             <div class="modal-footer">
                 <button class="tool-btn btn-close-modal">Annulla</button>
@@ -407,6 +408,7 @@
         <div class="context-menu-item cm-link"><i class="fas fa-link"></i> Crea Collegamento</div>
         <div class="context-menu-item cm-rename"><i class="fas fa-edit"></i> Rinomina</div>
         <div class="context-menu-item cm-perms"><i class="fas fa-shield-alt"></i> Permessi</div>
+        <div class="context-menu-item cm-make-exec"><i class="fas fa-terminal"></i> Rendi eseguibile</div>
         <div class="context-menu-item cm-compress"><i class="fas fa-compress"></i> Comprimi</div>
         <div class="context-menu-item cm-delete"><i class="fas fa-trash-alt"></i> Elimina</div>
         <div class="context-menu-divider"></div>
@@ -788,6 +790,7 @@
             safeBind('.cm-link', withCloseMenu(() => { if(selectedContextItem) { selectedItemPath = selectedContextItem.getAttribute('data-path'); container.querySelector('.modal-link').style.display = 'flex'; } }));
             safeBind('.cm-rename', withCloseMenu(() => { if(selectedContextItem) renameItem(selectedContextItem.getAttribute('data-name')); }));
             safeBind('.cm-perms', withCloseMenu(() => { if(selectedContextItem) openPermModal(selectedContextItem.getAttribute('data-path'), selectedContextItem.getAttribute('data-name')); }));
+            safeBind('.cm-make-exec', withCloseMenu(() => { if(selectedContextItem) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "set_perms", path: selectedContextItem.getAttribute('data-path'), make_executable: true, root: getIsRoot() } })); }));
             safeBind('.cm-compress', withCloseMenu(() => { if(selectedContextItem) { selectedContextItem.checked = true; openCompressModal(); } }));
             safeBind('.cm-delete', withCloseMenu(() => { if(selectedContextItem) { selectedContextItem.checked = true; deleteSelectedItems(); } }));
             safeBind('.cm-upload', withCloseMenu(() => container.querySelector('#context-upload-input').click()));
@@ -1909,11 +1912,11 @@
                 } catch(e) { console.error(e); }
             }
 
-            function openPermModal(path, name) { selectedItemPath = path; container.querySelector('.modal-target-name').innerText = name; container.querySelector('.modal-perm').style.display = 'flex'; }
+            function openPermModal(path, name) { selectedItemPath = path; container.querySelector('.modal-target-name').innerText = name; container.querySelector('.chmod-val').value = ''; container.querySelector('.chown-val').value = ''; container.querySelector('.perm-exec-check').checked = false; container.querySelector('.modal-perm').style.display = 'flex'; }
             function closeAllModals() { container.querySelectorAll('.local-modal').forEach(m => m.style.display = 'none'); }
             function applyWget() { const u = container.querySelector('.wget-url').value; if(u) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "wget", path: getActiveTab().path, url: u, root: getIsRoot() } })); closeAllModals(); }
             function applyLink() { const n = container.querySelector('.link-name').value, t = container.querySelector('.link-type').value; if(n) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "link", target: selectedItemPath, linkName: n, linkType: t, path: getActiveTab().path, root: getIsRoot() } })); closeAllModals(); }
-            function applyPerms() { const m = container.querySelector('.chmod-val').value, o = container.querySelector('.chown-val').value; if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "set_perms", path: selectedItemPath, chmod: m, chown: o, root: getIsRoot() } })); closeAllModals(); }
+            function applyPerms() { const m = container.querySelector('.chmod-val').value, o = container.querySelector('.chown-val').value, mx = container.querySelector('.perm-exec-check').checked; if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "set_perms", path: selectedItemPath, chmod: m, chown: o, make_executable: mx, root: getIsRoot() } })); closeAllModals(); }
 
             function performRecursiveSearch(query) { searchActive = true; if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "search_recursive", path: getActiveTab().path, query, root: getIsRoot() } })); }
             function renderSearchResults(results) { const list = container.querySelector('.file-list'); list.innerHTML = "";if (!Array.isArray(results) || results.length === 0) {

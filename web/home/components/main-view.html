@@ -8,7 +8,7 @@
     /* --- UTILITY BAR --- */
     .utility-bar {
         display: flex; justify-content: space-between; align-items: center; gap: 15px;
-        padding: 15px 20px; background: #0d1117; border-bottom: 1px solid #30363d; flex-shrink: 0;
+        padding: 10px 20px; background: #0d1117; border-bottom: 1px solid #30363d; flex-shrink: 0;
     }
 
     /* Nuovo Quick Connect a 4 campi */
@@ -16,6 +16,7 @@
         display: flex; align-items: center; flex: 1; max-width: 600px; gap: 0;
         background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 0;
         overflow: hidden;
+        min-width: 450px;
     }
     .qc-input {
         background: transparent; border: none; color: white; padding: 8px 10px; outline: none; font-size: 0.9em;
@@ -31,6 +32,7 @@
         background: transparent; border: 1px solid transparent; padding: 4px 8px; border-radius: 4px; 
         cursor: pointer; color: #8b949e; font-size: 0.85em; font-weight: bold; transition: 0.2s; 
         display: flex; align-items: center; gap: 5px;
+        white-space: nowrap;
     }
     .btn-proto:hover { background: #21262d; color: #fff; }
     .btn-proto.active { background: #21262d; border-color: #30363d; color: #fff; box-shadow: inset 0 -2px 0 var(--proto-color, #58a6ff); }
@@ -168,6 +170,19 @@
     .fav-ws-btn { color: #30363d; cursor: pointer; margin-left: 5px; transition: 0.2s; font-size: 0.9em; }
     .fav-ws-btn:hover { color: #e3b341; transform: scale(1.1); }
     .fav-ws-btn.active { color: #e3b341; }
+
+    /* Compact Quick Connect */
+    .qc-compact-btn {
+        display: none;
+        background: #161b22; border: 1px solid #30363d; color: #58a6ff;
+        padding: 0 15px; height: 34px; border-radius: 6px; cursor: pointer; font-weight: bold;
+        align-items: center; gap: 8px; white-space: nowrap; transition: 0.2s;
+    }
+    .qc-compact-btn:hover { background: #58a6ff; color: #0d1117; }
+    @media (max-width: 1650px) {
+        .quick-connect-wrapper { display: none !important; }
+        .qc-compact-btn { display: flex !important; }
+    }
 </style>
 
 <div class="layout-container">
@@ -187,6 +202,9 @@
             
             <button class="quick-connect-btn" onclick="window.mainQuickConnect()"><i class="fas fa-arrow-right"></i></button>
         </div>
+        <button class="qc-compact-btn" onclick="window.openQuickConnectModal()">
+            <i class="fas fa-bolt"></i> Quick Connect
+        </button>
 
         <div class="proto-filters">
             <button class="btn-proto active" style="--proto-color: #c9d1d9;" onclick="window.setProtoFilter('all', this)"><i class="fas fa-layer-group c-all"></i> ALL</button>
@@ -208,7 +226,7 @@
             </div>
             <i class="fas fa-star fav-ws-btn" id="ws-fav-btn" onclick="window.toggleWorkspaceFavorite()" title="Set as Default"></i>
         </div>
-
+        
         <div style="display:flex; align-items:center; gap:10px;">
             <div class="search-wrapper">
                 <i class="fas fa-search"></i>
@@ -625,12 +643,7 @@
         }
     }
 
-    window.mainQuickConnect = async function() {
-        const proto = document.getElementById('main-qc-proto').value;
-        const user = document.getElementById('main-qc-user').value.trim();
-        const ip = document.getElementById('main-qc-ip').value.trim();
-        const pass = document.getElementById('main-qc-pass').value;
-
+    window.performQuickConnect = async function(proto, user, ip, pass) {
         if(!ip) { alert("Inserisci Host/IP"); return; }
         
         try {
@@ -662,12 +675,64 @@
             
             window.smartConnect(hostId, proto, ip);
             
-            document.getElementById('main-qc-user').value = '';
-            document.getElementById('main-qc-ip').value = '';
-            document.getElementById('main-qc-pass').value = '';
+            // Clear inputs if they exist (main bar)
+            const uEl = document.getElementById('main-qc-user'); if(uEl) uEl.value = '';
+            const iEl = document.getElementById('main-qc-ip'); if(iEl) iEl.value = '';
+            const pEl = document.getElementById('main-qc-pass'); if(pEl) pEl.value = '';
         } catch(e) {
             alert("Errore Quick Connect: " + e.message);
         }
+    }
+
+    window.mainQuickConnect = function() {
+        const proto = document.getElementById('main-qc-proto').value;
+        const user = document.getElementById('main-qc-user').value.trim();
+        const ip = document.getElementById('main-qc-ip').value.trim();
+        const pass = document.getElementById('main-qc-pass').value;
+        window.performQuickConnect(proto, user, ip, pass);
+    }
+
+    window.openQuickConnectModal = function() {
+        const m = document.createElement('div');
+        m.className = 'modal active';
+        m.innerHTML = `
+            <div class="modal-content" style="width:350px">
+                <div class="modal-header"><i class="fas fa-bolt"></i> Quick Connect</div>
+                <div class="form-group">
+                    <label>Protocol</label>
+                    <select id="modal-qc-proto" style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d; color:white; border-radius:4px; outline:none">
+                        <option value="ssh">SSH</option>
+                        <option value="sftp">SFTP</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Host / IP</label>
+                    <input type="text" id="modal-qc-ip" placeholder="192.168.1.1" style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d; color:white; border-radius:4px; outline:none">
+                </div>
+                <div class="form-group">
+                    <label>User</label>
+                    <input type="text" id="modal-qc-user" placeholder="root" style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d; color:white; border-radius:4px; outline:none">
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="modal-qc-pass" placeholder="Optional" style="width:100%; padding:8px; background:#0d1117; border:1px solid #30363d; color:white; border-radius:4px; outline:none">
+                </div>
+                <div class="modal-actions">
+                    <button class="btn-pro" onclick="this.closest('.modal').remove()">Cancel</button>
+                    <button class="btn-pro btn-primary" onclick="window.submitModalQuickConnect(this.closest('.modal'))">Connect</button>
+                </div>
+            </div>`;
+        document.body.appendChild(m);
+        setTimeout(() => document.getElementById('modal-qc-ip').focus(), 50);
+    }
+
+    window.submitModalQuickConnect = function(modalEl) {
+        const proto = document.getElementById('modal-qc-proto').value;
+        const ip = document.getElementById('modal-qc-ip').value.trim();
+        const user = document.getElementById('modal-qc-user').value.trim();
+        const pass = document.getElementById('modal-qc-pass').value;
+        window.performQuickConnect(proto, user, ip, pass);
+        modalEl.remove();
     }
 
     // --- FAVORITES TOGGLE ---
