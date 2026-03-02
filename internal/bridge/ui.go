@@ -12,6 +12,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -37,11 +38,52 @@ var (
 	trayLock          sync.Mutex
 )
 
+func openDashboard(token string) {
+	activeServerMu.Lock()
+	if activeServer == nil {
+		activeServerMu.Unlock()
+		return
+	}
+	target := activeServer.URL
+	activeServerMu.Unlock()
+
+	if !strings.Contains(target, "://") {
+		target = "http://" + target
+	}
+	if token != "" {
+		target = fmt.Sprintf("%s/api/autologin?token=%s", target, token)
+	}
+
+	// Try Fyne first if available (UI Mode)
+	if fyneApp != nil {
+		u, err := url.Parse(target)
+		if err == nil {
+			fyneApp.OpenURL(u)
+			return
+		}
+	}
+
+	// Fallback for background process or if Fyne fails
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "windows":
+		cmd = exec.Command("rundll32", "url.dll,FileProtocolHandler", target)
+	case "darwin":
+		cmd = exec.Command("open", target)
+	default: // linux, freebsd, openbsd, netbsd
+		cmd = exec.Command("xdg-open", target)
+	}
+	if err := cmd.Start(); err != nil {
+		log.Println("Failed to open browser:", err)
+	}
+}
+
 func initUI() {
 	// HIJACK: Controlla se siamo in modalità "worker" (background bridge)
 	if len(os.Args) > 2 && os.Args[1] == "-connect" {
 		id, _ := strconv.Atoi(os.Args[2])
 		if id > 0 {
+			SetWelcomeCallback(openDashboard)
 			StartBridge(id)
 			select {} // Blocca per sempre, il bridge gira in background
 		}
@@ -83,26 +125,7 @@ func initUI() {
 	})
 
 	// Setup Welcome Callback (Apertura automatica Dashboard)
-	SetWelcomeCallback(func(token string) {
-		activeServerMu.Lock()
-		if activeServer == nil {
-			activeServerMu.Unlock()
-			return
-		}
-		target := activeServer.URL
-		activeServerMu.Unlock()
-
-		if !strings.Contains(target, "://") {
-			target = "http://" + target
-		}
-		if token != "" {
-			target = fmt.Sprintf("%s/api/autologin?token=%s", target, token)
-		}
-		u, err := url.Parse(target)
-		if err == nil {
-			fyneApp.OpenURL(u)
-		}
-	})
+	SetWelcomeCallback(openDashboard)
 
 	fyneApp.Lifecycle().SetOnStarted(func() {
 		// Check DB
