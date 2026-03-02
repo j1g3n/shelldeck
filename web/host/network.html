@@ -102,7 +102,7 @@
         .net-table .child-row td:first-child { padding-left: 30px; position: relative; }
         .net-table .child-row td:first-child::before { content: "└"; position: absolute; left: 15px; color: var(--text-dim); }
         
-        .traffic-cell { font-family: monospace; font-size: 0.8em; white-space: nowrap; }
+        .traffic-cell { font-family: monospace; font-size: 0.9em; white-space: nowrap; }
 
         /* Sub-tabs */
         .sub-tabs { display: flex; border-bottom: 1px solid var(--border); margin-bottom: 15px; background: #161b22; }
@@ -830,14 +830,14 @@
                             <td>${statusIcon} <span style="font-size:0.8em">${iface.operstate}</span></td>
                             <td class="traffic-cell" id="traffic-${CSS.escape(iface.ifname)}"><span style="color:var(--text-dim)">--</span></td>
                             <td>
-                                <div style="font-size:0.9em">${ip4}</div>
-                                <div style="font-size:0.75em; color:var(--text-dim)">GW: ${gw4}</div>
+                                <div style="font-size:1em">${ip4}</div>
+                                <div style="font-size:0.85em; color:var(--text-dim)">GW: ${gw4}</div>
                             </td>
                             <td>
-                                <div style="font-size:0.8em">${ip6}</div>
-                                <div style="font-size:0.75em; color:var(--text-dim)">GW: ${gw6}</div>
+                                <div style="font-size:0.95em">${ip6}</div>
+                                <div style="font-size:0.85em; color:var(--text-dim)">GW: ${gw6}</div>
                             </td>
-                            <td style="font-size:0.8em; max-width:150px; overflow:hidden; text-overflow:ellipsis" title="${dns}">${dns || '--'}</td>
+                            <td style="font-size:0.9em; max-width:150px; overflow:hidden; text-overflow:ellipsis" title="${dns}">${dns || '--'}</td>
                             <td style="text-align:right">
                                 <button class="action-btn" data-action="if-config" data-iface="${iface.ifname}" data-ip="${ip4}" data-ip6="${ip6}" data-gw="${gw4}" data-dns="${dns}" title="Configura"><i class="fas fa-cog"></i></button>
                                 <button class="action-btn" data-action="if-toggle" data-iface="${iface.ifname}" data-state="${isUp}" title="${isUp?'Spegni':'Accendi'}"><i class="fas fa-power-off" style="color:${isUp?'var(--success)':'var(--danger)'}"></i></button>
