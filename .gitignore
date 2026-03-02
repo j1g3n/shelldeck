@@ -27,7 +27,8 @@ config.json
 # 4. File di log
 *.log
 /logs/
-
+/fyne-cross/
+/build/
 # 5. File di sistema operativo e roba temporanea
 .DS_Store
 Thumbs.db

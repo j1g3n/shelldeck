@@ -9,13 +9,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
+	"shelldeck" // Il nome reale del tuo modulo
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gofiber/fiber/v2/middleware/filesystem"
 
 	"github.com/gofiber/contrib/websocket"
 	"github.com/gofiber/fiber/v2"
@@ -491,9 +496,6 @@ func Start() {
 		return c.SendStatus(204)
 	})
 
-	app.Static("/", "./web/home") // Se hai risolto il Cannot GET /, lascio invariato
-	app.Static("/host", "./web/host")
-	app.Static("/lib", "./web/lib")
 	// --- MIDDLEWARE AUTH ---
 	authReq := func(c *fiber.Ctx) error {
 		cookie := c.Cookies("session_id")
@@ -2186,6 +2188,36 @@ func Start() {
 				bridgeMu.Unlock()
 			}
 		}
+	}))
+
+	// Estrai le sotto-cartelle virtuali dal file binario
+	homeFS, err := fs.Sub(shelldeck.WebFiles, "web/home")
+	if err != nil {
+		log.Fatal("Errore nel caricamento di web/home:", err)
+	}
+
+	hostFS, err := fs.Sub(shelldeck.WebFiles, "web/host")
+	if err != nil {
+		log.Fatal("Errore nel caricamento di web/host:", err)
+	}
+
+	libFS, err := fs.Sub(shelldeck.WebFiles, "web/lib")
+	if err != nil {
+		log.Fatal("Errore nel caricamento di web/lib:", err)
+	}
+
+	// Mappa le rotte di Fiber sui filesystem virtuali
+	app.Use("/host", filesystem.New(filesystem.Config{
+		Root: http.FS(hostFS),
+	}))
+
+	app.Use("/lib", filesystem.New(filesystem.Config{
+		Root: http.FS(libFS),
+	}))
+
+	// IMPORTANTE: metti la root "/" alla fine per evitare che intercetti le altre
+	app.Use("/", filesystem.New(filesystem.Config{
+		Root: http.FS(homeFS),
 	}))
 
 	log.Printf("🚀 Server shelldeck avviato su %s", serverConfig.ListenAddress)
