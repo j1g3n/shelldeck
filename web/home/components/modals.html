@@ -78,9 +78,6 @@
                 <select id="host-proto" onchange="window.toggleWebFields()">
                     <option value="ssh">SSH</option>
                     <option value="sftp">SFTP</option>
-                    <option value="ftp">FTP</option>
-                    <option value="rdp">RDP</option>
-                    <option value="vnc">VNC</option>
                     <option value="web">WEB (HTTP/S)</option>
                     <option value="jumphost">JumpHost</option>
                     <option value="tunnel">Tunnel</option>
@@ -479,7 +476,7 @@
         document.getElementById('tunnel-rport').value = "";
 
         try {
-            const res = await fetch(`/api/host-credentials/${id}`);
+        const res = await fetch(`/api/host-credentials/${id}`);
             if(res.status === 401) { window.location.href = '/login.html'; return; }
             if(res.ok) {
                 const data = await res.json();
@@ -586,7 +583,7 @@
             if(!payload.name || !payload.ip) { alert("Name and IP/URL are required!"); return; }
 
             const wsId = window.AppState.currentWorkspaceId || 0;
-            const url = (idStr ? '/api/hosts/' + idStr : '/api/hosts') + `?workspace_id=${wsId}`;
+            const url = (idStr ? '/api/hosts/' + idStr : '/api/hosts') + (idStr ? '' : `?workspace_id=${wsId}`);
             const method = idStr ? 'PUT' : 'POST';
             
             const res = await fetch(url, { method: method, headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });

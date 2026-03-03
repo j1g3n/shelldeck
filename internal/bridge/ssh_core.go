@@ -436,15 +436,14 @@ func handleTunnelControl(hostID int, payload map[string]interface{}) {
 		activeTunnelsMu.Unlock()
 
 		// Connect
-		// Note: We use workspace 0 or need to pass it. Assuming default/current for now.
-		// Ideally payload should contain workspace_id.
-		// For now, let's try to find creds.
-		// Since we don't have workspace_id in payload easily here without changing protocol,
-		// we might rely on the fact that dialHost will try to find it.
-		// Let's assume workspace 0 (default) or try to get it from context if possible.
-		// FIX: For now using 0, but in multi-workspace env this might need fix.
+		var wsID int
+		if wsIDVal, ok := payload["workspace_id"].(float64); ok {
+			wsID = int(wsIDVal)
+		} else if wsIDVal, ok := payload["workspace_id"].(int); ok {
+			wsID = wsIDVal
+		}
 
-		client, _, creds, err := dialHost(hostID, 0)
+		client, _, creds, err := dialHost(hostID, wsID)
 		if err != nil {
 			sendToHQ("tunnel_status", 0, "", map[string]interface{}{"active": false, "error": err.Error(), "host_id": hostID})
 			return
