@@ -63,19 +63,19 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Zero-Touch Provisioning:** If the configuration or DB is missing, the server auto-generates them, falling back to a safe port (`9112`) and generating the necessary schema automatically.
 
 
-## 📥 Download (Ready-to-use Binaries) v0.5.2 UPDATE!!
+## 📥 Download (Ready-to-use Binaries) v0.5.4 UPDATE!!
 
 You don't need to build from source! Download the latest compiled binaries for your operating system directly:
 
 ### 🐧 Linux (amd64)
-* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-server-linux)
-* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-bridge-linux)
-* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-standalone-linux)
+* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-server-linux)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-bridge-linux)
+* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-standalone-linux)
 
 ### 🪟 Windows (amd64)
-* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-server-windows.exe)
-* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-bridge-windows.exe)
-* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.2/shelldeck-standalone-windows.exe)
+* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-server-windows.exe)
+* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-bridge-windows.exe)
+* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-standalone-windows.exe)
 
 *(🍎 Mac OS builds coming very soon!)*
 
