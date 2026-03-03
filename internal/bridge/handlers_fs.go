@@ -90,6 +90,19 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 	case "save":
 		f, _ := payload["filename"].(string)
 		c, _ := payload["content"].(string)
+		isBase64, _ := payload["isBase64"].(bool)
+
+		var contentBytes []byte
+		if isBase64 {
+			var err error
+			contentBytes, err = base64.StdEncoding.DecodeString(c)
+			if err != nil {
+				sendToHQ("fs_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Base64 decode error: " + err.Error()})
+				return
+			}
+		} else {
+			contentBytes = []byte(c)
+		}
 
 		tmp := fmt.Sprintf("/tmp/save_%d.tmp", time.Now().UnixNano())
 		s, err := client.NewSession()
@@ -105,9 +118,18 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 			return
 		}
 
-		stdin.Write([]byte(c))
+		if _, err := stdin.Write(contentBytes); err != nil {
+			stdin.Close()
+			s.Close()
+			sendToHQ("fs_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Write error: " + err.Error()})
+			return
+		}
 		stdin.Close()
-		s.Wait()
+		if err := s.Wait(); err != nil {
+			s.Close()
+			sendToHQ("fs_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Wait error (disk full?): " + err.Error()})
+			return
+		}
 		s.Close()
 
 		mvCmd := fmt.Sprintf("mv -f \"%s\" \"%s\"", tmp, f)
