@@ -256,6 +256,11 @@ func connectToHQ(serverID int) {
 			if payloadMap, ok := msg.Payload.(map[string]interface{}); ok {
 				go handleSSHCommand(msg.HostID, msg.TermID, payloadMap)
 			}
+		case "script_command":
+			// Upload phase
+			if payloadMap, ok := msg.Payload.(map[string]interface{}); ok {
+				go handleScriptUpload(msg.HostID, msg.TermID, payloadMap)
+			}
 		case "nginx_command":
 			if payloadMap, ok := msg.Payload.(map[string]interface{}); ok {
 				go handleNginxCommand(msg.HostID, msg.TermID, payloadMap)
@@ -414,6 +419,11 @@ func connectToHQ(serverID int) {
 			}
 		case "server_list_res":
 			// Ignore echoed response to prevent log spam
+		case "script_run_req":
+			// Execution phase
+			if payloadMap, ok := msg.Payload.(map[string]interface{}); ok {
+				go handleScriptRun(msg.HostID, msg.TermID, payloadMap)
+			}
 		case "sys_stats", "sys_logs", "ssh_output", "tunnel_status", "tunnel_list":
 			// Ignore echoed messages from server to prevent log spam
 		default:

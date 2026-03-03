@@ -1,3 +1,6 @@
+<link rel="stylesheet" href="/lib/css/all.min.css">
+<link rel="stylesheet" href="/lib/css/xterm.css">
+
 <style>
     .h-navbar {
         height: 50px;
@@ -77,9 +80,26 @@
     .h-drop-item:hover { background-color: #0d1117; color: #58a6ff; }
     .h-drop-item i { width: 20px; text-align: center; opacity: 0.7; }
 
-    .caret { font-size: 0.7em; margin-left: 5px; opacity: 0.5; }
-</style>
+    /* Nested Menu */
+    .h-drop-item { position: relative; }
+    .h-submenu { display: none; position: absolute; left: 100%; top: -5px; background-color: #161b22; border: 1px solid #30363d; border-radius: 6px; min-width: 160px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); flex-direction: column; padding: 5px; z-index: 1000; }
+    .h-drop-item:hover > .h-submenu { display: flex; }
+    .h-drop-item .fa-chevron-right { margin-left: auto; font-size: 0.7em; opacity: 0.5; }
 
+    .caret { font-size: 0.7em; margin-left: 5px; opacity: 0.5; }
+    
+    /* Modal Styles for Menu */
+    .menu-modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 10000; align-items: center; justify-content: center; }
+    .menu-modal-row { display: flex; flex-direction: column; gap: 5px; }
+    .menu-modal-row label { font-size: 0.8em; color: #8b949e; }
+    .menu-modal-row input, .menu-modal-row select { background: #0d1117; border: 1px solid #30363d; color: #fff; padding: 8px; border-radius: 4px; }
+    .menu-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+    .menu-btn { background: #238636; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; }
+    .menu-btn-sec { background: transparent; border: 1px solid #30363d; color: #c9d1d9; }
+    
+    /* Terminal Modal specific */
+    .menu-term-box { width: 90vw; height: 80vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #000; border: 1px solid #555; }
+</style>
 <div class="h-navbar menu-root">
     <div class="h-brand">
         <i class="fas fa-terminal"></i> 
@@ -151,12 +171,114 @@
                 </div>
             </div>
         </div>
+
+        <div class="h-dropdown-wrapper">
+            <div class="h-nav-btn dropdown-trigger">
+                <i class="fas fa-scroll" style="color: #e3b341;"></i> <span>Scripts</span> <i class="fas fa-chevron-down caret"></i>
+            </div>
+            <div class="h-dropdown-menu" id="scripts-menu-root">
+                <div class="h-drop-item" data-target="script.html">
+                    <i class="fas fa-cog" style="color: #8b949e;"></i> Manage Scripts...
+                </div>
+                <div style="height:1px; background:#30363d; margin:4px 0"></div>
+                <div style="padding:5px 10px; color:#8b949e; font-size:0.7em; font-style:italic">Loading...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- SCRIPT EXEC MODAL -->
+<div class="menu-modal-overlay" id="menu-exec-modal">
+    <div class="menu-modal-box">
+        <div class="menu-modal-title">Esegui Script</div>
+        <div class="menu-modal-row">
+            <label>Modalità</label>
+            <select id="menu-exec-mode">
+                <option value="runtime">Runtime (Esegui al volo)</option>
+                <option value="ram">RAM (Esegui in memoria)</option>
+                <option value="drop">Drop (Copia su Host)</option>
+                <option value="cron">Cron (Schedula)</option>
+                <option value="systemd">Systemd (Service/Timer)</option>
+            </select>
+        </div>
+        
+        <!-- Runtime Options -->
+        <div class="menu-modal-row" id="menu-runtime-opts">
+            <label>Opzioni Esecuzione</label>
+            <div style="display:flex; flex-direction:column; gap:8px">
+                <div style="display:flex; align-items:center; gap:10px">
+                    <input type="checkbox" id="menu-exec-root" style="width:auto">
+                    <label for="menu-exec-root" style="margin:0; cursor:pointer; color:#c9d1d9">Esegui come Root (sudo)</label>
+                </div>
+                <div id="menu-lbl-screen" style="display:flex; align-items:center; gap:10px">
+                    <input type="checkbox" id="menu-exec-screen" style="width:auto">
+                    <label for="menu-exec-screen" style="margin:0; cursor:pointer; color:#c9d1d9">Screen (Background)</label>
+                </div>
+            </div>
+        </div>
+        <div class="menu-modal-row" id="menu-row-screen-label" style="display:none">
+            <label>Etichetta Screen</label>
+            <input type="text" id="menu-exec-screen-label" placeholder="myscript">
+        </div>
+
+        <div class="menu-modal-row" id="menu-row-drop-path" style="display:none">
+            <label>Destinazione (Lascia vuoto per default, o scrivi nome/percorso)</label>
+            <input type="text" id="menu-exec-path" placeholder="es. /opt/myscript.sh o myscript.sh">
+        </div>
+        <div class="menu-modal-row" id="menu-row-cron-sched" style="display:none">
+            <label>Schedule (Cron Expression)</label>
+            <input type="text" id="menu-exec-schedule" placeholder="0 * * * *">
+            <div style="margin-top:5px; display:flex; align-items:center; gap:5px">
+                <input type="checkbox" id="menu-cron-root">
+                <label for="menu-cron-root" style="margin:0; cursor:pointer; color:#c9d1d9">Root Crontab</label>
+            </div>
+        </div>
+
+        <!-- Systemd Options -->
+        <div id="menu-systemd-opts" style="display:none">
+            <div class="menu-modal-row">
+                <label>Tipo Unit</label>
+                <select id="menu-sysd-type">
+                    <option value="service">Service (Standard)</option>
+                    <option value="timer">Timer (Schedulato)</option>
+                    <option value="oneshot">OneShot (Esegui una volta)</option>
+                </select>
+            </div>
+            <div class="menu-modal-row">
+                <label>Nome Servizio (es. myscript)</label>
+                <input type="text" id="menu-sysd-name" placeholder="myscript">
+            </div>
+            <div class="menu-modal-row" id="menu-row-sysd-sched" style="display:none">
+                <label>Schedule (OnCalendar format)</label>
+                <input type="text" id="menu-sysd-schedule" placeholder="*-*-* 00:00:00">
+            </div>
+            <div class="menu-modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="menu-sysd-root" checked style="width: auto;">
+                <label for="menu-sysd-root" style="margin:0; cursor:pointer; color:#c9d1d9">Installa come Root (System)</label>
+            </div>
+        </div>
+
+        <div class="menu-modal-actions">
+            <button class="menu-btn menu-btn-sec" id="btn-menu-cancel">Annulla</button>
+            <button class="menu-btn" id="btn-menu-confirm">Conferma</button>
+        </div>
+    </div>
+</div>
+
+<!-- TERMINAL MODAL (MENU) -->
+<div class="menu-modal-overlay" id="menu-term-modal" style="z-index:10001;">
+    <div class="menu-modal-box menu-term-box">
+        <div class="menu-term-header">
+            <span><i class="fas fa-terminal"></i> Output Script</span>
+            <div style="display:flex; gap:10px"><button class="menu-btn menu-btn-sec" id="btn-menu-detach" title="Detach Screen (Ctrl+A, D)" style="font-size:0.8em; padding:4px 8px;">Detach</button><i class="fas fa-times" style="cursor:pointer" id="btn-menu-term-close"></i></div>
+        </div>
+        <div id="menu-term-embed" style="flex:1; padding:5px;"></div>
     </div>
 </div>
 
 <script>
-    (function() {
-        const app = (typeof appInstance !== 'undefined') ? appInstance : null;
+    (function(appInstance) {
+        const app = appInstance;
         if(!app) return; // Sicurezza
 
         // SCOPED QUERY: Cerchiamo SOLO dentro il container di questo host
@@ -166,6 +288,272 @@
         if(titleEl) {
             titleEl.innerText = app.hostName.toUpperCase();
         }
+
+        // --- SCRIPT MENU LOGIC ---
+        let scriptWs = null;
+        let currentScriptPath = "";
+        const scriptMenuRoot = root.querySelector('#scripts-menu-root');
+        const execModal = app.container.querySelector('#menu-exec-modal');
+        const termModal = app.container.querySelector('#menu-term-modal');
+        
+        let term = null;
+        let fitAddon = null;
+        let currentTermId = null;
+        let pendingMenuPayload = null;
+
+        const loadScript = (src) => new Promise((resolve) => {
+            if (document.querySelector(`script[src="${src}"]`)) return resolve();
+            const s = document.createElement('script'); s.src = src; s.onload = resolve; document.head.appendChild(s);
+        });
+
+        async function loadScripts() {
+            try {
+                const res = await fetch('/api/scripts/tree');
+                if(res.ok) {
+                    const tree = await res.json();
+                    renderScriptMenu(tree);
+                }
+            } catch(e) { console.error("Error loading scripts", e); }
+        }
+        
+        // Esponi funzione di refresh globale per la pagina script.html
+        app.refreshScriptMenu = loadScripts;
+
+        function renderScriptMenu(items) {
+            if(!scriptMenuRoot) return;
+            // Keep the first two elements (Manage link and separator)
+            const staticItems = Array.from(scriptMenuRoot.children).slice(0, 2);
+            scriptMenuRoot.innerHTML = "";
+            staticItems.forEach(el => scriptMenuRoot.appendChild(el));
+
+            if(!items || items.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.padding = "5px 10px"; empty.style.color = "#8b949e"; empty.style.fontSize = "0.8em";
+                empty.innerText = "No scripts found";
+                scriptMenuRoot.appendChild(empty);
+                return;
+            }
+
+            // Sort: folders first
+            items.sort((a, b) => (a.type === b.type ? 0 : a.type === 'dir' ? -1 : 1));
+
+            items.forEach(item => {
+                scriptMenuRoot.appendChild(createMenuItem(item));
+            });
+        }
+
+        function createMenuItem(item) {
+            const div = document.createElement('div');
+            div.className = "h-drop-item";
+            
+            if(item.type === 'dir') {
+                div.innerHTML = `<i class="fas fa-folder" style="color:#e3b341"></i> ${item.name} <i class="fas fa-chevron-right"></i>`;
+                const submenu = document.createElement('div');
+                submenu.className = "h-submenu";
+                if(item.children) {
+                    item.children.sort((a, b) => (a.type === b.type ? 0 : a.type === 'dir' ? -1 : 1));
+                    item.children.forEach(child => submenu.appendChild(createMenuItem(child)));
+                } else {
+                    submenu.innerHTML = "<div style='padding:5px;color:#666;font-size:0.8em'>(empty)</div>";
+                }
+                div.appendChild(submenu);
+            } else {
+                div.innerHTML = `<i class="fas fa-file-code" style="color:#58a6ff"></i> ${item.name}`;
+                div.onclick = (e) => {
+                    e.stopPropagation();
+                    // Force close dropdowns immediately
+                    root.querySelectorAll('.h-dropdown-wrapper').forEach(w => w.classList.remove('open'));
+                    openExecModal(item.path);
+                };
+            }
+            return div;
+        }
+
+        function openExecModal(path) {
+            if(!execModal) return console.error("Exec modal not found");
+            currentScriptPath = path;
+            execModal.style.display = 'flex';
+            // Reset fields
+            execModal.querySelector('#menu-exec-mode').value = 'runtime';
+            execModal.querySelector('#menu-exec-mode').dispatchEvent(new Event('change'));
+        }
+
+        // Modal Events
+        if(execModal) {
+            const modeSel = execModal.querySelector('#menu-exec-mode');
+            modeSel.onchange = () => {
+                const val = modeSel.value;
+                execModal.querySelector('#menu-runtime-opts').style.display = (val === 'runtime' || val === 'drop' || val === 'ram') ? 'block' : 'none';
+                execModal.querySelector('#menu-row-drop-path').style.display = val === 'drop' ? 'flex' : 'none';
+                execModal.querySelector('#menu-row-cron-sched').style.display = val === 'cron' ? 'flex' : 'none';
+                execModal.querySelector('#menu-systemd-opts').style.display = val === 'systemd' ? 'block' : 'none';
+                
+                // Hide screen option for RAM mode
+                execModal.querySelector('#menu-lbl-screen').style.display = (val === 'ram' || val === 'drop') ? 'none' : 'flex';
+
+                // Auto-fill drop path if visible
+                if(val === 'drop') {
+                    const explorerInput = document.querySelector('.current-path-input');
+                    if(explorerInput && explorerInput.offsetParent !== null) {
+                        execModal.querySelector('#menu-exec-path').value = explorerInput.value;
+                    }
+                }
+            };
+            
+            execModal.querySelector('#menu-exec-screen').onchange = (e) => {
+                execModal.querySelector('#menu-row-screen-label').style.display = e.target.checked ? 'flex' : 'none';
+            };
+            
+            execModal.querySelector('#menu-sysd-type').onchange = (e) => {
+                execModal.querySelector('#menu-row-sysd-sched').style.display = e.target.value === 'timer' ? 'flex' : 'none';
+            };
+
+            execModal.querySelector('#btn-menu-cancel').onclick = () => execModal.style.display = 'none';
+            
+            execModal.querySelector('#btn-menu-confirm').onclick = () => {
+                const mode = modeSel.value;
+                const targetPath = execModal.querySelector('#menu-exec-path').value;
+                const schedule = execModal.querySelector('#menu-exec-schedule').value;
+                const runAsUser = execModal.querySelector('#menu-exec-root').checked ? 'root' : 'user';
+                const useScreen = execModal.querySelector('#menu-exec-screen').checked;
+                const screenLabel = execModal.querySelector('#menu-exec-screen-label').value;
+                const cronAsRoot = execModal.querySelector('#menu-cron-root').checked;
+                
+                // Systemd vars
+                const sysdType = execModal.querySelector('#menu-sysd-type').value;
+                const sysdName = execModal.querySelector('#menu-sysd-name').value;
+                const sysdSched = execModal.querySelector('#menu-sysd-schedule').value;
+                const sysdRoot = execModal.querySelector('#menu-sysd-root').checked;
+
+                if(mode === 'cron' && !schedule) return alert("Schedule richiesta");
+                if(mode === 'systemd' && !sysdName) return alert("Nome servizio richiesto");
+                if(mode === 'systemd' && sysdType === 'timer' && !sysdSched) return alert("Schedule richiesta per Timer");
+
+                // Init WS if needed
+                if(!scriptWs || scriptWs.readyState !== WebSocket.OPEN) {
+                    initWs(() => sendScriptCmd(mode, targetPath, schedule, runAsUser, useScreen, screenLabel, cronAsRoot, sysdType, sysdName, sysdSched, sysdRoot));
+                } else {
+                    sendScriptCmd(mode, targetPath, schedule, runAsUser, useScreen, screenLabel, cronAsRoot, sysdType, sysdName, sysdSched, sysdRoot);
+                }
+                execModal.style.display = 'none';
+            };
+        }
+        
+        if(termModal) {
+            termModal.querySelector('#btn-menu-term-close').onclick = () => {
+                termModal.style.display = 'none';
+                if(term) term.dispose();
+                term = null;
+                if(scriptWs && currentTermId) scriptWs.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(app.hostId), term_id: currentTermId }));
+            };
+            termModal.querySelector('#btn-menu-detach').onclick = () => {
+                if(scriptWs && currentTermId) {
+                    // Send Ctrl+A (0x01) then 'd'
+                    scriptWs.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(app.hostId), term_id: currentTermId, payload: "\x01d" }));
+                    setTimeout(() => termModal.style.display = 'none', 500);
+                }
+            };
+        }
+
+        function initWs(cb) {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            scriptWs = new WebSocket(`${protocol}//${window.location.host}/ws/client`);
+            scriptWs.onopen = cb;
+            scriptWs.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if(msg.type === "ssh_output" && msg.term_id === currentTermId) {
+                    if(term) term.write(msg.payload);
+                }
+                if(msg.type === "script_output") {
+                    // For non-interactive runtime output (fallback)
+                    if(term) term.write(msg.payload.output);
+                    else alert("Output:\n" + msg.payload.output);
+                }
+                if(msg.type === "script_op_res") {
+                    alert(msg.payload.status === "success" ? "Successo: " + (msg.payload.msg || "OK") : "Errore: " + msg.payload.msg);
+                }
+                if (msg.type === "script_upload_ack") {
+                    if(msg.payload.status === "success") {
+                        if(pendingMenuPayload) {
+                            pendingMenuPayload.filename = msg.payload.remote_file;
+                            startMenuExecution(pendingMenuPayload);
+                        }
+                    } else {
+                        alert("Upload failed: " + msg.payload.msg);
+                    }
+                }
+            };
+        }
+
+        async function sendScriptCmd(mode, targetPath, schedule, runAsUser, useScreen, screenLabel, cronAsRoot, sysdType, sysdName, sysdSched, sysdRoot) {
+            // Use a temp term ID for this execution
+            currentTermId = `${app.workspaceId || 0}:menu_script_` + Math.random().toString(36).substring(2, 9);
+
+            if(mode === 'runtime' || mode === 'ram') { 
+                // Carica JS solo se necessario (CSS è già nel head)
+                if(typeof Terminal === 'undefined') await loadScript('/lib/js/xterm.js'); 
+                if(typeof FitAddon === 'undefined') await loadScript('/lib/js/xterm-addon-fit.js'); 
+            }
+
+            // Determine interpreter based on extension
+            let interpreter = "bash";
+            if(currentScriptPath.endsWith('.py')) interpreter = "python3";
+            else if(currentScriptPath.endsWith('.js')) interpreter = "node";
+
+            // Subscribe to receive output
+            scriptWs.send(JSON.stringify({ type: "subscribe", host_id: parseInt(app.hostId), term_id: currentTermId }));
+
+            pendingMenuPayload = {
+                mode: mode,
+                target_path: targetPath,
+                schedule: (mode === 'systemd' ? sysdSched : schedule),
+                interactive: true,
+                interpreter: interpreter,
+                run_as_user: runAsUser,
+                use_screen: useScreen,
+                screen_label: screenLabel,
+                cron_as_root: (mode === 'systemd' ? sysdRoot : cronAsRoot),
+                sysd_type: sysdType,
+                sysd_name: sysdName
+            };
+
+            // Step 1: Upload
+            scriptWs.send(JSON.stringify({
+                type: "script_exec_req",
+                host_id: parseInt(app.hostId),
+                term_id: currentTermId,
+                payload: { script_path: currentScriptPath }
+            }));
+        }
+        
+        function startMenuExecution(payload) {
+            if(payload.mode === 'runtime' || payload.mode === 'ram') {
+                openTerminal();
+            }
+            scriptWs.send(JSON.stringify({ type: "script_run_req", host_id: parseInt(app.hostId), term_id: currentTermId, payload: payload }));
+        }
+        
+        function openTerminal() {
+            termModal.style.display = 'flex';
+            const embed = termModal.querySelector('#menu-term-embed');
+            embed.innerHTML = "";
+            if(typeof Terminal !== 'undefined') {
+                term = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000' } });
+                fitAddon = new FitAddon.FitAddon();
+                term.loadAddon(fitAddon);
+                term.open(embed);
+                fitAddon.fit();
+                term.onData(d => scriptWs.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(app.hostId), term_id: currentTermId, payload: d })));
+                setTimeout(() => { 
+                    fitAddon.fit(); 
+                    scriptWs.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(app.hostId), term_id: currentTermId, payload: { cols: term.cols, rows: term.rows } }));
+                    term.focus();
+                    scriptWs.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(app.hostId), term_id: currentTermId, payload: "\r" }));
+                }, 300);
+            }
+        }
+
+        loadScripts();
 
         // GESTIONE CLICK MENU (Scoped su root)
         root.addEventListener('click', (e) => {
@@ -213,14 +601,10 @@
 
         document.addEventListener('click', closeDropdowns);
 
-        // CLEANUP FONDAMENTALE: Rimuovere il listener globale quando il tab viene distrutto
-        // Altrimenti dopo 10 aperture avrai 10 listener che girano
-        if (app.registerCleanup) {
-            // Nota: registerCleanup deve essere gestito in HostApp.destroy() o simile
-            // Se HostApp non ha un meccanismo di cleanup menu specifico, questo listener
-            // rimarrà appeso. Idealmente HostApp dovrebbe chiamare un callback quando si chiude.
-            // Per ora lo lasciamo così, è meno grave dell'ID duplicato.
-        }
+        // NOTA: Non registriamo cleanup qui perché il menu deve persistere tra le navigazioni delle pagine (loadPage).
+        // Il cleanup di loadPage cancellerebbe le modali e il WS del menu, rompendolo.
+        // Idealmente HostApp dovrebbe avere un cleanup "globale" vs "pagina", ma per ora lasciamo il menu vivo
+        // finché l'intera HostApp non viene distrutta (chiusura tab browser).
 
-    })();
+    })(arguments[0]);
 </script>

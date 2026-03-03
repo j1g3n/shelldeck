@@ -436,6 +436,12 @@ func seedData() {
 	// Lasciamo il database vuoto come richiesto, pronto per l'uso.
 }
 
+func initScriptsDir() {
+	if _, err := os.Stat("scripts"); os.IsNotExist(err) {
+		os.Mkdir("scripts", 0755)
+	}
+}
+
 // --- HELPER FILE COPY ---
 func copyFile(src, dst string) error {
 	sourceFileStat, err := os.Stat(src)
@@ -485,6 +491,7 @@ func Start() {
 	loadConfig()
 	initUsersDB()
 	initDB()
+	initScriptsDir()
 
 	// Inizializza currentWorkspaceID con il gruppo Default
 	usersDB.QueryRow("SELECT id FROM groups WHERE db_path = 'data/server/default.db'").Scan(&currentWorkspaceID)
@@ -1939,6 +1946,181 @@ func Start() {
 		return c.JSON(fiber.Map{"status": "success"})
 	})
 
+	// --- API SCRIPTS MANAGER ---
+	app.Get("/api/scripts/tree", authReq, func(c *fiber.Ctx) error {
+		root := "scripts"
+		var walk func(path string) ([]interface{}, error)
+		walk = func(currentPath string) ([]interface{}, error) {
+			entries, err := os.ReadDir(currentPath)
+			if err != nil {
+				return nil, err
+			}
+			var items []interface{}
+			for _, e := range entries {
+				relPath, _ := filepath.Rel(root, filepath.Join(currentPath, e.Name()))
+				item := map[string]interface{}{
+					"name": e.Name(),
+					"path": relPath,
+					"type": "file",
+				}
+				if e.IsDir() {
+					item["type"] = "dir"
+					children, _ := walk(filepath.Join(currentPath, e.Name()))
+					item["children"] = children
+				}
+				items = append(items, item)
+			}
+			return items, nil
+		}
+		tree, err := walk(root)
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.JSON(tree)
+	})
+
+	app.Post("/api/scripts/content", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		// Sanitize
+		if strings.Contains(req.Path, "..") {
+			return c.Status(403).SendString("Invalid path")
+		}
+		content, err := os.ReadFile(filepath.Join("scripts", req.Path))
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.SendString(string(content))
+	})
+
+	app.Post("/api/scripts/save", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			Path    string `json:"path"`
+			Content string `json:"content"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		if strings.Contains(req.Path, "..") {
+			return c.Status(403).SendString("Invalid path")
+		}
+		fullPath := filepath.Join("scripts", req.Path)
+		if err := os.WriteFile(fullPath, []byte(req.Content), 0644); err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
+	app.Post("/api/scripts/create", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			Path string `json:"path"`
+			Type string `json:"type"` // "file" or "dir"
+			Name string `json:"name"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		if strings.Contains(req.Path, "..") || strings.Contains(req.Name, "..") || strings.Contains(req.Name, "/") {
+			return c.Status(403).SendString("Invalid path or name")
+		}
+		target := filepath.Join("scripts", req.Path, req.Name)
+		if req.Type == "dir" {
+			if err := os.MkdirAll(target, 0755); err != nil {
+				return c.Status(500).SendString(err.Error())
+			}
+		} else {
+			if err := os.WriteFile(target, []byte(""), 0644); err != nil {
+				return c.Status(500).SendString(err.Error())
+			}
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
+	app.Post("/api/scripts/delete", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		if strings.Contains(req.Path, "..") || req.Path == "" || req.Path == "." {
+			return c.Status(403).SendString("Invalid path")
+		}
+		if err := os.RemoveAll(filepath.Join("scripts", req.Path)); err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
+	app.Post("/api/scripts/upload", authReq, func(c *fiber.Ctx) error {
+		form, err := c.MultipartForm()
+		if err != nil {
+			return err
+		}
+		targetPath := c.FormValue("path")
+		if strings.Contains(targetPath, "..") {
+			return c.Status(403).SendString("Invalid path")
+		}
+		files := form.File["files"]
+		for _, file := range files {
+			// Save to scripts/targetPath/filename
+			dst := filepath.Join("scripts", targetPath, file.Filename)
+			if err := c.SaveFile(file, dst); err != nil {
+				return c.Status(500).SendString(err.Error())
+			}
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
+	app.Post("/api/scripts/rename", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			OldPath string `json:"old_path"`
+			NewName string `json:"new_name"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		if strings.Contains(req.OldPath, "..") || strings.Contains(req.NewName, "..") || strings.Contains(req.NewName, "/") {
+			return c.Status(403).SendString("Invalid path")
+		}
+		oldFull := filepath.Join("scripts", req.OldPath)
+		newFull := filepath.Join(filepath.Dir(oldFull), req.NewName)
+		if err := os.Rename(oldFull, newFull); err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
+	app.Post("/api/scripts/chmod", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			Path string `json:"path"`
+			Mode string `json:"mode"` // e.g. "+x"
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString(err.Error())
+		}
+		if strings.Contains(req.Path, "..") {
+			return c.Status(403).SendString("Invalid path")
+		}
+
+		fullPath := filepath.Join("scripts", req.Path)
+		// Simple implementation for +x: read mode, add 0111, write mode
+		if req.Mode == "+x" {
+			info, err := os.Stat(fullPath)
+			if err != nil {
+				return c.Status(500).SendString(err.Error())
+			}
+			if err := os.Chmod(fullPath, info.Mode()|0111); err != nil {
+				return c.Status(500).SendString(err.Error())
+			}
+		}
+		return c.JSON(fiber.Map{"status": "success"})
+	})
+
 	// --- WEBSOCKET ROUTING ---
 	app.Use("/ws", func(c *fiber.Ctx) error {
 		if websocket.IsWebSocketUpgrade(c) {
@@ -2160,6 +2342,34 @@ func Start() {
 			}
 
 			log.Printf("[CLIENT-RX] Type: %s, HostID: %d, TermID: %s", msg.Type, msg.HostID, msg.TermID)
+
+			if msg.Type == "script_exec_req" {
+				// Server reads the script and forwards to Bridge
+				if payload, ok := msg.Payload.(map[string]interface{}); ok {
+					scriptPath, _ := payload["script_path"].(string)
+					if strings.Contains(scriptPath, "..") {
+						continue
+					}
+					content, err := os.ReadFile(filepath.Join("scripts", scriptPath))
+					if err == nil {
+						payload["content"] = base64.StdEncoding.EncodeToString(content)
+						payload["filename"] = filepath.Base(scriptPath)
+
+						bridgeMu.Lock()
+						bridge := activeBridges[username]
+						if bridge != nil {
+							bridge.WriteJSON(JMessage{
+								Type:    "script_command",
+								HostID:  msg.HostID,
+								TermID:  msg.TermID,
+								Payload: payload,
+							})
+						}
+						bridgeMu.Unlock()
+					}
+				}
+				continue
+			}
 
 			if msg.Type == "subscribe" {
 				currentHostID = msg.HostID

@@ -1,0 +1,868 @@
+<div class="script-module-wrapper">
+    <link rel="stylesheet" href="/lib/css/all.min.css">
+    <link rel="stylesheet" href="/lib/css/xterm.css">
+
+    <style>
+        .script-module-wrapper { display: flex; width: 100%; height: 100%; background-color: #0d1117; color: #c9d1d9; font-family: 'JetBrains Mono', monospace; overflow: hidden; --bg-panel: #161b22; --border: #30363d; --accent: #238636; --text-dim: #8b949e; }
+        .script-sidebar { width: 300px; background: var(--bg-panel); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
+        .script-toolbar { padding: 10px; border-bottom: 1px solid var(--border); display: flex; gap: 5px; }
+        .script-tree { flex: 1; overflow-y: auto; padding: 10px; }
+        .script-main { flex: 1; display: flex; flex-direction: column; background: #0d1117; position: relative; }
+        .script-editor-header { padding: 10px; background: var(--bg-panel); border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+        .ace-container { flex: 1; position: relative; }
+        .tree-item { padding: 5px 10px; cursor: pointer; display: flex; align-items: center; gap: 8px; border-radius: 4px; color: var(--text-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .tree-item:hover { background: #21262d; color: #fff; }
+        .tree-item.active { background: rgba(35, 134, 54, 0.2); color: #fff; border-left: 3px solid var(--accent); }
+        .tree-item i { width: 16px; text-align: center; }
+        .tree-toggle { margin-right: 5px; cursor: pointer; width: 10px; display: inline-block; text-align: center; font-size: 0.8em; color: var(--text-dim); }
+        .tree-indent { margin-left: 15px; border-left: 1px solid #30363d; }
+        .btn-icon { background: transparent; border: 1px solid var(--border); color: #c9d1d9; padding: 5px; border-radius: 4px; cursor: pointer; width: 30px; height: 30px; display: flex; align-items: center; justify-content: center; }
+        .btn-icon:hover { background: #30363d; color: #fff; }
+        .btn-exec { background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .btn-exec:hover { filter: brightness(1.1); }
+        
+        /* Modal */
+        .modal-overlay { display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; }
+        .modal-box { background: var(--bg-panel); border: 1px solid var(--border); padding: 20px; border-radius: 8px; width: 400px; display: flex; flex-direction: column; gap: 15px; }
+        .modal-title { font-weight: bold; font-size: 1.1em; border-bottom: 1px solid var(--border); padding-bottom: 10px; }
+        .modal-row { display: flex; flex-direction: column; gap: 5px; }
+        .modal-row label { font-size: 0.8em; color: var(--text-dim); }
+        .modal-row input, .modal-row select { background: #0d1117; border: 1px solid var(--border); color: #fff; padding: 8px; border-radius: 4px; }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
+        
+        .output-panel { height: 200px; background: #000; border-top: 1px solid var(--border); padding: 10px; font-family: monospace; font-size: 0.85em; overflow-y: auto; display: none; flex-direction: column; }
+        .output-header { display: flex; justify-content: space-between; margin-bottom: 5px; color: var(--text-dim); font-size: 0.8em; border-bottom: 1px solid #333; padding-bottom: 5px; }
+
+        /* Context Menu */
+        .context-menu { display: none; position: fixed; z-index: 10000; background: var(--bg-panel); border: 1px solid var(--border); border-radius: 6px; box-shadow: 0 10px 30px rgba(0,0,0,0.9); min-width: 180px; padding: 5px 0; }
+        .ctx-item { padding: 8px 15px; cursor: pointer; display: flex; align-items: center; gap: 10px; color: #c9d1d9; font-size: 0.9em; transition: 0.2s; }
+        .ctx-item:hover { background: var(--accent); color: white; }
+        .ctx-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+        /* Terminal Modal */
+        .term-modal-content { width: 90vw; height: 80vh; display: flex; flex-direction: column; background: #000; border: 1px solid #444; }
+        .term-container { flex: 1; width: 100%; height: 100%; padding: 5px; }
+        
+        /* Bottom Panel */
+        .script-bottom-panel { display: none; height: 250px; border-top: 1px solid var(--border); background: #000; flex-direction: column; }
+        .script-bottom-term-container { flex: 1; width: 100%; height: 100%; padding: 5px; overflow: hidden; }
+
+        /* Status Toast */
+        .script-status-toast { position: absolute; bottom: 20px; right: 20px; background: #161b22; border: 1px solid var(--accent); color: #fff; padding: 8px 15px; border-radius: 4px; font-size: 0.85em; display: none; align-items: center; gap: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.5); z-index: 200; }
+
+        .checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 0.9em; cursor: pointer; }
+    </style>
+
+    <div class="script-sidebar">
+        <div class="script-toolbar">
+            <button class="btn-icon btn-new-file" title="New File"><i class="fas fa-file-medical"></i></button>
+            <button class="btn-icon btn-new-dir" title="New Folder"><i class="fas fa-folder-plus"></i></button>
+            <button class="btn-icon btn-upload" title="Upload"><i class="fas fa-upload"></i></button>
+            <button class="btn-icon btn-refresh" title="Refresh"><i class="fas fa-sync"></i></button>
+            <input type="file" id="script-upload-input" multiple style="display:none">
+        </div>
+        <div class="script-tree" id="script-tree-root">Loading...</div>
+    </div>
+
+    <div class="script-main">
+        <div class="script-editor-header">
+            <span class="current-file-name" style="font-weight:bold; color:var(--accent)">Nessun file selezionato</span>
+            <div style="display:flex; gap:10px">
+                <button class="btn-icon btn-save" title="Save" disabled><i class="fas fa-save"></i></button>
+                <button class="btn-icon btn-delete" title="Delete" disabled><i class="fas fa-trash"></i></button>
+                <button class="btn-icon btn-toggle-term" title="Terminal (CMD)"><i class="fas fa-terminal"></i></button>
+                <div style="width:1px; background:var(--border); margin:0 5px;"></div>
+                
+                <button class="btn-exec btn-mode-run" disabled title="Esegui al volo (Runtime)"><i class="fas fa-play"></i> Run</button>
+                <button class="btn-exec btn-mode-copy" disabled style="background:#1f6feb" title="Copia su Host"><i class="fas fa-file-export"></i> Copy</button>
+                <button class="btn-exec btn-mode-cron" disabled style="background:#d29922" title="Schedula (Cron)"><i class="fas fa-clock"></i> Cron</button>
+                <div style="width:1px; background:var(--border); margin:0 5px;"></div>
+                <button class="btn-exec btn-mode-systemd" disabled style="background:#6e7681" title="Systemd (Service/Timer)"><i class="fas fa-cogs"></i> Systemd</button>
+                <button class="btn-exec btn-mode-ram" disabled style="background:#a371f7" title="Esegui in RAM (No File)"><i class="fas fa-bolt"></i> RAM</button>
+            </div>
+        </div>
+        <div class="ace-container">
+            <div id="script-ace-editor" style="position:absolute; top:0; right:0; bottom:0; left:0;"></div>
+        </div>
+        <div class="output-panel">
+            <div class="output-header">
+                <span>Output Esecuzione</span>
+                <i class="fas fa-times" style="cursor:pointer" onclick="this.closest('.output-panel').style.display='none'"></i>
+            </div>
+            <pre class="output-content" style="margin:0; white-space: pre-wrap;"></pre>
+        </div>
+        <!-- Bottom Terminal -->
+        <div class="script-bottom-panel">
+            <div id="script-bottom-term" class="script-bottom-term-container"></div>
+        </div>
+        <div class="script-status-toast"><i class="fas fa-circle-notch fa-spin"></i> <span>Caricamento...</span></div>
+    </div>
+
+    <!-- CONTEXT MENU -->
+    <div id="script-ctx-menu" class="context-menu">
+        <div class="ctx-item" data-action="rename"><i class="fas fa-edit"></i> Rinomina</div>
+        <div class="ctx-item" data-action="copy"><i class="fas fa-copy"></i> Copia</div>
+        <div class="ctx-item" data-action="cut"><i class="fas fa-cut"></i> Taglia</div>
+        <div class="ctx-item" data-action="paste"><i class="fas fa-paste"></i> Incolla</div>
+        <div class="ctx-divider"></div>
+        <div class="ctx-item" data-action="chmod"><i class="fas fa-terminal"></i> Rendi Eseguibile</div>
+        <div class="ctx-item" data-action="delete" style="color:var(--danger)"><i class="fas fa-trash"></i> Elimina</div>
+    </div>
+
+    <!-- MODAL RUN -->
+    <div class="modal-overlay" id="modal-run">
+        <div class="modal-box">
+            <div class="modal-title"><i class="fas fa-play"></i> Esegui (Runtime)</div>
+            <div class="modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="run-root" style="width: auto;">
+                <label for="run-root" style="margin:0; cursor:pointer">Esegui come Root (sudo)</label>
+            </div>
+            <div class="modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="run-screen" style="width: auto;">
+                <label for="run-screen" style="margin:0; cursor:pointer">Esegui in Screen (Background)</label>
+            </div>
+            <div class="modal-row" id="row-run-screen-label" style="display:none">
+                <label>Etichetta Screen</label>
+                <input type="text" id="run-screen-label" placeholder="myscript">
+            </div>
+            <div class="modal-actions">
+                <button class="btn-icon" style="width:auto; padding:0 10px;" onclick="document.getElementById('modal-run').style.display='none'">Annulla</button>
+                <button class="btn-exec" id="btn-confirm-run">Esegui</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL COPY -->
+    <div class="modal-overlay" id="modal-copy">
+        <div class="modal-box">
+            <div class="modal-title"><i class="fas fa-file-export"></i> Copia su Host</div>
+            <div class="modal-row">
+                <label>Destinazione (Lascia vuoto per default, o scrivi nome/percorso)</label>
+                <input type="text" id="copy-path" placeholder="es. /opt/myscript.sh o myscript.sh">
+            </div>
+            <div class="modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="copy-root" style="width: auto;">
+                <label for="copy-root" style="margin:0; cursor:pointer">Copia come Root (sudo)</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-icon" style="width:auto; padding:0 10px;" onclick="document.getElementById('modal-copy').style.display='none'">Annulla</button>
+                <button class="btn-exec" id="btn-confirm-copy" style="background:#1f6feb">Copia</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL CRON -->
+    <div class="modal-overlay" id="modal-cron">
+        <div class="modal-box">
+            <div class="modal-title"><i class="fas fa-clock"></i> Schedula (Cron)</div>
+            <div class="modal-row">
+                <label>Schedule (Cron Expression)</label>
+                <input type="text" id="cron-schedule" placeholder="0 * * * *">
+            </div>
+            <div class="modal-row">
+                <label>Salva script in (Opzionale)</label>
+                <input type="text" id="cron-path" placeholder="Default: ~/.shelldeck/jobs/">
+            </div>
+            <div class="modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="cron-root" style="width: auto;">
+                <label for="cron-root" style="margin:0; cursor:pointer">Edita Crontab di Root (sudo)</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-icon" style="width:auto; padding:0 10px;" onclick="document.getElementById('modal-cron').style.display='none'">Annulla</button>
+                <button class="btn-exec" id="btn-confirm-cron" style="background:#d29922">Schedula</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL SYSTEMD -->
+    <div class="modal-overlay" id="modal-systemd">
+        <div class="modal-box">
+            <div class="modal-title"><i class="fas fa-cogs"></i> Crea Systemd Unit</div>
+            <div class="modal-row">
+                <label>Tipo Unit</label>
+                <select id="sysd-type">
+                    <option value="service">Service (Standard)</option>
+                    <option value="timer">Timer (Schedulato)</option>
+                    <option value="oneshot">OneShot (Esegui una volta)</option>
+                </select>
+            </div>
+            <div class="modal-row">
+                <label>Nome Servizio (es. myscript)</label>
+                <input type="text" id="sysd-name" placeholder="myscript">
+            </div>
+            <div class="modal-row" id="row-sysd-sched" style="display:none">
+                <label>Schedule (OnCalendar format, es. *-*-* 04:00:00)</label>
+                <input type="text" id="sysd-schedule" placeholder="*-*-* 00:00:00">
+            </div>
+            <div class="modal-row" style="flex-direction: row; align-items: center; gap: 10px; margin-top: 5px;">
+                <input type="checkbox" id="sysd-root" checked style="width: auto;">
+                <label for="sysd-root" style="margin:0; cursor:pointer">Installa come Root (System)</label>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-icon" style="width:auto; padding:0 10px;" onclick="document.getElementById('modal-systemd').style.display='none'">Annulla</button>
+                <button class="btn-exec" id="btn-confirm-systemd" style="background:#6e7681">Crea Unit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- TERMINAL MODAL -->
+    <div class="modal-overlay" id="term-modal">
+        <div class="modal-box term-modal-content">
+            <div class="modal-header" style="padding:10px; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-weight:bold; color:#fff"><i class="fas fa-terminal"></i> Terminal Output</span>
+                <div style="display:flex; gap:10px">
+                    <button class="btn-icon" id="btn-term-detach" title="Detach Screen (Ctrl+A, D)" style="width:auto; padding:0 10px; font-size:0.8em">Detach</button>
+                    <i class="fas fa-times" style="cursor:pointer" onclick="document.getElementById('term-modal').style.display='none'"></i>
+                </div>
+            </div>
+            <div id="script-term-embed" class="term-container"></div>
+        </div>
+    </div>
+
+    <script>
+        (function(app) {
+            const appInstance = app || window.appInstance;
+            const container = appInstance.container;
+            const currentId = appInstance.hostId;
+            const wsId = appInstance.workspaceId || 0;
+            const termId = `${wsId}:script_` + Math.random().toString(36).substring(2, 9);
+
+            let editor;
+            let ws = null;
+            let currentPath = ""; // Path of currently selected file/folder in tree
+            let currentFile = ""; // Path of currently open file
+            let treeData = [];
+            let clipboard = null; // { op: 'copy'|'cut', path: '' }
+            
+            let term = null;
+            let fitAddon = null;
+            
+            let bottomTerm = null;
+            let bottomFit = null;
+            let bottomTermId = null;
+            let pendingRunPayload = null;
+            let expandedPaths = new Set(); // Store expanded folder paths
+
+            // Init Ace
+            const loadScript = (src) => new Promise((resolve) => {
+                if (document.querySelector(`script[src="${src}"]`)) return resolve();
+                const s = document.createElement('script'); s.src = src; s.onload = resolve; document.head.appendChild(s);
+            });
+
+            (async function init() {
+                await loadScript('lib/js/ace.js');
+                await loadScript('/lib/js/xterm.js');
+                await loadScript('/lib/js/xterm-addon-fit.js');
+
+                editor = ace.edit(container.querySelector('#script-ace-editor'));
+                editor.setTheme("ace/theme/monokai");
+                editor.session.setMode("ace/mode/sh");
+                editor.setReadOnly(true);
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                ws = new WebSocket(`${protocol}//${window.location.host}/ws/client`);
+                
+                ws.onopen = () => {
+                    ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
+                    loadTree();
+                };
+
+                ws.onmessage = (e) => {
+                    const msg = JSON.parse(e.data);
+                    if (msg.type === "script_output") {
+                        showOutput(msg.payload.output, msg.payload.status === "error");
+                    }
+                    if (msg.type === "ssh_output" && msg.term_id === termId) {
+                        if(term) term.write(msg.payload);
+                    }
+                    if (msg.type === "ssh_output" && msg.term_id === bottomTermId) {
+                        if(bottomTerm) bottomTerm.write(msg.payload);
+                    }
+                    if (msg.type === "script_op_res") {
+                        alert(msg.payload.msg);
+                    }
+                    if (msg.type === "script_upload_ack") {
+                        if(msg.payload.status === "success") {
+                            showStatus("Upload completato", 1000);
+                            if(pendingRunPayload) {
+                                pendingRunPayload.filename = msg.payload.remote_file; // Set remote filename
+                                startExecutionPhase(pendingRunPayload);
+                            }
+                        } else {
+                            alert("Upload failed: " + msg.payload.msg);
+                        }
+                    }
+                };
+
+                bindEvents();
+            })();
+
+            function bindEvents() {
+                const q = (s) => container.querySelector(s);
+                q('.btn-refresh').onclick = loadTree;
+                q('.btn-new-file').onclick = () => createItem('file');
+                q('.btn-new-dir').onclick = () => createItem('dir');
+                q('.btn-upload').onclick = () => q('#script-upload-input').click();
+                q('#script-upload-input').onchange = uploadFiles;
+                q('.btn-save').onclick = saveCurrentFile;
+                q('.btn-delete').onclick = deleteCurrentItem;
+                
+                // RUN BUTTON
+                q('.btn-mode-run').onclick = () => {
+                    if(!currentFile) return;
+                    q('#modal-run .modal-title').innerHTML = '<i class="fas fa-play"></i> Esegui (Runtime)';
+                    q('#run-screen').parentElement.style.display = 'flex'; // Show screen option
+                    q('#btn-confirm-run').onclick = () => executeAction('runtime');
+                    q('#modal-run').style.display = 'flex';
+                };
+
+                // RAM EXEC BUTTON
+                q('.btn-mode-ram').onclick = () => {
+                    if(!currentFile) return;
+                    q('#modal-run .modal-title').innerHTML = '<i class="fas fa-bolt"></i> Esegui in RAM';
+                    q('#run-screen').parentElement.style.display = 'none'; // Hide screen option
+                    q('#btn-confirm-run').onclick = () => executeAction('ram');
+                    q('#modal-run').style.display = 'flex';
+                };
+                
+                q('#run-screen').onchange = (e) => {
+                    q('#row-run-screen-label').style.display = e.target.checked ? 'flex' : 'none';
+                };
+
+                // COPY BUTTON
+                q('.btn-mode-copy').onclick = () => {
+                    if(!currentFile) return;
+                    q('#modal-copy').style.display = 'flex';
+                    // Reset input
+                    q('#copy-path').value = "";
+                    q('#copy-root').checked = false;
+                };
+                q('#btn-confirm-copy').onclick = () => executeAction('drop');
+
+                // CRON BUTTON
+                q('.btn-mode-cron').onclick = () => {
+                    if(!currentFile) return;
+                    q('#modal-cron').style.display = 'flex';
+                };
+                q('#btn-confirm-cron').onclick = () => executeAction('cron');
+                
+                q('.btn-toggle-term').onclick = toggleBottomTerminal;
+
+                // SYSTEMD BUTTON
+                q('.btn-mode-systemd').onclick = () => {
+                    if(!currentFile) return;
+                    q('#modal-systemd').style.display = 'flex';
+                    // Auto-fill name from filename
+                    const name = currentFile.split('/').pop().split('.')[0];
+                    q('#sysd-name').value = name;
+                };
+                q('#sysd-type').onchange = (e) => {
+                    q('#row-sysd-sched').style.display = e.target.value === 'timer' ? 'flex' : 'none';
+                };
+                q('#btn-confirm-systemd').onclick = () => executeAction('systemd');
+
+                q('#btn-term-detach').onclick = () => {
+                    if(ws && termId) {
+                        ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: "\x01d" }));
+                        setTimeout(() => q('#term-modal').style.display = 'none', 500);
+                    }
+                };
+                
+                // Context Menu
+                container.querySelector('.script-sidebar').addEventListener('contextmenu', handleContextMenu);
+                document.addEventListener('click', () => container.querySelector('#script-ctx-menu').style.display = 'none');
+                container.querySelector('#script-ctx-menu').addEventListener('click', handleContextAction);
+            }
+
+            async function loadTree() {
+                const res = await fetch('/api/scripts/tree');
+                if(res.ok) {
+                    const data = await res.json();
+                    treeData = [{
+                        name: "scripts",
+                        path: "",
+                        type: "dir",
+                        children: data
+                    }];
+                    renderTree(treeData, container.querySelector('#script-tree-root'));
+                    if(appInstance.refreshScriptMenu) appInstance.refreshScriptMenu();
+                }
+            }
+
+            function renderTree(items, rootEl) {
+                rootEl.innerHTML = "";
+                if(!items) return;
+                
+                // Sort: folders first
+                items.sort((a, b) => (a.type === b.type ? 0 : a.type === 'dir' ? -1 : 1));
+
+                items.forEach(item => {
+                    const div = document.createElement('div');
+                    div.className = "tree-item";
+                    div.dataset.path = item.path;
+                    div.dataset.name = item.name;
+                    div.dataset.type = item.type;
+                    
+                    if(item.path === currentPath) div.classList.add('active');
+                    
+                    const icon = item.type === 'dir' ? 'fa-folder' : 'fa-file-code';
+                    const color = item.type === 'dir' ? '#e3b341' : '#58a6ff';
+                    
+                    if(item.type === 'dir') {
+                        toggleHtml = `<i class="fas fa-caret-right tree-toggle"></i>`;
+                    } else {
+                        toggleHtml = `<span style="width:10px; display:inline-block"></span>`;
+                    }
+                    
+                    div.innerHTML = `${toggleHtml}<i class="fas ${icon}" style="color:${color}"></i> <span>${item.name}</span>`;
+                    
+                    div.onclick = (e) => {
+                        e.stopPropagation();
+                        if(e.target.classList.contains('tree-toggle')) {
+                            toggleFolder(div, item);
+                            return;
+                        }
+                        // Se clicco sul nome di una cartella, espandila anche
+                        if(item.type === 'dir') {
+                            const childCont = div.nextElementSibling;
+                            if(childCont && childCont.style.display === 'none') toggleFolder(div, item);
+                        }
+                        selectItem(item, div);
+                    };
+
+                    rootEl.appendChild(div);
+
+                    if(item.type === 'dir' && item.children) {
+                        const childCont = document.createElement('div');
+                        childCont.className = "tree-indent";
+                        childCont.style.display = "none"; // Collapsed by default
+                        
+                        if (item.path === "") {
+                             childCont.style.display = "block";
+                             const icon = div.querySelector('.tree-toggle');
+                             if(icon) icon.className = 'fas fa-caret-down tree-toggle';
+                             const folderIcon = div.querySelector('.fa-folder, .fa-folder-open');
+                             if(folderIcon) folderIcon.className = 'fas fa-folder-open';
+                        }
+
+                        renderTree(item.children, childCont);
+                        rootEl.appendChild(childCont);
+                        
+                        // Restore expansion state
+                        if (expandedPaths.has(item.path)) {
+                            childCont.style.display = 'block';
+                            const icon = div.querySelector('.tree-toggle');
+                            if(icon) icon.className = 'fas fa-caret-down tree-toggle';
+                        }
+                    }
+                });
+            }
+            
+            function toggleFolder(div, item) {
+                const childCont = div.nextElementSibling;
+                if(childCont && childCont.classList.contains('tree-indent')) {
+                    const isHidden = childCont.style.display === 'none';
+                    childCont.style.display = isHidden ? 'block' : 'none';
+                    const icon = div.querySelector('.tree-toggle');
+                    if(icon) icon.className = isHidden ? 'fas fa-caret-down tree-toggle' : 'fas fa-caret-right tree-toggle';
+                    const folderIcon = div.querySelector('.fa-folder, .fa-folder-open');
+                    if(folderIcon) folderIcon.className = isHidden ? 'fas fa-folder-open' : 'fas fa-folder';
+                }
+            }
+
+            function selectItem(item, el) {
+                container.querySelectorAll('.tree-item').forEach(i => i.classList.remove('active'));
+                el.classList.add('active');
+                currentPath = item.path;
+                
+                if(item.type === 'file') {
+                    currentFile = item.path;
+                    loadFile(item.path);
+                    container.querySelectorAll('.btn-exec').forEach(b => b.disabled = false);
+                    container.querySelector('.btn-save').disabled = false;
+                } else {
+                    currentFile = "";
+                    editor.setValue("");
+                    editor.setReadOnly(true);
+                    container.querySelector('.current-file-name').innerText = item.name + " (Folder)";
+                    container.querySelectorAll('.btn-exec').forEach(b => b.disabled = true);
+                    container.querySelector('.btn-save').disabled = true;
+                }
+                container.querySelector('.btn-delete').disabled = false;
+            }
+
+            async function loadFile(path) {
+                const res = await fetch('/api/scripts/content', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: path})
+                });
+                if(res.ok) {
+                    const content = await res.text();
+                    editor.setValue(content, -1);
+                    editor.setReadOnly(false);
+                    container.querySelector('.current-file-name').innerText = path;
+                    
+                    // Set mode based on extension
+                    const ext = path.split('.').pop();
+                    if(ext === 'py') editor.session.setMode("ace/mode/python");
+                    else if(ext === 'js') editor.session.setMode("ace/mode/javascript");
+                    else editor.session.setMode("ace/mode/sh");
+                }
+            }
+
+            async function saveCurrentFile() {
+                if(!currentFile) return;
+                const content = editor.getValue();
+                const res = await fetch('/api/scripts/save', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: currentFile, content: content})
+                });
+                if(res.ok) alert("Salvato!");
+                else alert("Errore salvataggio");
+            }
+
+            async function createItem(type) {
+                // Determine parent folder from current selection
+                let parent = "";
+                if(currentPath) {
+                    // If current is file, parent is its dir. If dir, parent is it.
+                    // We need to check if currentPath is dir or file from treeData? 
+                    // Simplified: if currentFile is set, parent is dirname(currentFile).
+                    // If currentFile is empty but currentPath is set, it's a dir.
+                    if(currentFile) {
+                        const parts = currentFile.split('/');
+                        parts.pop();
+                        parent = parts.join('/');
+                    } else {
+                        parent = currentPath;
+                    }
+                }
+
+                const name = prompt(`Nome ${type} (in ${parent || 'root'}):`);
+                if(!name) return;
+
+                const res = await fetch('/api/scripts/create', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: parent, type: type, name: name})
+                });
+                if(res.ok) { loadTree(); }
+                else alert("Errore creazione");
+            }
+
+            async function deleteCurrentItem() {
+                if(!currentPath) return;
+                if(!confirm(`Eliminare ${currentPath}?`)) return;
+                const res = await fetch('/api/scripts/delete', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({path: currentPath})
+                });
+                if(res.ok) {
+                    currentPath = ""; currentFile = "";
+                    editor.setValue("");
+                    loadTree();
+                } else alert("Errore eliminazione");
+            }
+
+            async function uploadFiles(e) {
+                const files = e.target.files;
+                if(files.length === 0) return;
+                
+                let parent = "";
+                if(currentFile) {
+                    const parts = currentFile.split('/');
+                    parts.pop();
+                    parent = parts.join('/');
+                } else {
+                    parent = currentPath;
+                }
+
+                const fd = new FormData();
+                for(let i=0; i<files.length; i++) fd.append('files', files[i]);
+                fd.append('path', parent);
+
+                const res = await fetch('/api/scripts/upload', { method: 'POST', body: fd });
+                if(res.ok) { loadTree(); }
+                else alert("Errore upload");
+                e.target.value = "";
+            }
+
+            async function executeAction(mode) {
+                let targetPath = "";
+                let schedule = "";
+                let runAsUser = "user";
+                let useScreen = false;
+                let screenLabel = "";
+                let cronAsRoot = false;
+                let sysdType = "";
+                let sysdName = "";
+
+                if (mode === 'runtime' || mode === 'ram') {
+                    runAsUser = container.querySelector('#run-root').checked ? 'root' : 'user';
+                    useScreen = (mode === 'runtime') ? (container.querySelector('#run-screen').checked || false) : false;
+                    screenLabel = (mode === 'runtime') ? container.querySelector('#run-screen-label').value : "";
+                    container.querySelector('#modal-run').style.display = 'none';
+                } 
+                else if (mode === 'drop') {
+                    targetPath = container.querySelector('#copy-path').value;
+                    if(container.querySelector('#copy-root').checked) runAsUser = 'root';
+                    container.querySelector('#modal-copy').style.display = 'none';
+                } 
+                else if (mode === 'cron') {
+                    schedule = container.querySelector('#cron-schedule').value;
+                    targetPath = container.querySelector('#cron-path').value; // Reuse targetPath as save_path
+                    cronAsRoot = container.querySelector('#cron-root').checked || false;
+                    if (!schedule) return alert("Schedule richiesta");
+                    container.querySelector('#modal-cron').style.display = 'none';
+                }
+                else if (mode === 'systemd') {
+                    sysdType = container.querySelector('#sysd-type').value;
+                    sysdName = container.querySelector('#sysd-name').value;
+                    schedule = container.querySelector('#sysd-schedule').value;
+                    cronAsRoot = container.querySelector('#sysd-root').checked; // Reuse var for root flag
+                    if (!sysdName) return alert("Nome servizio richiesto");
+                    if (sysdType === 'timer' && !schedule) return alert("Schedule richiesta per Timer");
+                    container.querySelector('#modal-systemd').style.display = 'none';
+                }
+
+                // Determine interpreter
+                let interpreter = "";
+                if (currentFile.endsWith('.py')) interpreter = "python3";
+                else if (currentFile.endsWith('.js')) interpreter = "node";
+                else if (currentFile.endsWith('.sh')) interpreter = "bash";
+                else interpreter = "bash"; // Default
+
+                pendingRunPayload = {
+                    script_path: currentFile,
+                    mode: mode,
+                    target_path: targetPath,
+                    schedule: schedule,
+                    interactive: true, // Always interactive for runtime now
+                    interpreter: interpreter,
+                    run_as_user: runAsUser,
+                    use_screen: useScreen,
+                    screen_label: screenLabel,
+                    cron_as_root: cronAsRoot,
+                    sysd_type: sysdType,
+                    sysd_name: sysdName
+                };
+
+                if (mode === 'ram') {
+                    // RAM Exec: No upload needed, just send run request with content
+                    pendingRunPayload.content = editor.getValue(); // Send content directly
+                    startExecutionPhase(pendingRunPayload);
+                    return;
+                }
+
+                // Step 1: Upload
+                showStatus("Caricamento script...", 0);
+                
+                // For Systemd, we might need to upload to a specific temp location or let backend handle it.
+                // Standard flow: Upload to /tmp -> Backend moves/installs.
+                
+                ws.send(JSON.stringify({
+                    type: "script_exec_req",
+                    host_id: parseInt(currentId),
+                    term_id: termId,
+                    payload: { script_path: currentFile } // Only path needed for upload
+                }));
+            }
+            
+            function startExecutionPhase(payload) {
+                if(payload.mode === 'runtime' || payload.mode === 'ram') {
+                    openTerminalModal();
+                }
+                
+                // Step 2: Run
+                ws.send(JSON.stringify({ type: "script_run_req", host_id: parseInt(currentId), term_id: termId, payload: payload }));
+            }
+            
+            function openTerminalModal() {
+                const modal = container.querySelector('#term-modal');
+                modal.style.display = 'flex';
+                const embed = container.querySelector('#script-term-embed');
+                embed.innerHTML = "";
+                
+                if(term) term.dispose();
+                
+                term = new Terminal({ cursorBlink: true, fontSize: 14, theme: { background: '#000' } });
+                fitAddon = new FitAddon.FitAddon();
+                term.loadAddon(fitAddon);
+                term.open(embed);
+                fitAddon.fit();
+                
+                term.onData(d => {
+                    ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: d }));
+                });
+                
+                // Resize
+                setTimeout(() => {
+                    try { fitAddon.fit(); } catch(e){}
+                    if(term.cols > 0 && term.rows > 0) {
+                        ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: termId, payload: { cols: term.cols, rows: term.rows } }));
+                        term.focus();
+                        // Send a null byte to trigger refresh/prompt
+                        ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: termId, payload: "\r" }));
+                    }
+                }, 200);
+            }
+
+            function toggleBottomTerminal() {
+                const panel = container.querySelector('.script-bottom-panel');
+                if (panel.style.display === 'none' || panel.style.display === '') {
+                    panel.style.display = 'flex';
+                    initBottomTerminal();
+                } else {
+                    panel.style.display = 'none';
+                }
+                editor.resize();
+            }
+
+            function initBottomTerminal() {
+                if (bottomTerm) return;
+                
+                bottomTermId = `${wsId}:script_shell_` + Math.random().toString(36).substring(2, 9);
+                const embed = container.querySelector('#script-bottom-term');
+                
+                bottomTerm = new Terminal({ cursorBlink: true, fontSize: 13, theme: { background: '#000' } });
+                bottomFit = new FitAddon.FitAddon();
+                bottomTerm.loadAddon(bottomFit);
+                bottomTerm.open(embed);
+                bottomFit.fit();
+                
+                bottomTerm.onData(d => {
+                    ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: bottomTermId, payload: d }));
+                });
+                
+                // Init session
+                setTimeout(() => {
+                    bottomFit.fit();
+                    ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: bottomTermId, payload: { cols: bottomTerm.cols, rows: bottomTerm.rows } }));
+                    ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: bottomTermId, payload: "\r" }));
+                }, 200);
+            }
+
+            function showOutput(text, isError) {
+                const el = container.querySelector('.output-content');
+                el.innerText = text;
+                el.style.color = isError ? '#ff5555' : '#c9d1d9';
+            }
+
+            function showStatus(text, timeout) {
+                const el = container.querySelector('.script-status-toast');
+                el.querySelector('span').innerText = text;
+                el.style.display = 'flex';
+                if(timeout > 0) {
+                    el.querySelector('i').className = "fas fa-check";
+                    setTimeout(() => el.style.display = 'none', timeout);
+                } else {
+                    el.querySelector('i').className = "fas fa-circle-notch fa-spin";
+                }
+            }
+            
+            // Context Menu Logic
+            function handleContextMenu(e) {
+                e.preventDefault();
+                let item = e.target.closest('.tree-item');
+                
+                // Se clicco fuori (sullo sfondo), seleziono la root se esiste
+                if(!item) {
+                    const rootItem = container.querySelector('#script-tree-root .tree-item[data-path=""]');
+                    if(rootItem) item = rootItem;
+                }
+                
+                if(!item) return; // Se ancora null, esci
+                
+                // Disable delete for root
+                const isRoot = item.dataset.path === "";
+                const delBtn = container.querySelector('.ctx-item[data-action="delete"]');
+                if(delBtn) delBtn.style.display = isRoot ? 'none' : 'flex';
+                
+                // Select it first
+                item.click();
+                
+                const menu = container.querySelector('#script-ctx-menu');
+                menu.style.left = e.clientX + 'px';
+                menu.style.top = e.clientY + 'px';
+                menu.style.display = 'block';
+            }
+            
+            async function handleContextAction(e) {
+                const action = e.target.closest('.ctx-item')?.dataset.action;
+                if(!action || !currentPath) return;
+                
+                const name = currentPath.split('/').pop();
+                
+                if(action === 'rename') {
+                    const newName = prompt("Nuovo nome:", name);
+                    if(newName && newName !== name) {
+                        await fetch('/api/scripts/rename', {
+                            method: 'POST', headers: {'Content-Type':'application/json'},
+                            body: JSON.stringify({ old_path: currentPath, new_name: newName })
+                        });
+                        loadTree(); 
+                    }
+                } else if(action === 'delete') {
+                    deleteCurrentItem();
+                } else if(action === 'chmod') {
+                    await fetch('/api/scripts/chmod', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ path: currentPath, mode: '+x' })
+                    });
+                    alert("Permessi aggiornati (+x)");
+                } else if(action === 'copy') {
+                    clipboard = { op: 'copy', path: currentPath };
+                } else if(action === 'cut') {
+                    clipboard = { op: 'cut', path: currentPath };
+                } else if(action === 'paste') {
+                    if(!clipboard) return;
+                    // Read content of source
+                    const res = await fetch('/api/scripts/content', {
+                        method: 'POST', headers: {'Content-Type':'application/json'},
+                        body: JSON.stringify({ path: clipboard.path })
+                    });
+                    if (!res.ok) {
+                        alert("Errore: impossibile leggere sorgente (directory non supportate per copia/incolla).");
+                        return;
+                    }
+                    const content = await res.text();
+                    
+                    // Determine dest path (currentPath is dir or file's dir)
+                    let destDir = "";
+                    if (currentFile && currentPath !== "") {
+                        // Se è selezionato un file, incolla nella cartella padre
+                        const parts = currentFile.split('/');
+                        parts.pop();
+                        destDir = parts.join('/');
+                    } else {
+                        // Se è selezionata una cartella (o root ""), incolla dentro
+                        destDir = currentPath || "";
+                    }
+
+                    const destName = clipboard.path.split('/').pop();
+                    const destPath = destDir ? destDir + "/" + destName : destName;
+                    
+                    // Save new file
+                    await fetch('/api/scripts/save', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ path: destPath, content: content }) });
+                    if(clipboard.op === 'cut') {
+                        await fetch('/api/scripts/delete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ path: clipboard.path }) });
+                        clipboard = null;
+                    }
+                    loadTree(); 
+                }
+            }
+
+            appInstance.registerCleanup(() => { 
+                if(ws) {
+                    if(bottomTermId) ws.send(JSON.stringify({ type: "ssh_close", host_id: parseInt(currentId), term_id: bottomTermId }));
+                    ws.close(); 
+                }
+                if(editor) editor.destroy(); 
+                if(bottomTerm) bottomTerm.dispose();
+            });
+        })(arguments[0]);
+    </script>
+</div>

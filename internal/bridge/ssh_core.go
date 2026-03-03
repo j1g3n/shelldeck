@@ -137,8 +137,9 @@ func ensureSession(hostID int, termID string) (*SSHSessionWrapper, error) {
 	}
 
 	wsMu.Lock()
-	// Controlla se una sessione esiste già ed è valida
-	if session, exists := sshSessions[sessionKey]; exists && session != nil && session.Session != nil {
+	// Controlla se una sessione esiste già.
+	// Se esiste (anche se Session è nil, usata come placeholder), la restituiamo per evitare race condition.
+	if session, exists := sshSessions[sessionKey]; exists {
 		wsMu.Unlock()
 		return session, nil
 	}

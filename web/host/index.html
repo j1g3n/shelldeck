@@ -42,7 +42,8 @@
             const menuContainer = this.container.querySelector('.h-menu-container');
             if(menuContainer) {
                 try {
-                    const res = await fetch('/host/menu.html');
+                    // Cache busting per forzare il ricaricamento di CSS e HTML aggiornati
+                    const res = await fetch('/host/menu.html?t=' + Date.now());
                     
                     // Se il menu non esiste, logga errore ma PROSEGUI a caricare la dashboard
                     if(!res.ok) throw new Error(`Menu status ${res.status}`);
@@ -52,7 +53,12 @@
                     const doc = parser.parseFromString(htmlContent, 'text/html');
 
                     // Inietta stili menu
-                    doc.querySelectorAll('style').forEach(s => this.container.appendChild(s));
+                    doc.querySelectorAll('style').forEach(s => document.head.appendChild(s));
+                    doc.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
+                        const nl = document.createElement('link');
+                        nl.rel = 'stylesheet'; nl.href = l.href;
+                        document.head.appendChild(nl);
+                    });
                     
                     // Inietta HTML menu
                     const tempBody = doc.body;
