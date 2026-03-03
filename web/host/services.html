@@ -161,7 +161,7 @@
                     </div>
                 </div>
                 <table class="svc-table">
-                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 120px;">Azioni</th></tr></thead>
+                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 160px;">Ultima Esecuzione</th><th style="width: 140px;">Azioni</th></tr></thead>
                     <tbody class="cron-tbody"></tbody>
                 </table>
             </div>
@@ -193,7 +193,7 @@
                     </div>
                 </div>
                 <table class="svc-table">
-                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 120px;">Azioni</th></tr></thead>
+                    <thead><tr><th style="width: 150px;">Schedule</th><th>Comando / Commento</th><th style="width: 160px;">Ultima Esecuzione</th><th style="width: 140px;">Azioni</th></tr></thead>
                     <tbody class="cronroot-tbody"></tbody>
                 </table>
             </div>
@@ -304,6 +304,7 @@
 
                 let svcEditor, rcEditor, cronUserEditor, cronRootEditor;
                 let cronLines = [], cronRootLines = [];
+                let cronUserStats = {}, cronRootStats = {};
                 let isCronRootEdit = false;
                 let editingCronIndex = -1; // -1 for new, >=0 for edit
                 let lastServices = [];
@@ -487,6 +488,7 @@ WantedBy=multi-user.target`
                 const cronAction = (e, isRoot) => {
                     const btn = e.target.closest('button');
                     if(!btn) return;
+                    if(btn.dataset.action === 'logs') viewCronLogs(parseInt(btn.dataset.index), isRoot);
                     if(btn.dataset.action === 'edit') editCron(parseInt(btn.dataset.index), isRoot);
                     if(btn && btn.dataset.action === 'delete') deleteCron(parseInt(btn.dataset.index), isRoot);
                 };
@@ -532,6 +534,7 @@ WantedBy=multi-user.target`
                         }
 
                         if(msg.type === "svc_status_out") container.querySelector('.status-log-content').innerText = msg.payload;
+                        if(msg.type === "cron_logs_out") container.querySelector('.status-log-content').innerText = msg.payload;
                         if(msg.type === "svc_file_content") { 
                             container.querySelector('.svc-filename-input').value = msg.payload.filename; 
                             svcEditor.setValue(msg.payload.content, -1); 
@@ -552,6 +555,16 @@ WantedBy=multi-user.target`
                                 cronLines = lines; 
                                 renderCronTable(false); 
                                 if(cronUserEditor) cronUserEditor.setValue(cronLines.join('\n'), -1);
+                            }
+                        }
+                        
+                        if(msg.type === "cron_stats") {
+                            if (msg.payload.is_root) {
+                                cronRootStats = msg.payload.stats || {};
+                                renderCronTable(true);
+                            } else {
+                                cronUserStats = msg.payload.stats || {};
+                                renderCronTable(false);
                             }
                         }
 
@@ -735,18 +748,22 @@ WantedBy=multi-user.target`
                 function renderCronTable(isRoot) {
                     const tbody = container.querySelector(isRoot ? '.cronroot-tbody' : '.cron-tbody');
                     const lines = isRoot ? cronRootLines : cronLines;
+                    const stats = isRoot ? cronRootStats : cronUserStats;
                     tbody.innerHTML = "";
                     lines.forEach((l, i) => {
                         if(!l.trim()) return;
                         const tr = document.createElement('tr');
                         if(l.trim().startsWith("#")) {
-                            tr.innerHTML = `<td>#</td><td colspan="2" class="cron-comment">${l}</td>`;
+                            tr.innerHTML = `<td>#</td><td colspan="3" class="cron-comment">${l}</td>`;
                         } else {
                             let p = l.trim().split(/\s+/);
                             if(p.length >= 6) {
-                                tr.innerHTML = `<td style="color:var(--accent);font-weight:bold">${p.slice(0,5).join(" ")}</td><td>${p.slice(5).join(" ")}</td><td><button class="action-btn" data-action="edit" data-index="${i}"><i class="fas fa-edit"></i></button><button class="action-btn" style="color:var(--danger)" data-action="delete" data-index="${i}"><i class="fas fa-trash"></i></button></td>`;
+                                const cmd = p.slice(5).join(" ");
+                                // Normalizza spazi per match con chiave stats (che è normalizzata lato server)
+                                const lastRun = stats[cmd] || '<span style="color:var(--text-dim)">-</span>';
+                                tr.innerHTML = `<td style="color:var(--accent);font-weight:bold">${p.slice(0,5).join(" ")}</td><td>${p.slice(5).join(" ")}</td><td style="font-size:0.85em">${lastRun}</td><td><button class="action-btn" data-action="logs" data-index="${i}" title="Logs"><i class="fas fa-info"></i></button><button class="action-btn" data-action="edit" data-index="${i}"><i class="fas fa-edit"></i></button><button class="action-btn" style="color:var(--danger)" data-action="delete" data-index="${i}"><i class="fas fa-trash"></i></button></td>`;
                             } else {
-                                tr.innerHTML = `<td>?</td><td colspan="2">${l}</td>`;
+                                tr.innerHTML = `<td>?</td><td colspan="3">${l}</td>`;
                             }
                         }
                         tbody.appendChild(tr);
@@ -786,6 +803,20 @@ WantedBy=multi-user.target`
                     }
                 }
 
+                function viewCronLogs(index, isRoot) {
+                    const lines = isRoot ? cronRootLines : cronLines;
+                    const line = lines[index];
+                    if(!line) return;
+                    const parts = line.trim().split(/\s+/);
+                    if(parts.length >= 6) {
+                        const cmd = parts.slice(5).join(" ");
+                        container.querySelector('.modal-status').style.display='flex';
+                        container.querySelector('.status-log-content').innerText = "Ricerca logs in corso...";
+                        let user = isRoot ? container.querySelector('#cron-root-user-select').value : "";
+                        ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_logs", as_root: isRoot, cmd: cmd, user: user } }));
+                    }
+                }
+
                 function loadCronUsers() {
                     ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_list_users" } }));
                 }
@@ -794,6 +825,8 @@ WantedBy=multi-user.target`
                     let user = "";
                     if (r) user = container.querySelector('#cron-root-user-select').value;
                     ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_list", as_root: r, user: user } })); 
+                    // Richiedi statistiche esecuzione
+                    ws.send(JSON.stringify({ type: "service_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "cron_runtime_stats", as_root: r, user: user } }));
                 }
 
                 function saveCron(r) { 

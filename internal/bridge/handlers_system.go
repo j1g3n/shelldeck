@@ -661,6 +661,101 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		}
 		sendToHQ("cron_list", hostID, termID, map[string]interface{}{"payload": out, "is_root": asRoot})
 
+	case "cron_logs":
+		cmdStr, _ := payload["cmd"].(string)
+		asRoot, _ := payload["as_root"].(bool)
+		safeCmd := strings.ReplaceAll(cmdStr, "'", "'\\''")
+
+		baseCmd := fmt.Sprintf("journalctl -u cron --no-pager | grep '%s' | tail -n 50", safeCmd)
+		if asRoot {
+			baseCmd = fmt.Sprintf("%s%s", cmdPrefix, baseCmd)
+		}
+
+		out, _ := runSingleCommand(client, baseCmd)
+		if strings.TrimSpace(out) == "" {
+			out = "Nessun log trovato."
+		}
+		sendToHQ("cron_logs_out", hostID, termID, out)
+
+	case "cron_runtime_stats":
+		asRoot, _ := payload["as_root"].(bool)
+		targetUser, _ := payload["user"].(string)
+
+		if targetUser == "" {
+			// Se non specificato, ottieni l'utente corrente
+			out, _ := runSingleCommand(client, "whoami")
+			targetUser = strings.TrimSpace(out)
+		}
+
+		// Fetch recent cron logs (reverse order to get latest first)
+		// Usiamo 1000 righe per coprire un periodo ragionevole senza appesantire
+		// 1. Journalctl (Newest -> Oldest)
+		baseCmd := fmt.Sprintf("%sjournalctl -u cron -u crond -n 500 --no-pager --output=short-iso -r -q", cmdPrefix)
+		out, err := runSingleCommand(client, baseCmd)
+
+		isReverse := true // Journalctl -r gives newest first
+
+		// 2. Fallback: Log files (Oldest -> Newest)
+		if err != nil || strings.Contains(strings.ToLower(out), "password") || len(strings.TrimSpace(out)) < 10 {
+			// Use grep -a (text), -h (no filename). Read common log files.
+			cmd := fmt.Sprintf("%sgrep -a -h 'CRON' /var/log/syslog /var/log/cron /var/log/messages 2>/dev/null | tail -n 500", cmdPrefix)
+			out, _ = runSingleCommand(client, cmd)
+			isReverse = false // Tail gives oldest first
+		}
+
+		stats := make(map[string]string)
+		lines := strings.Split(out, "\n")
+
+		processLine := func(line string) {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				return
+			}
+			// Filtra per utente: ... CRON[pid]: (user) CMD ...
+			if !strings.Contains(line, "("+targetUser+")") {
+				return
+			}
+			// Cerca il comando: ... CMD (command...)
+			idx := strings.Index(line, " CMD (")
+			if idx != -1 {
+				parts := strings.Fields(line)
+				if len(parts) > 0 {
+					timestamp := parts[0]
+					cmdContent := line[idx+6:]
+					if strings.HasSuffix(cmdContent, ")") {
+						cmdContent = cmdContent[:len(cmdContent)-1]
+					}
+					normalizedCmd := strings.Join(strings.Fields(cmdContent), " ")
+
+					if _, exists := stats[normalizedCmd]; !exists {
+						// Parse Date
+						if t, err := time.Parse("2006-01-02T15:04:05-0700", timestamp); err == nil {
+							stats[normalizedCmd] = t.Format("2006-01-02 15:04")
+						} else {
+							// Syslog format: Oct 27 10:00:00
+							if len(parts) >= 3 {
+								stats[normalizedCmd] = fmt.Sprintf("%s %s %s", parts[0], parts[1], parts[2])
+							} else {
+								stats[normalizedCmd] = timestamp
+							}
+						}
+					}
+				}
+			}
+		}
+
+		if isReverse {
+			for _, line := range lines {
+				processLine(line)
+			}
+		} else {
+			for i := len(lines) - 1; i >= 0; i-- {
+				processLine(lines[i])
+			}
+		}
+
+		sendToHQ("cron_stats", hostID, termID, map[string]interface{}{"stats": stats, "is_root": asRoot})
+
 	case "cron_save":
 		content, _ := payload["content"].(string)
 		asRoot, _ := payload["as_root"].(bool)

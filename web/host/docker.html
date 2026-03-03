@@ -322,6 +322,9 @@
             let cachedNetworks = [];
             let cachedVolumes = [];
 
+            let dockerChecked = false;
+            let dockerIsInstalled = false;
+
             let lastContainers = [];
             let sortField = 'Names';
             let sortDir = 1;
@@ -595,18 +598,26 @@
             if(ws) {
                 const onOpen = () => {
                     ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: termId }));
-                    sendCmd("check_docker");
-                    loadContainers();
-                    loadImages();
+                    sendCmd("check_docker", {}, true); // Bypass check for the check itself
                 };
 
                 ws.onopen = onOpen;
                 if (ws.readyState === WebSocket.OPEN) onOpen();
 
                 ws.onmessage = (e) => {
-                    const msg = JSON.parse(e.data);
+                    let msg; try { msg = JSON.parse(e.data); } catch(err) { return; }
                     if(msg.type === "docker_status") {
-                        if(!msg.payload.installed) container.innerHTML = "<div style='padding:20px; text-align:center; color:#da3633'>Docker non trovato su questo host.</div>";
+                        dockerChecked = true;
+                        dockerIsInstalled = msg.payload.installed;
+                        if(!dockerIsInstalled) {
+                            const mainWrapper = container.querySelector('.main-wrapper');
+                            if (mainWrapper) {
+                                mainWrapper.innerHTML = "<div style='padding:40px; text-align:center; color:var(--danger); font-size:1.1em;'><i class='fab fa-docker' style='font-size:2em; display:block; margin-bottom:10px;'></i>Docker non è installato o il demone non è in esecuzione su questo host.</div>";
+                            }
+                        } else {
+                            // Docker is installed, load initial data for the active view
+                            if(container.querySelector('#view-containers').classList.contains('active-view')) loadContainers();
+                        }
                     }
                     if(msg.type === "docker_error") {
                         console.error("[Docker] Error:", msg.payload);
@@ -675,8 +686,20 @@
                 };
             }
 
-            function sendCmd(action, payload = {}) {
-                ws.send(JSON.stringify({ type: "docker_command", host_id: parseInt(currentId), term_id: termId, payload: { action: action, ...payload } }));
+            function sendCmd(action, payload = {}, bypassCheck = false) {
+                if (!bypassCheck) {
+                    if (!dockerChecked) {
+                        console.warn("Docker status not checked yet, ignoring command:", action);
+                        return;
+                    }
+                    if (!dockerIsInstalled) {
+                        // The UI should already show the error message, so an alert is redundant.
+                        return;
+                    }
+                }
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: "docker_command", host_id: parseInt(currentId), term_id: termId, payload: { action: action, ...payload } }));
+                }
             }
 
             function loadContainers() { sendCmd("list_containers"); }
