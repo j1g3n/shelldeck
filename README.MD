@@ -110,7 +110,31 @@ Launch the Bridge application on the machine that has VPN/SSH access to your tar
 * **WebSockets:** [GoFiber WebSockets](https://github.com/gofiber/contrib/websocket)
 * **SSH:** `golang.org/x/crypto/ssh`
 
-## 📜 License
+## 🚀 Upcoming Features (Roadmap to 1.0)
+
+We are constantly working to stabilize the core and expand Shelldeck's capabilities. Here are the major architectural updates currently in development for the upcoming stable releases:
+
+### 📜 Centralized Script Manager (Zero-Config)
+A powerful tool to manage your custom automation directly from the UI without rebuilding the server.
+* **Dynamic Discovery:** The server will automatically read a structured `scripts/` directory on your file system (e.g., `scripts/bash/`, `scripts/python/`). Any new file added to these folders will instantly appear in the Shelldeck UI.
+* **Multi-Mode Execution:** Launch your scripts across connected Bridges with three distinct modes:
+  * **Runtime:** Executes the script safely in `/tmp/` and streams the stdout/stderr back to your dashboard, leaving no trace.
+  * **Drop:** Copies the script directly into the user's current working directory (`$PWD`) on the target machine.
+  * **Cronjob:** Automatically saves the script in a persistent directory and injects the scheduling rule directly into the target user's crontab.
+* **Community Sync:** Future support for pulling script bundles directly from GitHub to populate your local toolbox.
+
+### 🔒 Automated HTTPS/WSS Setup
+Security-by-design right from the first setup. Shelldeck will soon offer a built-in wizard to automatically handle SSL/TLS certificates:
+* **Private/Local Networks:** One-click generation of Self-Signed certificates to secure WebSocket traffic (WSS) in air-gapped or VPN-only environments.
+* **Public Domains:** Native integration with Let's Encrypt (`acme/autocert`). Simply provide your domain name, and Shelldeck will automatically negotiate, issue, and renew trusted certificates, wrapping your connections in HTTPS/WSS with zero external reverse-proxy configuration needed.
+
+### 🌉 Distributed Edge Bridges (Zero-Trust Network Access)
+The ultimate feature to redefine remote management.
+* **Proxy-Mode Bridges:** Install headless Shelldeck Bridges on remote, isolated networks (Edge).
+* **Reverse-Tunnel Architecture:** These remote Bridges will connect back to your Central Shelldeck Server via secure WebSockets.
+* **VPN-less Management:** As an operator, you will be able to access and execute commands on servers located behind those remote Bridges directly from your web dashboard, completely eliminating the need to establish complex VPNs or configure firewall port-forwarding on the client side.
+
+## � License
 This project is licensed under the AGPLv3 License - see the `LICENSE` file for details.
 
 ---
