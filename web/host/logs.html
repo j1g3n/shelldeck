@@ -231,6 +231,10 @@
 
                     ws.onmessage = (e) => {
                         const msg = JSON.parse(e.data);
+                        
+                        // Filtra i messaggi per questa specifica sessione (ignora broadcast di altri utenti)
+                        if (msg.type !== "log_stream_data" && msg.term_id && msg.term_id !== termId) return;
+
                         if(msg.type === "log_journal") renderLogs(".j-output", msg.payload);
                         if(msg.type === "log_file_list") buildFileTree(msg.payload);
                         if(msg.type === "log_file_content") {
