@@ -688,9 +688,9 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		}
 
 		// Fetch recent cron logs (reverse order to get latest first)
-		// Usiamo 1000 righe per coprire un periodo ragionevole senza appesantire
+		// Usiamo 5000 righe per coprire un periodo ragionevole (es. 24h con job al minuto)
 		// 1. Journalctl (Newest -> Oldest)
-		baseCmd := fmt.Sprintf("%sjournalctl -u cron -u crond -n 500 --no-pager --output=short-iso -r -q", cmdPrefix)
+		baseCmd := fmt.Sprintf("%sjournalctl -u cron -u crond -n 5000 --no-pager --output=short-iso -r -q", cmdPrefix)
 		out, err := runSingleCommand(client, baseCmd)
 
 		isReverse := true // Journalctl -r gives newest first
@@ -698,7 +698,7 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		// 2. Fallback: Log files (Oldest -> Newest)
 		if err != nil || strings.Contains(strings.ToLower(out), "password") || len(strings.TrimSpace(out)) < 10 {
 			// Use grep -a (text), -h (no filename). Read common log files.
-			cmd := fmt.Sprintf("%sgrep -a -h 'CRON' /var/log/syslog /var/log/cron /var/log/messages 2>/dev/null | tail -n 500", cmdPrefix)
+			cmd := fmt.Sprintf("%sgrep -a -h 'CRON' /var/log/syslog /var/log/cron /var/log/messages 2>/dev/null | tail -n 5000", cmdPrefix)
 			out, _ = runSingleCommand(client, cmd)
 			isReverse = false // Tail gives oldest first
 		}
