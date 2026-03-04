@@ -1,6 +1,3 @@
-<link rel="stylesheet" href="/lib/css/all.min.css">
-<link rel="stylesheet" href="/lib/css/xterm.css">
-
 <style>
     .h-navbar {
         height: 50px;
@@ -98,7 +95,21 @@
     .menu-btn-sec { background: transparent; border: 1px solid #30363d; color: #c9d1d9; }
     
     /* Terminal Modal specific */
-    .menu-term-box { width: 90vw; height: 80vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #000; border: 1px solid #555; }
+    .menu-term-box { width: 90vw; height: 80vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #000; border: 1px solid #555; position: relative; }
+    .menu-term-header { padding: 10px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; color: #c9d1d9; font-weight: bold; }
+
+    /* XTERM CSS INLINED FOR MENU STABILITY */
+    .xterm { cursor: text; position: relative; user-select: none; -ms-user-select: none; -webkit-user-select: none; }
+    .xterm.focus, .xterm:focus { outline: none; }
+    .xterm .xterm-helpers { position: absolute; z-index: 10; }
+    .xterm .xterm-helper-textarea { position: absolute; opacity: 0; z-index: -10; }
+    .xterm .xterm-viewport { background-color: #000; overflow-y: scroll; cursor: default; position: absolute; right: 0; left: 0; top: 0; bottom: 0; }
+    .xterm .xterm-screen { position: relative; }
+    .xterm .xterm-screen canvas { position: absolute; left: 0; top: 0; }
+    .xterm .xterm-scroll-area { visibility: hidden; }
+    .xterm-char-measure-element { display: inline-block; visibility: hidden; position: absolute; left: -9999em; }
+    .xterm.enable-mouse-events { cursor: default; }
+    .xterm:not(.enable-mouse-events) { cursor: text; }
 </style>
 <div class="h-navbar menu-root">
     <div class="h-brand">
@@ -205,7 +216,7 @@
         <!-- Runtime Options -->
         <div class="menu-modal-row" id="menu-runtime-opts">
             <label>Opzioni Esecuzione</label>
-            <div style="display:flex; flex-direction:column; gap:8px">
+            <div class="menu-group-box">
                 <div style="display:flex; align-items:center; gap:10px">
                     <input type="checkbox" id="menu-exec-root" style="width:auto">
                     <label for="menu-exec-root" style="margin:0; cursor:pointer; color:#c9d1d9">Esegui come Root (sudo)</label>
@@ -222,20 +233,24 @@
         </div>
 
         <div class="menu-modal-row" id="menu-row-drop-path" style="display:none">
-            <label>Destinazione (Lascia vuoto per default, o scrivi nome/percorso)</label>
-            <input type="text" id="menu-exec-path" placeholder="es. /opt/myscript.sh o myscript.sh">
+            <div class="menu-group-box">
+                <label>Destinazione (Lascia vuoto per default, o scrivi nome/percorso)</label>
+                <input type="text" id="menu-exec-path" placeholder="es. /opt/myscript.sh o myscript.sh">
+            </div>
         </div>
         <div class="menu-modal-row" id="menu-row-cron-sched" style="display:none">
-            <label>Schedule (Cron Expression)</label>
-            <input type="text" id="menu-exec-schedule" placeholder="0 * * * *">
-            <div style="margin-top:5px; display:flex; align-items:center; gap:5px">
-                <input type="checkbox" id="menu-cron-root">
-                <label for="menu-cron-root" style="margin:0; cursor:pointer; color:#c9d1d9">Root Crontab</label>
+            <div class="menu-group-box">
+                <label>Schedule (Cron Expression)</label>
+                <input type="text" id="menu-exec-schedule" placeholder="0 * * * *">
+                <div style="margin-top:5px; display:flex; align-items:center; gap:5px">
+                    <input type="checkbox" id="menu-cron-root">
+                    <label for="menu-cron-root" style="margin:0; cursor:pointer; color:#c9d1d9">Root Crontab</label>
+                </div>
             </div>
         </div>
 
         <!-- Systemd Options -->
-        <div id="menu-systemd-opts" style="display:none">
+        <div id="menu-systemd-opts" class="menu-group-box" style="display:none">
             <div class="menu-modal-row">
                 <label>Tipo Unit</label>
                 <select id="menu-sysd-type">

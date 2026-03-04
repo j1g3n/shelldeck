@@ -7,6 +7,26 @@
 
 Shelldeck is an advanced, agentless Remote Monitoring and Management (RMM) platform built for Systems Architects, Platform Engineers, and SysAdmins. It abstracts the complexity of raw SSH access, providing a powerful Web GUI to manage Linux servers, containers, networks, and storage—without ever installing an agent on the target machines.
 
+## 🛠️ How It Works (Architecture & Paradigm)
+
+At its core, Shelldeck is a modern, web-based remote management client. You can think of it as a next-generation evolution of traditional tools like PuTTY or WinSCP, but with the UI capabilities of a full server dashboard.
+
+The core innovation of Shelldeck lies in its decoupled architecture. It separates the database (which securely stores credentials, hosts, and configurations) from the execution node (the "Bridge" that actually performs the SSH connections).
+
+Here is why Shelldeck's approach is radically different from the rest of the market:
+
+*   **100% Agentless (Unlike Teleport or Boundary):** Shelldeck requires absolutely zero agents, daemons, or specific configurations on your target machines. If a server has a standard SSH service running, Shelldeck can manage it.
+
+*   **Client-Side Execution (Unlike Apache Guacamole):** Centralized gateways like Guacamole require the server to establish the SSH connection, forcing you to route all your corporate VPNs directly to the central server. Shelldeck flips this paradigm: the Central Server only provides the UI and the encrypted credentials. The actual SSH connection is executed by the Bridge running on the user's PC. This means Shelldeck natively leverages the VPNs and network routes already active on the sysadmin's local machine. (Note: In "Standalone" mode, the Server and Bridge run seamlessly as a single binary on your PC).
+
+*   **Universal Native UI (The power of Cockpit, without the hassle):** Shelldeck parses native Linux commands on the fly, converts the output into structured JSON, and dynamically builds a unified graphical interface on the client side. It gives you the visual power of tools like Cockpit or Webmin, but works Out-Of-The-Box (OOB) across all Linux distributions without installing target software, trusting specific IPs, or opening new firewall ports.
+
+*   **Enterprise-Grade Multi-Tenancy:** Whether the server is deployed locally or hosted remotely, it features complete management of Users, Groups, and Workspaces, allowing strict permission control over your infrastructure.
+
+*   **Bulletproof Local Security:** The Bridge interface is secured locally using a unique, dynamically generated authentication token injected directly into the browser, preventing any unauthorized hijacking of the local execution node.
+
+*(🔜 Coming Soon: Support for deploying headless Remote Bridges (Proxies) to manage air-gapped networks directly from the dashboard, without requiring local VPNs).*
+
 ## 🤖 Disclaimer: SysAdmin Designed, AI Written
 > **I am a SysAdmin, not a developer.** > This entire codebase was written exclusively by Artificial Intelligence ("Vibecoding"). My role was strict System Design and Domain Knowledge mapping—identifying real-world infrastructure bottlenecks and providing the logical architecture, network pivoting strategies, and UI requirements. The AI acted as the execution engine to compile this vision into a working Go application. 
 
@@ -112,7 +132,7 @@ Launch the Bridge application on the machine that has VPN/SSH access to your tar
 
 ## 🚀 Upcoming Features (Roadmap to 1.0)
 
-We are constantly working to stabilize the core and expand Shelldeck's capabilities. Here are the major architectural updates currently in development for the upcoming stable releases:
+I'm constantly working to stabilize the core and expand Shelldeck's capabilities. Here are the major architectural updates currently in development for the upcoming stable releases:
 
 ### 📜 Centralized Script Manager (Zero-Config)
 A powerful tool to manage your custom automation directly from the UI without rebuilding the server.
