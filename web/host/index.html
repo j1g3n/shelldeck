@@ -56,7 +56,7 @@
                     doc.querySelectorAll('style').forEach(s => document.head.appendChild(s));
                     doc.querySelectorAll('link[rel="stylesheet"]').forEach(l => {
                         const nl = document.createElement('link');
-                        nl.rel = 'stylesheet'; nl.href = l.href;
+                        nl.rel = 'stylesheet'; nl.href = l.getAttribute('href');
                         document.head.appendChild(nl);
                     });
                     

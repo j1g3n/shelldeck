@@ -212,7 +212,7 @@
                 <span style="font-weight:bold; color:#fff"><i class="fas fa-terminal"></i> Terminal Output</span>
                 <div style="display:flex; gap:10px">
                     <button class="btn-icon" id="btn-term-detach" title="Detach Screen (Ctrl+A, D)" style="width:auto; padding:0 10px; font-size:0.8em">Detach</button>
-                    <i class="fas fa-times" style="cursor:pointer" onclick="document.getElementById('term-modal').style.display='none'"></i>
+                    <i class="fas fa-times btn-close-term" style="cursor:pointer"></i>
                 </div>
             </div>
             <div id="script-term-embed" class="term-container"></div>
@@ -368,6 +368,10 @@
                     }
                 };
                 
+                q('.btn-close-term').onclick = () => {
+                    q('#term-modal').style.display = 'none';
+                };
+
                 // Context Menu
                 container.querySelector('.script-sidebar').addEventListener('contextmenu', handleContextMenu);
                 document.addEventListener('click', () => container.querySelector('#script-ctx-menu').style.display = 'none');

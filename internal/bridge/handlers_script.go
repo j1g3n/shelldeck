@@ -30,19 +30,33 @@ func handleScriptUpload(hostID int, termID string, payload map[string]interface{
 	// We use a temp file on the remote to handle content safely
 	tmpFileName := fmt.Sprintf("shelldeck_%d%s", time.Now().UnixNano(), ext)
 	tmpFile := fmt.Sprintf("/tmp/%s", tmpFileName)
+	tmpB64 := tmpFile + ".b64"
 
-	// Upload content via Stdin (Robust upload)
-	contentBytes, _ := base64.StdEncoding.DecodeString(contentB64)
+	// Upload content via Stdin to intermediate base64 file (Robust upload)
+	// This avoids piping directly to base64 -d which can fail on some shells/configs
 	sUpload, err := client.NewSession()
 	if err == nil {
 		stdinUpload, _ := sUpload.StdinPipe()
-		sUpload.Start(fmt.Sprintf("cat > %s", tmpFile))
-		stdinUpload.Write(contentBytes)
+		sUpload.Start(fmt.Sprintf("cat > %s", tmpB64))
+		stdinUpload.Write([]byte(contentB64))
+		stdinUpload.Write([]byte("\n")) // Add newline to ensure valid line for base64
 		stdinUpload.Close()
-		sUpload.Wait()
+		if err := sUpload.Wait(); err != nil {
+			sUpload.Close()
+			sendToHQ("script_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Upload write failed (Disk full?): " + err.Error()})
+			return
+		}
 		sUpload.Close()
 	} else {
 		sendToHQ("script_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Upload failed: " + err.Error()})
+		return
+	}
+
+	// Decode on remote
+	out, err := runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+	runSingleCommand(client, fmt.Sprintf("rm -f %s", tmpB64))
+	if err != nil {
+		sendToHQ("script_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Decode failed: " + out})
 		return
 	}
 
@@ -126,12 +140,24 @@ func handleScriptRun(hostID int, termID string, payload map[string]interface{}) 
 		var askPassFile string
 		if runAsUser == "root" {
 			// 1. Crea script askpass temporaneo
+			// Revert to /tmp as requested
 			askPassFile = fmt.Sprintf("/tmp/shelldeck_askpass_%d.sh", time.Now().UnixNano())
 			safePass := strings.ReplaceAll(sess.Password, "'", "'\\''")
-			askPassContent := fmt.Sprintf("#!/bin/sh\necho '%s'", safePass)
+			askPassContent := fmt.Sprintf("#!/bin/sh\necho '%s'\n", safePass)
 
-			// Carica lo script askpass
-			runSingleCommand(client, fmt.Sprintf("cat > %s << 'EOF'\n%s\nEOF", askPassFile, askPassContent))
+			// Carica lo script askpass usando base64 per evitare corruzione header (Exec format error)
+			b64Content := base64.StdEncoding.EncodeToString([]byte(askPassContent))
+			// Usa file intermedio e echo per garantire newline finale (base64 è safe per echo)
+			askPassB64 := askPassFile + ".b64"
+			if out, err := runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64Content, askPassB64)); err != nil {
+				sendToHQ("script_output", hostID, termID, map[string]string{"status": "error", "output": "Failed to create auth helper (Disk full?): " + out})
+				return
+			}
+			if out, err := runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", askPassB64, askPassFile)); err != nil {
+				sendToHQ("script_output", hostID, termID, map[string]string{"status": "error", "output": "Failed to decode auth helper: " + out})
+				return
+			}
+			runSingleCommand(client, fmt.Sprintf("rm -f %s", askPassB64))
 			runSingleCommand(client, fmt.Sprintf("chmod 700 %s", askPassFile))
 
 			// 2. Costruisci comando sudo che usa askpass

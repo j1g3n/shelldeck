@@ -1,3 +1,6 @@
+<link rel="stylesheet" href="/lib/css/all.min.css">
+<link rel="stylesheet" href="/lib/css/xterm.css">
+
 <style>
     .h-navbar {
         height: 50px;
@@ -95,21 +98,8 @@
     .menu-btn-sec { background: transparent; border: 1px solid #30363d; color: #c9d1d9; }
     
     /* Terminal Modal specific */
-    .menu-term-box { width: 90vw; height: 80vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #000; border: 1px solid #555; position: relative; }
+    .menu-term-box { width: 50vw; height: 50vh; padding: 0; overflow: hidden; display: flex; flex-direction: column; background: #000; border: 1px solid #555; position: relative; }
     .menu-term-header { padding: 10px; background: #161b22; border-bottom: 1px solid #30363d; display: flex; justify-content: space-between; align-items: center; color: #c9d1d9; font-weight: bold; }
-
-    /* XTERM CSS INLINED FOR MENU STABILITY */
-    .xterm { cursor: text; position: relative; user-select: none; -ms-user-select: none; -webkit-user-select: none; }
-    .xterm.focus, .xterm:focus { outline: none; }
-    .xterm .xterm-helpers { position: absolute; z-index: 10; }
-    .xterm .xterm-helper-textarea { position: absolute; opacity: 0; z-index: -10; }
-    .xterm .xterm-viewport { background-color: #000; overflow-y: scroll; cursor: default; position: absolute; right: 0; left: 0; top: 0; bottom: 0; }
-    .xterm .xterm-screen { position: relative; }
-    .xterm .xterm-screen canvas { position: absolute; left: 0; top: 0; }
-    .xterm .xterm-scroll-area { visibility: hidden; }
-    .xterm-char-measure-element { display: inline-block; visibility: hidden; position: absolute; left: -9999em; }
-    .xterm.enable-mouse-events { cursor: default; }
-    .xterm:not(.enable-mouse-events) { cursor: text; }
 </style>
 <div class="h-navbar menu-root">
     <div class="h-brand">
@@ -281,7 +271,7 @@
 </div>
 
 <!-- TERMINAL MODAL (MENU) -->
-<div class="menu-modal-overlay" id="menu-term-modal" style="z-index:10001;">
+<div class="menu-modal-overlay" id="menu-term-modal" style="z-index:99999;">
     <div class="menu-modal-box menu-term-box">
         <div class="menu-term-header">
             <span><i class="fas fa-terminal"></i> Output Script</span>
@@ -545,6 +535,7 @@
             if(payload.mode === 'runtime' || payload.mode === 'ram') {
                 openTerminal();
             }
+            pendingMenuPayload = null; // Pulisci il payload per evitare esecuzioni fantasma su ACK broadcast
             scriptWs.send(JSON.stringify({ type: "script_run_req", host_id: parseInt(app.hostId), term_id: currentTermId, payload: payload }));
         }
         
@@ -563,7 +554,7 @@
                     fitAddon.fit(); 
                     scriptWs.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(app.hostId), term_id: currentTermId, payload: { cols: term.cols, rows: term.rows } }));
                     term.focus();
-                    scriptWs.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(app.hostId), term_id: currentTermId, payload: "\r" }));
+                    // Removed auto-enter to prevent accidental script input/exit
                 }, 300);
             }
         }
