@@ -114,20 +114,40 @@ func handleNetworkCommand(hostID int, termID string, payload map[string]interfac
 		ip6, _ := payload["ip6"].(string)
 		gw, _ := payload["gateway"].(string)
 		dns, _ := payload["dns"].(string)
+
+		var errs []string
 		if ip != "" {
-			runSingleCommand(client, fmt.Sprintf("%sip addr add %s dev %s", cmdPrefix, ip, iface))
+			if out, err := runSingleCommand(client, fmt.Sprintf("%sip addr add %s dev %s", cmdPrefix, ip, iface)); err != nil {
+				// Ignora errore se l'IP esiste già (per permettere di cambiare solo GW senza errori)
+				if !strings.Contains(strings.ToLower(out), "file exists") {
+					errs = append(errs, fmt.Sprintf("IP Add: %s", out))
+				}
+			}
 		}
 		if ip6 != "" {
-			runSingleCommand(client, fmt.Sprintf("%sip -6 addr add %s dev %s", cmdPrefix, ip6, iface))
+			if out, err := runSingleCommand(client, fmt.Sprintf("%sip -6 addr add %s dev %s", cmdPrefix, ip6, iface)); err != nil {
+				if !strings.Contains(strings.ToLower(out), "file exists") {
+					errs = append(errs, fmt.Sprintf("IPv6 Add: %s", out))
+				}
+			}
 		}
 		if gw != "" {
-			runSingleCommand(client, fmt.Sprintf("%sip route add default via %s dev %s", cmdPrefix, gw, iface))
+			if out, err := runSingleCommand(client, fmt.Sprintf("%sip route replace default via %s dev %s", cmdPrefix, gw, iface)); err != nil {
+				errs = append(errs, fmt.Sprintf("GW Set: %s", out))
+			}
 		}
 		if dns != "" {
 			// Tenta di impostare i DNS via resolvectl (systemd)
-			runSingleCommand(client, fmt.Sprintf("%sresolvectl dns %s %s", cmdPrefix, iface, dns))
+			if out, err := runSingleCommand(client, fmt.Sprintf("%sresolvectl dns %s %s", cmdPrefix, iface, dns)); err != nil {
+				errs = append(errs, fmt.Sprintf("DNS Set: %s", out))
+			}
 		}
-		sendToHQ("net_op_res", hostID, termID, map[string]string{"status": "success"})
+
+		if len(errs) > 0 {
+			sendToHQ("net_op_res", hostID, termID, map[string]string{"status": "error", "msg": strings.Join(errs, "; ")})
+		} else {
+			sendToHQ("net_op_res", hostID, termID, map[string]string{"status": "success"})
+		}
 
 	case "create_bridge":
 		name, _ := payload["name"].(string)
@@ -165,10 +185,14 @@ func handleNetworkCommand(hostID int, termID string, payload map[string]interfac
 		file, _ := payload["file"].(string)
 		content, _ := payload["content"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(content))
-		// Usa file temporaneo per evitare problemi di pipe con sudo
-		tmpFile := fmt.Sprintf("/tmp/netplan_save_%d", time.Now().UnixNano())
-		runSingleCommand(client, fmt.Sprintf("echo '%s' | base64 -d > %s", b64, tmpFile))
-		runSingleCommand(client, fmt.Sprintf("%smv %s %s", cmdPrefix, tmpFile, file))
+
+		// Robust save: write b64 to temp, decode to temp, move
+		tmpB64 := fmt.Sprintf("/tmp/netplan_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/netplan_save_%d.yaml", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		runSingleCommand(client, fmt.Sprintf("%smv -f %s %s", cmdPrefix, tmpFile, file))
 
 		res, err := runSingleCommand(client, cmdPrefix+"netplan apply")
 		if err != nil {
@@ -184,9 +208,12 @@ func handleNetworkCommand(hostID int, termID string, payload map[string]interfac
 	case "save_hosts":
 		content, _ := payload["content"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(content))
-		tmpFile := fmt.Sprintf("/tmp/hosts_save_%d", time.Now().UnixNano())
-		runSingleCommand(client, fmt.Sprintf("echo '%s' | base64 -d > %s", b64, tmpFile))
-		runSingleCommand(client, fmt.Sprintf("%smv %s /etc/hosts", cmdPrefix, tmpFile))
+		tmpB64 := fmt.Sprintf("/tmp/hosts_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/hosts_save_%d.tmp", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		runSingleCommand(client, fmt.Sprintf("%smv -f %s /etc/hosts", cmdPrefix, tmpFile))
 		sendToHQ("net_op_res", hostID, termID, map[string]string{"status": "success"})
 
 	case "exec_net_tool":
@@ -332,7 +359,13 @@ func handleNetworkCommand(hostID int, termID string, payload map[string]interfac
 		f, _ := payload["file"].(string)
 		c, _ := payload["content"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(c))
-		runSingleCommand(client, fmt.Sprintf("echo '%s' | base64 -d | %stee \"%s\"", b64, cmdPrefix, f))
+		tmpB64 := fmt.Sprintf("/tmp/root_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/root_save_%d.tmp", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		runSingleCommand(client, fmt.Sprintf("%smv -f %s \"%s\"", cmdPrefix, tmpFile, f))
+
 		// Se è uno script in if-*.d, rendilo eseguibile
 		if strings.Contains(f, "/if-") && strings.Contains(f, ".d/") {
 			runSingleCommand(client, fmt.Sprintf("%schmod +x \"%s\"", cmdPrefix, f))
@@ -366,7 +399,12 @@ func handleNetworkCommand(hostID int, termID string, payload map[string]interfac
 		f, _ := payload["file"].(string)
 		c, _ := payload["content"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(c))
-		runSingleCommand(client, fmt.Sprintf("echo '%s' | base64 -d | %stee \"%s\"", b64, cmdPrefix, f))
+		tmpB64 := fmt.Sprintf("/tmp/ipt_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/ipt_save_%d.tmp", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		runSingleCommand(client, fmt.Sprintf("%smv -f %s \"%s\"", cmdPrefix, tmpFile, f))
 		sendToHQ("net_op_res", hostID, termID, map[string]string{"status": "success", "msg": "Config saved."})
 
 	case "delete_iptables_config":

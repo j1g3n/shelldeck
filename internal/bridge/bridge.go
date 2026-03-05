@@ -9,18 +9,25 @@ import (
 
 func Start() {
 	// Setup logging su file e stdout
-	logFile, err := os.OpenFile("bridge.log", os.O_CREATE|os.O_APPEND|os.O_RDWR, 0666)
+	logFile, err := os.OpenFile("bridge.log", os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0666)
 	if err != nil {
 		log.Fatal(err)
 	}
 	defer logFile.Close()
 	log.SetOutput(io.MultiWriter(os.Stdout, logFile))
 
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("CRITICAL BRIDGE PANIC: %v", r)
+		}
+	}()
+
 	log.Println("Bridge Starting...")
 	initConfigDB()
 
 	// Start UI (Fyne handles the main loop)
 	initUI()
+	log.Println("Bridge UI exited.")
 }
 
 func loadRuntimeConfig() bool {
