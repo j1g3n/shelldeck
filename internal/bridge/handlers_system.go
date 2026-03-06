@@ -846,6 +846,16 @@ func handleLogCommand(hostID int, termID string, payload map[string]interface{})
 		out, _ := runSingleCommand(client, cmd)
 		sendToHQ("log_journal", hostID, termID, out)
 
+	case "get_dmesg":
+		human, _ := payload["human"].(bool)
+		cmd := fmt.Sprintf("%sdmesg", cmdPrefix)
+		if human {
+			cmd += " -T"
+		}
+		cmd += " | tail -n 1000"
+		out, _ := runSingleCommand(client, cmd)
+		sendToHQ("log_dmesg", hostID, termID, out)
+
 	case "list_files":
 		// Usa stat per ottenere nome e dimensione in bytes separati da pipe, gestisce spazi nei nomi
 		cmd := fmt.Sprintf("%sfind /var/log -maxdepth 3 -type f -exec stat -c '%%n|%%s' {} \\;", cmdPrefix)

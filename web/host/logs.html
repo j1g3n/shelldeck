@@ -86,6 +86,7 @@
     <div class="log-sidebar">
         <h2><i class="fas fa-scroll"></i> Log Center</h2>
         <div class="nav-item active" data-view="journal"><i class="fas fa-book"></i> System Journal</div>
+        <div class="nav-item" data-view="dmesg"><i class="fas fa-microchip"></i> Kernel Ring (dmesg)</div>
         <div class="nav-item" data-view="files"><i class="fas fa-folder-open"></i> /var/log Explorer</div>
         <div class="nav-item" data-view="stream"><i class="fas fa-satellite-dish"></i> Live Stream</div>
     </div>
@@ -132,6 +133,30 @@
             </div>
 
             <div class="log-container j-output">Seleziona i filtri e premi Refresh...</div>
+        </div>
+
+        <div id="view-dmesg" class="view-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-microchip"></i> Kernel Ring Buffer (dmesg)</h3>
+                <div style="display:flex; gap:10px">
+                    <button class="btn btn-sec btn-refresh-dmesg"><i class="fas fa-sync"></i> Refresh</button>
+                </div>
+            </div>
+            
+            <div class="ctrl-bar">
+                <div class="input-group">
+                    <label>Opzioni:</label>
+                    <div style="display:flex; gap:10px; align-items:center">
+                        <input type="checkbox" id="dmesg-human" checked> <label for="dmesg-human" style="margin:0; cursor:pointer">Human Readable (-T)</label>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-left:auto">
+                    <label><i class="fas fa-filter"></i> Filtra Vista:</label>
+                    <input type="text" class="dmesg-filter" placeholder="Regex...">
+                </div>
+            </div>
+
+            <div class="log-container dmesg-output">Premi Refresh per caricare...</div>
         </div>
 
         <div id="view-files" class="view-panel">
@@ -215,6 +240,11 @@
                 const unitInput = container.querySelector('.j-unit');
                 if(unitInput) unitInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') loadJournal(); });
 
+                // Dmesg
+                bind('.btn-refresh-dmesg', loadDmesg);
+                bindInput('.dmesg-filter', (e) => filterContainer('.dmesg-output', e.target.value));
+                bindChange('#dmesg-human', loadDmesg);
+
                 // Files
                 bind('.btn-refresh-files', loadFileList);
 
@@ -236,6 +266,7 @@
                         if (msg.type !== "log_stream_data" && msg.term_id && msg.term_id !== termId) return;
 
                         if(msg.type === "log_journal") renderLogs(".j-output", msg.payload);
+                        if(msg.type === "log_dmesg") renderLogs(".dmesg-output", msg.payload);
                         if(msg.type === "log_file_list") buildFileTree(msg.payload);
                         if(msg.type === "log_file_content") {
                             // Payload is now map {filename, content}
@@ -263,6 +294,12 @@
                     };
                     container.querySelector('.j-output').innerHTML = "Loading...";
                     ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: termId, payload: p }));
+                }
+
+                function loadDmesg() {
+                    const human = container.querySelector('#dmesg-human').checked;
+                    container.querySelector('.dmesg-output').innerHTML = "Loading...";
+                    ws.send(JSON.stringify({ type: "log_command", host_id: parseInt(currentId), term_id: termId, payload: { action: "get_dmesg", human: human } }));
                 }
 
                 function loadFileList() {
@@ -532,6 +569,7 @@
                     safe = safe.replace(/(warn|warning)/gi, '<span class="hl-warn">$1</span>');
                     safe = safe.replace(/(info|notice)/gi, '<span class="hl-info">$1</span>');
                     safe = safe.replace(/^([A-M][a-z]{2}\s+\d+\s+\d{2}:\d{2}:\d{2}|^\d{4}-\d{2}-\d{2}.\d{2}:\d{2}:\d{2})/, '<span class="hl-date">$1</span>');
+                    safe = safe.replace(/^(\[[^\]]+\])/, '<span class="hl-date">$1</span>');
                     return safe;
                 }
 
