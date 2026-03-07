@@ -335,6 +335,23 @@ func handleDockerCommand(hostID int, termID string, payload map[string]interface
 		out, _ := runSingleCommand(client, fmt.Sprintf("%scat \"%s\"", cmdPrefix, path))
 		sendToHQ("docker_file_content", hostID, termID, map[string]string{"path": path, "content": out})
 
+	case "save_docker_file":
+		path, _ := payload["path"].(string)
+		content, _ := payload["content"].(string)
+
+		b64 := base64.StdEncoding.EncodeToString([]byte(content))
+		tmpB64 := fmt.Sprintf("/tmp/docker_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/docker_save_%d.tmp", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		out, err := runSingleCommand(client, fmt.Sprintf("%smv -f %s \"%s\"", cmdPrefix, tmpFile, path))
+		if err != nil {
+			sendToHQ("docker_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Save failed: " + out})
+		} else {
+			sendToHQ("docker_op_res", hostID, termID, map[string]string{"status": "success", "msg": "File saved: " + path})
+		}
+
 	case "run_docker_file":
 		path, _ := payload["path"].(string)
 		content, _ := payload["content"].(string)

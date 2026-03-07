@@ -227,11 +227,35 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 		subAction, _ := payload["sub"].(string)
 		dev, _ := payload["device"].(string)
 
+		// Check available tools
+		hasPartedStr, _ := runSingleCommand(client, "command -v parted")
+		hasParted := strings.TrimSpace(hasPartedStr) != ""
+		hasSfdiskStr, _ := runSingleCommand(client, "command -v sfdisk")
+		hasSfdisk := strings.TrimSpace(hasSfdiskStr) != ""
+		hasGrowpartStr, _ := runSingleCommand(client, "command -v growpart")
+		hasGrowpart := strings.TrimSpace(hasGrowpartStr) != ""
+
 		var cmd string
 		switch subAction {
 		case "create_table":
 			tableType, _ := payload["type"].(string)
-			cmd = fmt.Sprintf("%sparted -s %s mklabel %s", cmdPrefix, dev, tableType)
+			if hasParted {
+				cmd = fmt.Sprintf("%sparted -s %s mklabel %s", cmdPrefix, dev, tableType)
+			} else if hasSfdisk {
+				// sfdisk supports label: gpt or label: dos
+				lbl := tableType
+				if lbl == "msdos" {
+					lbl = "dos"
+				}
+				cmd = fmt.Sprintf("echo 'label: %s' | %ssfdisk %s", lbl, cmdPrefix, dev)
+			} else {
+				// fdisk fallback
+				char := "o" // dos
+				if tableType == "gpt" {
+					char = "g"
+				}
+				cmd = fmt.Sprintf("printf '%s\\nw\\n' | %sfdisk %s", char, cmdPrefix, dev)
+			}
 		case "create_part":
 			start, _ := payload["start"].(string)
 			end, _ := payload["end"].(string)
@@ -240,10 +264,26 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 			if fsType == "" {
 				fsType = "ext4"
 			}
-			cmd = fmt.Sprintf("%sparted -s %s mkpart %s %s %s %s", cmdPrefix, dev, partType, fsType, start, end)
+			if hasParted {
+				cmd = fmt.Sprintf("%sparted -s %s mkpart %s %s %s %s", cmdPrefix, dev, partType, fsType, start, end)
+			} else if hasSfdisk {
+				// Frontend sends end as size (e.g. "1024MB"). sfdisk append: echo ",1024M" | sfdisk --append /dev/sdX
+				size := strings.TrimSuffix(end, "B") // Remove B if present
+				cmd = fmt.Sprintf("echo ',%s' | %ssfdisk --append %s", size, cmdPrefix, dev)
+			} else {
+				sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "parted or sfdisk required for partition creation"})
+				return
+			}
 		case "delete_part":
 			num, _ := payload["number"].(string)
-			cmd = fmt.Sprintf("%sparted -s %s rm %s", cmdPrefix, dev, num)
+			if hasParted {
+				cmd = fmt.Sprintf("%sparted -s %s rm %s", cmdPrefix, dev, num)
+			} else if hasSfdisk {
+				cmd = fmt.Sprintf("%ssfdisk --delete %s %s", cmdPrefix, dev, num)
+			} else {
+				// fdisk fallback: d -> num -> w
+				cmd = fmt.Sprintf("printf 'd\\n%s\\nw\\n' | %sfdisk %s", num, cmdPrefix, dev)
+			}
 		case "resize_part":
 			num, _ := payload["number"].(string)
 			startBytes, _ := payload["start"].(float64) // Start in bytes from lsblk
@@ -254,73 +294,97 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 			mount, _ := payload["mount"].(string)
 			force, _ := payload["force"].(bool)
 
-			// 0. Fix GPT Table (sposta il backup header alla fine del disco se necessario)
-			// Tenta prima con sgdisk (più affidabile), poi con parted hack interattivo
-			runSingleCommand(client, fmt.Sprintf("%ssgdisk -e %s", cmdPrefix, dev))
-			// Hack per parted: invia "Fix" allo stdin per rispondere al prompt di correzione GPT
-			// Usa ---pretend-input-tty (flag non documentato ma standard per scripting parted)
-			runSingleCommand(client, fmt.Sprintf("%ssh -c 'printf \"Fix\\n\" | parted ---pretend-input-tty %s print'", cmdPrefix, dev))
+			if hasParted {
+				// 0. Fix GPT Table (sposta il backup header alla fine del disco se necessario)
+				// Tenta prima con sgdisk (più affidabile), poi con parted hack interattivo
+				runSingleCommand(client, fmt.Sprintf("%ssgdisk -e %s", cmdPrefix, dev))
+				// Hack per parted: invia "Fix" allo stdin per rispondere al prompt di correzione GPT
+				// Usa ---pretend-input-tty (flag non documentato ma standard per scripting parted)
+				runSingleCommand(client, fmt.Sprintf("%ssh -c 'printf \"Fix\\n\" | parted ---pretend-input-tty %s print'", cmdPrefix, dev))
 
-			// Logica Estendi vs Riduci
-			isShrink := false
-			isMax := targetSize == "100%" || targetSize == "max"
+				// Logica Estendi vs Riduci
+				isShrink := false
+				isMax := targetSize == "100%" || targetSize == "max"
 
-			// Calcolo nuova fine (End) per parted
-			var newEndCmd string
-			if isMax {
-				newEndCmd = "100%"
-			} else {
-				// Usa numfmt sul server per convertire targetSize (es. "20G") in bytes
-				bytesOut, _ := runSingleCommand(client, fmt.Sprintf("numfmt --from=iec %s", targetSize))
-				targetBytesStr := strings.TrimSpace(bytesOut)
-				// Se fallisce numfmt, assumiamo sia raw bytes o falliamo
-				if targetBytesStr == "" {
-					targetBytesStr = targetSize
+				// Calcolo nuova fine (End) per parted
+				var newEndCmd string
+				if isMax {
+					newEndCmd = "100%"
+				} else {
+					// Usa numfmt sul server per convertire targetSize (es. "20G") in bytes
+					bytesOut, _ := runSingleCommand(client, fmt.Sprintf("numfmt --from=iec %s", targetSize))
+					targetBytesStr := strings.TrimSpace(bytesOut)
+					// Se fallisce numfmt, assumiamo sia raw bytes o falliamo
+					if targetBytesStr == "" {
+						targetBytesStr = targetSize
+					}
+
+					// Verifica se è shrink (confronto stringhe approssimativo o logica client side preferibile,
+					// ma qui usiamo shell arithmetic per sicurezza)
+					checkShrinkCmd := fmt.Sprintf("[ %s -lt %.0f ] && echo yes || echo no", targetBytesStr, currentSizeBytes)
+					shrinkCheck, _ := runSingleCommand(client, checkShrinkCmd)
+					isShrink = strings.TrimSpace(shrinkCheck) == "yes"
+
+					// Calcola End = Start + TargetSize
+					newEndCmd = fmt.Sprintf("$((%.0f + %s))B", startBytes, targetBytesStr)
 				}
 
-				// Verifica se è shrink (confronto stringhe approssimativo o logica client side preferibile,
-				// ma qui usiamo shell arithmetic per sicurezza)
-				checkShrinkCmd := fmt.Sprintf("[ %s -lt %.0f ] && echo yes || echo no", targetBytesStr, currentSizeBytes)
-				shrinkCheck, _ := runSingleCommand(client, checkShrinkCmd)
-				isShrink = strings.TrimSpace(shrinkCheck) == "yes"
-
-				// Calcola End = Start + TargetSize
-				newEndCmd = fmt.Sprintf("$((%.0f + %s))B", startBytes, targetBytesStr)
-			}
-
-			if isShrink {
-				// SHRINK: 1. Unmount -> 2. Check -> 3. Resize FS -> 4. Resize Part -> 5. Mount
-				if strings.HasPrefix(fs, "ext") {
-					// Resize2fs richiede unmount per shrink
-					cmd = fmt.Sprintf("%sumount %s; ", cmdPrefix, partPath) // Ignora errore se già smontato
-					cmd += fmt.Sprintf("%se2fsck -f -p %s && ", cmdPrefix, partPath)
-					cmd += fmt.Sprintf("%sresize2fs %s %s && ", cmdPrefix, partPath, targetSize)
-					cmd += fmt.Sprintf("%sparted -s %s resizepart %s %s", cmdPrefix, dev, num, newEndCmd)
-					if mount != "" {
-						cmd += fmt.Sprintf(" && %smount %s %s", cmdPrefix, partPath, mount)
+				if isShrink {
+					// SHRINK: 1. Unmount -> 2. Check -> 3. Resize FS -> 4. Resize Part -> 5. Mount
+					if strings.HasPrefix(fs, "ext") {
+						// Resize2fs richiede unmount per shrink
+						cmd = fmt.Sprintf("%sumount %s; ", cmdPrefix, partPath) // Ignora errore se già smontato
+						cmd += fmt.Sprintf("%se2fsck -f -p %s && ", cmdPrefix, partPath)
+						cmd += fmt.Sprintf("%sresize2fs %s %s && ", cmdPrefix, partPath, targetSize)
+						cmd += fmt.Sprintf("%sparted -s %s resizepart %s %s", cmdPrefix, dev, num, newEndCmd)
+						if mount != "" {
+							cmd += fmt.Sprintf(" && %smount %s %s", cmdPrefix, partPath, mount)
+						}
+					} else {
+						// Altri FS (XFS non supporta shrink, BTRFS supporta online)
+						cmd = fmt.Sprintf("echo 'Shrink non supportato o non sicuro per %s via web UI'", fs)
 					}
 				} else {
-					// Altri FS (XFS non supporta shrink, BTRFS supporta online)
-					cmd = fmt.Sprintf("echo 'Shrink non supportato o non sicuro per %s via web UI'", fs)
+					// EXTEND: 1. Resize Part -> 2. Resize FS (Online)
+					partedCmd := fmt.Sprintf("%sparted -s %s resizepart %s %s", cmdPrefix, dev, num, newEndCmd)
+					if force {
+						// Se force è true, usiamo il trick per rispondere "Yes" al prompt interattivo "Partition being used"
+						partedCmd = fmt.Sprintf("%ssh -c 'printf \"Yes\\n\" | parted ---pretend-input-tty %s resizepart %s %s'", cmdPrefix, dev, num, newEndCmd)
+					}
+					cmd = partedCmd
+
+					if strings.Contains(strings.ToLower(fs), "lvm") {
+						cmd += fmt.Sprintf(" && %spvresize %s", cmdPrefix, partPath)
+					} else if strings.HasPrefix(fs, "ext") {
+						cmd += fmt.Sprintf(" && %sresize2fs %s", cmdPrefix, partPath)
+					} else if fs == "xfs" && mount != "" {
+						cmd += fmt.Sprintf(" && %sxfs_growfs %s", cmdPrefix, mount)
+					} else if fs == "btrfs" && mount != "" {
+						cmd += fmt.Sprintf(" && %sbtrfs filesystem resize max %s", cmdPrefix, mount)
+					}
+				}
+			} else if hasGrowpart {
+				// Fallback to growpart (only supports max/extend)
+				isMax := targetSize == "100%" || targetSize == "max"
+				if isMax {
+					cmd = fmt.Sprintf("%sgrowpart %s %s", cmdPrefix, dev, num)
+					// FS Resize (same as above)
+					if strings.Contains(strings.ToLower(fs), "lvm") {
+						cmd += fmt.Sprintf(" && %spvresize %s", cmdPrefix, partPath)
+					} else if strings.HasPrefix(fs, "ext") {
+						cmd += fmt.Sprintf(" && %sresize2fs %s", cmdPrefix, partPath)
+					} else if fs == "xfs" && mount != "" {
+						cmd += fmt.Sprintf(" && %sxfs_growfs %s", cmdPrefix, mount)
+					} else if fs == "btrfs" && mount != "" {
+						cmd += fmt.Sprintf(" && %sbtrfs filesystem resize max %s", cmdPrefix, mount)
+					}
+				} else {
+					sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Resize to specific size requires parted. growpart only supports max."})
+					return
 				}
 			} else {
-				// EXTEND: 1. Resize Part -> 2. Resize FS (Online)
-				partedCmd := fmt.Sprintf("%sparted -s %s resizepart %s %s", cmdPrefix, dev, num, newEndCmd)
-				if force {
-					// Se force è true, usiamo il trick per rispondere "Yes" al prompt interattivo "Partition being used"
-					partedCmd = fmt.Sprintf("%ssh -c 'printf \"Yes\\n\" | parted ---pretend-input-tty %s resizepart %s %s'", cmdPrefix, dev, num, newEndCmd)
-				}
-				cmd = partedCmd
-
-				if strings.Contains(strings.ToLower(fs), "lvm") {
-					cmd += fmt.Sprintf(" && %spvresize %s", cmdPrefix, partPath)
-				} else if strings.HasPrefix(fs, "ext") {
-					cmd += fmt.Sprintf(" && %sresize2fs %s", cmdPrefix, partPath)
-				} else if fs == "xfs" && mount != "" {
-					cmd += fmt.Sprintf(" && %sxfs_growfs %s", cmdPrefix, mount)
-				} else if fs == "btrfs" && mount != "" {
-					cmd += fmt.Sprintf(" && %sbtrfs filesystem resize max %s", cmdPrefix, mount)
-				}
+				sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "parted or growpart required for resize"})
+				return
 			}
 		case "format":
 			part, _ := payload["partition"].(string)

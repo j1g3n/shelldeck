@@ -439,11 +439,7 @@
                 const c = composeEditor ? composeEditor.getValue() : "";
                 const path = container.querySelector('#compose-path').value;
                 if(!path) return alert("Path required to save");
-                // We use run_docker_file logic but maybe we need a save only? 
-                // For now we assume the user wants to run/build or we can add a save action.
-                // Let's use fs_command save if possible, or just rely on run_docker_file which saves first.
-                // Actually, let's just use run_docker_file for now as it saves.
-                alert("Use 'Up / Build' to save and run. Standalone save not implemented in this view yet.");
+                sendCmd("save_docker_file", {path: path, content: c});
             });
 
             bind('.btn-compose-up', () => {
@@ -558,14 +554,6 @@
 
             // Delegation
             container.addEventListener('click', (e) => {
-                // Row Click for Containers
-                const row = e.target.closest('tr');
-                if(row && row.dataset.cid) {
-                    // If clicked on action button, don't open modal
-                    if(e.target.closest('button')) return;
-                    openContainerDetails(row.dataset.cid);
-                }
-
                 const btn = e.target.closest('button');
                 if(btn) {
                     const id = btn.dataset.id;
@@ -592,6 +580,13 @@
                     if(action === 'backup-vol') {
                         sendCmd("volume_backup", {volume:id, path:id+".tar.gz"});
                     }
+                    return;
+                }
+
+                // Row Click for Containers
+                const row = e.target.closest('tr');
+                if(row && row.dataset.cid) {
+                    openContainerDetails(row.dataset.cid);
                 }
             });
 

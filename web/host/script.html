@@ -682,6 +682,7 @@
                 
                 // Step 2: Run
                 ws.send(JSON.stringify({ type: "script_run_req", host_id: parseInt(currentId), term_id: termId, payload: payload }));
+                pendingRunPayload = null;
             }
             
             function openTerminalModal() {
