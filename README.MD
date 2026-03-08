@@ -40,6 +40,12 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 
 ## ✨ Key Features
 
+### 🌉 Distributed Edge Bridges (Zero-Trust Network Access) NEW!!!!! ADDED 
+The ultimate feature to redefine remote management.
+* **Proxy-Mode Bridges:** Install headless Shelldeck Bridges on remote, isolated networks (Edge).
+* **Reverse-Tunnel Architecture:** These remote Bridges will connect back to your Central Shelldeck Server via secure WebSockets.
+* **VPN-less Management:** As an operator, you will be able to access and execute commands on servers located behind those remote Bridges directly from your web dashboard, completely eliminating the need to establish complex VPNs or configure firewall port-forwarding on the client side.
+
 ### 🔌 Advanced Connectivity & Multiplexing
 * **Agentless:** 100% SSH-based. No software to install on the target nodes.
 * **SSH Multiplexing:** Opens a single TCP socket per host and multiplexes multiple virtual PTY channels (multi-tab terminals, concurrent background tasks) to drastically reduce network overhead.
@@ -75,7 +81,15 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Apache & Nginx:** Visual toggle for `sites-available` to `sites-enabled`.
 * **Smart Editors:** Edit `.conf` files with syntax highlighting. Shelldeck automatically runs `nginx -t` or `apache2ctl configtest` before applying and reloading the daemon to prevent crashes.
 
-... And much more!!
+### 📜 Centralized Script Manager (Zero-Config) NEWW ADDED!!!
+A powerful tool to manage your custom automation directly from the UI without rebuilding the server.
+* **Dynamic Discovery:** The server will automatically read a structured `scripts/` directory on your file system (e.g., `scripts/bash/`, `scripts/python/`). Any new file added to these folders will instantly appear in the Shelldeck UI.
+* **Multi-Mode Execution:** Launch your scripts across connected Bridges with three distinct modes:
+  * **Runtime:** Executes the script safely in `/tmp/` and streams the stdout/stderr back to your dashboard, leaving no trace.
+  * **Drop:** Copies the script directly into the user's current working directory (`$PWD`) on the target machine.
+  * **Cronjob:** Automatically saves the script in a persistent directory and injects the scheduling rule directly into the target user's crontab.
+* **Community Sync:** Future support for pulling script bundles directly from GitHub to populate your local toolbox.
+
 
 ## 🔐 Security Posture
 * **AES-GCM Encryption:** Passwords, Passphrases, and PEM Private Keys are never stored in plaintext. They are encrypted at rest using AES-GCM and a Master Key.
@@ -83,20 +97,21 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 * **Zero-Touch Provisioning:** If the configuration or DB is missing, the server auto-generates them, falling back to a safe port (`9112`) and generating the necessary schema automatically.
 
 
-## 📥 Download (Ready-to-use Binaries) v0.5.4 UPDATE!!
+## 📥 Download (Ready-to-use Binaries) v0.6 UPDATE!!
 
 You don't need to build from source! Download the latest compiled binaries for your operating system directly:
 
 ### 🐧 Linux (amd64)
-* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-server-linux)
-* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-bridge-linux)
-* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-standalone-linux)
+* [⬇️ Download Server (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-server-linux)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-bridge-linux)
+* [⬇️ Download Bridge-Proxy-headless (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-bridge-headless)
+* [⬇️ Download Standalone (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-standalone-linux)
 
 ### 🪟 Windows (amd64)
-* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-server-windows.exe)
-* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-bridge-windows.exe)
-* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.5.4-beta/shelldeck-standalone-windows.exe)
-
+* [⬇️ Download Server (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-server-windows.exe)
+* [⬇️ Download Bridge (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-bridge-windows.exe)
+* [⬇️ Download Standalone (Windows)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-standalone-windows.exe)
+* [⬇️ Download Bridge (Linux)](https://github.com/j1g3n/shelldeck/releases/download/V0.6/shelldeck-bridge-linux)
 *(🍎 Mac OS builds coming very soon!)*
 
 > 📦 **[View all Releases and Changelogs here](https://github.com/j1g3n/shelldeck/releases)**
@@ -134,25 +149,13 @@ Launch the Bridge application on the machine that has VPN/SSH access to your tar
 
 I'm constantly working to stabilize the core and expand Shelldeck's capabilities. Here are the major architectural updates currently in development for the upcoming stable releases:
 
-### 📜 Centralized Script Manager (Zero-Config)
-A powerful tool to manage your custom automation directly from the UI without rebuilding the server.
-* **Dynamic Discovery:** The server will automatically read a structured `scripts/` directory on your file system (e.g., `scripts/bash/`, `scripts/python/`). Any new file added to these folders will instantly appear in the Shelldeck UI.
-* **Multi-Mode Execution:** Launch your scripts across connected Bridges with three distinct modes:
-  * **Runtime:** Executes the script safely in `/tmp/` and streams the stdout/stderr back to your dashboard, leaving no trace.
-  * **Drop:** Copies the script directly into the user's current working directory (`$PWD`) on the target machine.
-  * **Cronjob:** Automatically saves the script in a persistent directory and injects the scheduling rule directly into the target user's crontab.
-* **Community Sync:** Future support for pulling script bundles directly from GitHub to populate your local toolbox.
 
 ### 🔒 Automated HTTPS/WSS Setup
 Security-by-design right from the first setup. Shelldeck will soon offer a built-in wizard to automatically handle SSL/TLS certificates:
 * **Private/Local Networks:** One-click generation of Self-Signed certificates to secure WebSocket traffic (WSS) in air-gapped or VPN-only environments.
 * **Public Domains:** Native integration with Let's Encrypt (`acme/autocert`). Simply provide your domain name, and Shelldeck will automatically negotiate, issue, and renew trusted certificates, wrapping your connections in HTTPS/WSS with zero external reverse-proxy configuration needed.
 
-### 🌉 Distributed Edge Bridges (Zero-Trust Network Access)
-The ultimate feature to redefine remote management.
-* **Proxy-Mode Bridges:** Install headless Shelldeck Bridges on remote, isolated networks (Edge).
-* **Reverse-Tunnel Architecture:** These remote Bridges will connect back to your Central Shelldeck Server via secure WebSockets.
-* **VPN-less Management:** As an operator, you will be able to access and execute commands on servers located behind those remote Bridges directly from your web dashboard, completely eliminating the need to establish complex VPNs or configure firewall port-forwarding on the client side.
+
 
 ## � License
 This project is licensed under the AGPLv3 License - see the `LICENSE` file for details.
