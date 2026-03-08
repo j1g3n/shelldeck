@@ -167,6 +167,7 @@
         <div class="proto-tab" onclick="window.setProtocol('ssh', this)"><i class="fas fa-terminal"></i> <span>SSH</span></div>
         <div class="proto-tab" onclick="window.setProtocol('web', this)"><i class="fas fa-globe"></i> <span>WEB</span></div>
         <div class="proto-tab" onclick="window.setProtocol('sftp', this)"><i class="fas fa-exchange-alt"></i> <span>SFTP</span></div>
+        <div class="proto-tab" onclick="window.setProtocol('proxy', this)"><i class="fas fa-network-wired"></i> <span>PROXY</span></div>
     </div>
 
     <div class="quick-connect-box">
@@ -326,8 +327,15 @@
         window.AppState.currentProtocol = proto;
         document.querySelectorAll('.proto-tab').forEach(t => t.classList.remove('active'));
         if(el) el.classList.add('active');
+        
+        // Sync Main View if available
+        if (proto === 'proxy') {
+            if(window.renderProxiesView) window.renderProxiesView();
+        } else {
+            if(window.renderMainView) window.renderMainView(window.AppState.currentViewGroupId);
+        }
+        
         window.renderSidebar();
-        if(window.renderMainView) window.renderMainView(window.AppState.currentViewGroupId);
     };
 
     // --- SMART CONNECT ---
@@ -371,6 +379,11 @@
         if(!root) return;
         root.innerHTML = '';
         
+        if (window.AppState.currentProtocol === 'proxy') {
+            window.renderSidebarProxies(root);
+            return;
+        }
+        
         // Root Node
         const rootNode = document.createElement('div');
         rootNode.className = 'tree-node';
@@ -390,6 +403,49 @@
         rootNode.appendChild(rootChildrenContainer);
         root.appendChild(rootNode);
     };
+
+    window.renderSidebarProxies = async function(root) {
+        root.innerHTML = '<div style="padding:20px; text-align:center; color:#666"><i class="fas fa-circle-notch fa-spin"></i></div>';
+        try {
+            const res = await fetch('/api/proxies');
+            if(!res.ok) throw new Error("API Error");
+            const proxies = await res.json();
+            
+            root.innerHTML = '';
+            
+            const title = document.createElement('div');
+            title.className = 'sidebar-section-title';
+            title.innerText = 'ACTIVE PROXIES';
+            root.appendChild(title);
+            
+            if(proxies.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.padding = "10px 15px";
+                empty.style.color = "#484f58";
+                empty.style.fontStyle = "italic";
+                empty.style.fontSize = "0.85em";
+                empty.innerText = "No active proxies";
+                root.appendChild(empty);
+                return;
+            }
+
+            proxies.forEach(p => {
+                const node = document.createElement('div');
+                node.className = 'tree-node';
+                node.innerHTML = `
+                    <div class="node-row is-host" style="cursor:default">
+                        <div class="node-arrow"></div>
+                        <div class="node-icon" style="color:#8957e5"><i class="fas fa-network-wired"></i></div>
+                        <div class="node-text">${p.user}</div>
+                        <div style="width:6px; height:6px; border-radius:50%; background:#238636; margin-left:6px; box-shadow:0 0 4px #238636; flex-shrink:0;"></div>
+                    </div>
+                `;
+                root.appendChild(node);
+            });
+        } catch(e) {
+            root.innerHTML = `<div style="padding:10px; color:#da3633; font-size:0.8em">Error: ${e.message}</div>`;
+        }
+    }
 
     function buildSidebarRecursive(parentId, container) {
             let hasContent = false;

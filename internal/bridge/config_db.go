@@ -19,6 +19,7 @@ type ServerConfig struct {
 	Username      string `json:"username"`
 	EncryptionKey string `json:"encryption_key"`
 	IsDefault     bool   `json:"is_default"`
+	IsProxy       bool   `json:"is_proxy"`
 	LastUsed      int64  `json:"last_used"`
 }
 
@@ -59,6 +60,7 @@ func initConfigDB() {
 		username TEXT,
 		encryption_key TEXT,
 		is_default INTEGER DEFAULT 0,
+		is_proxy INTEGER DEFAULT 0,
 		UNIQUE(url, username)
 	);`
 	configDB.Exec(createServersTableSQL)
@@ -104,6 +106,14 @@ func initConfigDB() {
 			log.Fatal("Migration add last_used column failed:", err)
 		}
 	}
+
+	// Migration: Ensure schema has 'is_proxy' column
+	var isProxyCol int
+	configDB.QueryRow("SELECT COUNT(*) FROM pragma_table_info('servers') WHERE name='is_proxy'").Scan(&isProxyCol)
+	if isProxyCol == 0 {
+		log.Println("Migrating servers table to add 'is_proxy' column...")
+		configDB.Exec("ALTER TABLE servers ADD COLUMN is_proxy INTEGER DEFAULT 0")
+	}
 }
 
 func getConfig(key string) string {
@@ -123,7 +133,7 @@ func setConfig(key, value string) {
 }
 
 func getServers() []ServerConfig {
-	rows, err := configDB.Query("SELECT id, COALESCE(name, ''), url, username, encryption_key, is_default, COALESCE(last_used, 0) FROM servers ORDER BY id")
+	rows, err := configDB.Query("SELECT id, COALESCE(name, ''), url, username, encryption_key, is_default, COALESCE(last_used, 0), COALESCE(is_proxy, 0) FROM servers ORDER BY id")
 	if err != nil {
 		return []ServerConfig{}
 	}
@@ -133,8 +143,10 @@ func getServers() []ServerConfig {
 	for rows.Next() {
 		var s ServerConfig
 		var isDef int
-		rows.Scan(&s.ID, &s.Name, &s.URL, &s.Username, &s.EncryptionKey, &isDef, &s.LastUsed)
+		var isProxy int
+		rows.Scan(&s.ID, &s.Name, &s.URL, &s.Username, &s.EncryptionKey, &isDef, &s.LastUsed, &isProxy)
 		s.IsDefault = isDef == 1
+		s.IsProxy = isProxy == 1
 		servers = append(servers, s)
 	}
 	return servers
@@ -143,11 +155,13 @@ func getServers() []ServerConfig {
 func getServer(id int) (*ServerConfig, error) {
 	var s ServerConfig
 	var isDef int
-	err := configDB.QueryRow("SELECT id, COALESCE(name, ''), url, username, encryption_key, is_default FROM servers WHERE id = ?", id).Scan(&s.ID, &s.Name, &s.URL, &s.Username, &s.EncryptionKey, &isDef)
+	var isProxy int
+	err := configDB.QueryRow("SELECT id, COALESCE(name, ''), url, username, encryption_key, is_default, COALESCE(is_proxy, 0) FROM servers WHERE id = ?", id).Scan(&s.ID, &s.Name, &s.URL, &s.Username, &s.EncryptionKey, &isDef, &isProxy)
 	if err != nil {
 		return nil, err
 	}
 	s.IsDefault = isDef == 1
+	s.IsProxy = isProxy == 1
 	return &s, nil
 }
 
@@ -160,7 +174,7 @@ func getDefaultServerID() int {
 	return id
 }
 
-func addServer(name, url, user, key string) error {
+func addServer(name, url, user, key string, isProxy bool) error {
 	// Se è il primo server, rendilo default
 	var count int
 	configDB.QueryRow("SELECT COUNT(*) FROM servers").Scan(&count)
@@ -169,12 +183,21 @@ func addServer(name, url, user, key string) error {
 		isDefault = 1
 	}
 
-	_, err := configDB.Exec("INSERT INTO servers (name, url, username, encryption_key, is_default) VALUES (?, ?, ?, ?, ?)", name, url, user, key, isDefault)
+	proxyVal := 0
+	if isProxy {
+		proxyVal = 1
+	}
+
+	_, err := configDB.Exec("INSERT INTO servers (name, url, username, encryption_key, is_default, is_proxy) VALUES (?, ?, ?, ?, ?, ?)", name, url, user, key, isDefault, proxyVal)
 	return err
 }
 
-func updateServer(id int, name, url, user, key string) error {
-	_, err := configDB.Exec("UPDATE servers SET name = ?, url = ?, username = ?, encryption_key = ? WHERE id = ?", name, url, user, key, id)
+func updateServer(id int, name, url, user, key string, isProxy bool) error {
+	proxyVal := 0
+	if isProxy {
+		proxyVal = 1
+	}
+	_, err := configDB.Exec("UPDATE servers SET name = ?, url = ?, username = ?, encryption_key = ?, is_proxy = ? WHERE id = ?", name, url, user, key, proxyVal, id)
 	return err
 }
 

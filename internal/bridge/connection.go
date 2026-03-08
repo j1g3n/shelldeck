@@ -87,12 +87,27 @@ func connectionLoop(serverID int) {
 	}
 }
 
+func connectProxy(serverURL, user, pass string) {
+	// Create a temporary config for proxy mode
+	config := &ServerConfig{
+		URL:           serverURL,
+		Username:      user,
+		EncryptionKey: pass, // Using pass as key/auth for handshake
+		IsProxy:       true,
+	}
+	establishConnection(config)
+}
+
 func connectToHQ(serverID int) {
 	config, err := getServer(serverID)
 	if err != nil {
 		log.Printf("Impossibile ottenere la configurazione per il server ID %d: %v", serverID, err)
 		return
 	}
+	establishConnection(config)
+}
+
+func establishConnection(config *ServerConfig) {
 	rawURL := config.URL
 	if !strings.Contains(rawURL, "://") {
 		rawURL = "http://" + rawURL
@@ -159,6 +174,9 @@ func connectToHQ(serverID int) {
 	payload := map[string]string{
 		"username": config.Username,
 		"key":      config.EncryptionKey,
+	}
+	if config.IsProxy {
+		payload["client_type"] = "proxy"
 	}
 	prefID := getConfig("preferred_workspace")
 	if prefID != "" {
@@ -389,7 +407,7 @@ func connectToHQ(serverID int) {
 					resp.Body.Close()
 
 					if key, ok := res["encryption_key"].(string); ok {
-						err := addServer("", urlStr, user, key)
+						err := addServer("", urlStr, user, key, false)
 						if err != nil {
 							sendToHQ("server_add_res", msg.HostID, msg.TermID, map[string]string{"status": "error", "msg": err.Error()})
 						} else {

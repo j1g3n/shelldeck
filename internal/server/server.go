@@ -46,6 +46,8 @@ var (
 	activeBridges      = make(map[string]*websocket.Conn)
 	activeBridgeTokens = make(map[string]string)
 	bridgeMu           sync.Mutex
+	// Mappa: Username -> ClientType ("local" or "proxy")
+	bridgeTypes = make(map[string]string)
 	// Mappa: HostID -> Lista di client browser connessi
 	browserClients = make(map[int][]*websocket.Conn)
 	clientsMu      sync.Mutex
@@ -87,6 +89,7 @@ type Group struct {
 	JumpUser    string `json:"jump_user"`
 	JumpPass    string `json:"jump_pass,omitempty"`
 	EncJumpPass string `json:"-"`
+	ProxyUser   string `json:"proxy_user,omitempty"`
 }
 
 type Host struct {
@@ -117,6 +120,7 @@ type Host struct {
 	TunnelRHost string `json:"tunnel_rhost,omitempty"`
 	TunnelRPort string `json:"tunnel_rport,omitempty"`
 	VncPort     string `json:"vnc_port,omitempty"`
+	ProxyUser   string `json:"proxy_user,omitempty"` // Remote Proxy Bridge User
 
 	// Campi DB (Cifrati)
 	EncPassword   string `json:"-"`
@@ -310,6 +314,9 @@ func initUsersDB() {
 	// FIX: Assicura che l'utente 'admin' sia sempre Global Admin (corregge migrazioni su DB esistenti)
 	usersDB.Exec("UPDATE users SET is_global_admin = 1 WHERE username = 'admin'")
 
+	// MIGRATION: Bind Proxy to Workspace
+	usersDB.Exec("ALTER TABLE users ADD COLUMN bound_workspace_id INTEGER DEFAULT 0")
+
 	// Tabella Gruppi (Workspaces/Database)
 	_, err = usersDB.Exec(`CREATE TABLE IF NOT EXISTS groups (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -405,6 +412,7 @@ func migrateDB(targetDB *sql.DB) {
 	targetDB.Exec(`ALTER TABLE hosts ADD COLUMN tunnel_rport TEXT DEFAULT '';`)
 	targetDB.Exec(`ALTER TABLE hosts ADD COLUMN vnc_port TEXT DEFAULT '5900';`)
 	targetDB.Exec(`ALTER TABLE hosts ADD COLUMN jump_host_id INTEGER DEFAULT NULL;`)
+	targetDB.Exec(`ALTER TABLE hosts ADD COLUMN proxy_user TEXT DEFAULT '';`)
 
 	targetDB.Exec(`ALTER TABLE groups ADD COLUMN jump_ip TEXT DEFAULT '';`)
 	targetDB.Exec(`ALTER TABLE groups ADD COLUMN jump_port TEXT DEFAULT '22';`)
@@ -417,6 +425,7 @@ func migrateDB(targetDB *sql.DB) {
 	targetDB.Exec(`ALTER TABLE groups ADD COLUMN enc_key TEXT DEFAULT '';`)
 	targetDB.Exec(`ALTER TABLE groups ADD COLUMN enc_passphrase TEXT DEFAULT '';`)
 	targetDB.Exec(`ALTER TABLE groups ADD COLUMN jump_host_id INTEGER DEFAULT NULL;`)
+	targetDB.Exec(`ALTER TABLE groups ADD COLUMN proxy_user TEXT DEFAULT '';`)
 }
 
 func initDB() {
@@ -546,6 +555,42 @@ func Start() {
 			return c.Status(404).JSON(fiber.Map{"status": "error", "msg": "User not found"})
 		}
 		return c.JSON(u)
+	})
+
+	// --- API PROXIES (List active proxy bridges) ---
+	app.Get("/api/proxies", authReq, func(c *fiber.Ctx) error {
+		bridgeMu.Lock()
+		defer bridgeMu.Unlock()
+
+		var proxies []map[string]interface{}
+		for user, bType := range bridgeTypes {
+			if bType == "proxy" {
+				var wsID int
+				usersDB.QueryRow("SELECT COALESCE(bound_workspace_id, 0) FROM users WHERE username = ?", user).Scan(&wsID)
+
+				// Filter: Show if unassigned (0) OR assigned to current workspace
+				if wsID == 0 || wsID == currentWorkspaceID {
+					proxies = append(proxies, map[string]interface{}{"user": user, "workspace_id": wsID})
+				}
+			}
+		}
+		return c.JSON(proxies)
+	})
+
+	app.Post("/api/proxies/assign", authReq, func(c *fiber.Ctx) error {
+		var req struct {
+			User        string `json:"user"`
+			WorkspaceID int    `json:"workspace_id"`
+		}
+		if err := c.BodyParser(&req); err != nil {
+			return c.Status(400).SendString("Bad Request")
+		}
+
+		_, err := usersDB.Exec("UPDATE users SET bound_workspace_id = ? WHERE username = ?", req.WorkspaceID, req.User)
+		if err != nil {
+			return c.Status(500).SendString(err.Error())
+		}
+		return c.SendStatus(200)
 	})
 
 	// --- API AUTO-LOGIN (Bridge) ---
@@ -1179,7 +1224,7 @@ func Start() {
 			}
 		}
 
-		rows, err := targetDB.Query("SELECT id, parent_id, name, COALESCE(bg_color, ''), COALESCE(text_color, ''), COALESCE(user, ''), COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), jump_host_id FROM groups")
+		rows, err := targetDB.Query("SELECT id, parent_id, name, COALESCE(bg_color, ''), COALESCE(text_color, ''), COALESCE(user, ''), COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), jump_host_id, COALESCE(proxy_user, '') FROM groups")
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
@@ -1187,12 +1232,12 @@ func Start() {
 		var groups []Group
 		for rows.Next() {
 			var g Group
-			rows.Scan(&g.ID, &g.ParentID, &g.Name, &g.BgColor, &g.TextColor, &g.User, &g.JumpIP, &g.JumpPort, &g.JumpUser, &g.JumpHostID)
+			rows.Scan(&g.ID, &g.ParentID, &g.Name, &g.BgColor, &g.TextColor, &g.User, &g.JumpIP, &g.JumpPort, &g.JumpUser, &g.JumpHostID, &g.ProxyUser)
 			groups = append(groups, g)
 		}
 
 		rows2, err := targetDB.Query(`SELECT id, group_id, name, ip, COALESCE(user, ''), protocol, favorite, COALESCE(jump_ip, ''), 
-			CASE WHEN enc_key IS NOT NULL AND enc_key != '' THEN 1 ELSE 0 END as has_key 
+			CASE WHEN enc_key IS NOT NULL AND enc_key != '' THEN 1 ELSE 0 END as has_key, COALESCE(proxy_user, '')
 			FROM hosts WHERE is_temp = 0`)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1204,12 +1249,12 @@ func Start() {
 		for rows2.Next() {
 			var h Host
 			var hasKey int
-			rows2.Scan(&h.ID, &h.GroupID, &h.Name, &h.IP, &h.User, &h.Protocol, &h.Favorite, &h.JumpIP, &hasKey)
+			rows2.Scan(&h.ID, &h.GroupID, &h.Name, &h.IP, &h.User, &h.Protocol, &h.Favorite, &h.JumpIP, &hasKey, &h.ProxyUser)
 
 			hostMap := map[string]interface{}{
 				"id": h.ID, "group_id": h.GroupID, "name": h.Name, "ip": h.IP,
 				"user": h.User, "protocol": h.Protocol, "favorite": h.Favorite,
-				"jump_ip": h.JumpIP, "has_key": hasKey == 1,
+				"jump_ip": h.JumpIP, "has_key": hasKey == 1, "proxy_user": h.ProxyUser,
 			}
 			hosts = append(hosts, hostMap)
 		}
@@ -1234,6 +1279,7 @@ func Start() {
 				return c.Status(500).SendString("Error opening workspace DB: " + err.Error())
 			}
 			targetDB = tempDB
+			migrateDB(targetDB) // Assicura che lo schema sia aggiornato (es. colonna proxy_user)
 			defer tempDB.Close()
 			if encKey != "" {
 				reqKey = []byte(encKey)
@@ -1246,11 +1292,11 @@ func Start() {
 		// 1. Prendi le credenziali dirette dell'host e il suo group_id
 		err := targetDB.QueryRow(`SELECT group_id, ip, COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), protocol, 
 			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), jump_host_id,
-			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, '')
+			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, ''), COALESCE(proxy_user, '')
 			FROM hosts WHERE id = ?`, id).
 			Scan(&groupID, &h.IP, &h.User, &h.EncPassword, &h.EncKey, &h.EncPassphrase, &h.Protocol,
 				&h.JumpIP, &h.JumpPort, &h.JumpUser, &h.EncJumpPass, &h.JumpHostID,
-				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort)
+				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort, &h.ProxyUser)
 		if err != nil {
 			if err != sql.ErrNoRows {
 				log.Printf("DB Error in host-credentials: %v", err)
@@ -1270,6 +1316,7 @@ func Start() {
 		finalJumpUser := h.JumpUser
 		finalEncJumpPass := h.EncJumpPass
 		finalJumpHostID := h.JumpHostID
+		finalProxyUser := h.ProxyUser
 
 		var currentGroupID *int
 		if groupID.Valid {
@@ -1283,8 +1330,8 @@ func Start() {
 			var parentID sql.NullInt64
 
 			err := targetDB.QueryRow(`SELECT parent_id, COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
-				COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), jump_host_id FROM groups WHERE id = ?`, *currentGroupID).
-				Scan(&parentID, &g.User, &g.EncPassword, &g.EncKey, &g.EncPassphrase, &g.JumpIP, &g.JumpPort, &g.JumpUser, &g.EncJumpPass, &g.JumpHostID)
+				COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), jump_host_id, COALESCE(proxy_user, '') FROM groups WHERE id = ?`, *currentGroupID).
+				Scan(&parentID, &g.User, &g.EncPassword, &g.EncKey, &g.EncPassphrase, &g.JumpIP, &g.JumpPort, &g.JumpUser, &g.EncJumpPass, &g.JumpHostID, &g.ProxyUser)
 			if err != nil {
 				break // Errore o gruppo non trovato, interrompi
 			}
@@ -1310,6 +1357,10 @@ func Start() {
 				finalJumpUser = g.JumpUser
 				finalEncJumpPass = g.EncJumpPass
 				finalJumpHostID = g.JumpHostID
+			}
+
+			if finalProxyUser == "" {
+				finalProxyUser = g.ProxyUser
 			}
 
 			if parentID.Valid {
@@ -1409,6 +1460,7 @@ func Start() {
 			"tunnel_rhost": h.TunnelRHost,
 			"tunnel_rport": h.TunnelRPort,
 			"vnc_port":     h.VncPort,
+			"proxy_user":   finalProxyUser,
 		})
 	})
 
@@ -1449,10 +1501,10 @@ func Start() {
 
 		_, err = targetDB.Exec(`INSERT INTO hosts 
 			(group_id, name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
-			jump_ip, jump_port, jump_user, enc_jump_pass, tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id) 
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			jump_ip, jump_port, jump_user, enc_jump_pass, tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id, proxy_user) 
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			h.GroupID, h.Name, h.IP, h.User, h.Protocol, h.EncPassword, h.EncKey, h.EncPassphrase,
-			h.JumpIP, h.JumpPort, h.JumpUser, h.EncJumpPass, h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, h.JumpHostID)
+			h.JumpIP, h.JumpPort, h.JumpUser, h.EncJumpPass, h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, h.JumpHostID, h.ProxyUser)
 
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1513,12 +1565,12 @@ func Start() {
 			group_id=?, name=?, ip=?, user=?, protocol=?, 
 			enc_password=?, enc_key=?, enc_passphrase=?, 
 			jump_ip=?, jump_port=?, jump_user=?, enc_jump_pass=?, jump_host_id=?,
-			tunnel_type=?, tunnel_lport=?, tunnel_rhost=?, tunnel_rport=?, vnc_port=?
+			tunnel_type=?, tunnel_lport=?, tunnel_rhost=?, tunnel_rport=?, vnc_port=?, proxy_user=?
 			WHERE id=?`,
 			h.GroupID, h.Name, h.IP, h.User, h.Protocol,
 			encPass, encKey, encPhrase,
 			h.JumpIP, h.JumpPort, h.JumpUser, encJump, h.JumpHostID,
-			h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, id)
+			h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, h.ProxyUser, id)
 
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1698,10 +1750,10 @@ func Start() {
 		query := `INSERT INTO hosts (
 			group_id, name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
 			favorite, is_temp, jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id,
-			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port
+			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, proxy_user
 		) SELECT ?, name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
 			favorite, 0, jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id,
-			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port
+			tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, proxy_user
 		FROM hosts WHERE id IN (`
 
 		args := []interface{}{req.TargetGroupID}
@@ -1765,9 +1817,9 @@ func Start() {
 		}
 
 		_, err = targetDB.Exec(`INSERT INTO groups 
-			(name, parent_id, bg_color, text_color, user, enc_password, enc_key, enc_passphrase, jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id) 
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			g.Name, g.ParentID, g.BgColor, g.TextColor, g.User, g.EncPassword, g.EncKey, g.EncPassphrase, g.JumpIP, g.JumpPort, g.JumpUser, g.EncJumpPass, g.JumpHostID)
+			(name, parent_id, bg_color, text_color, user, enc_password, enc_key, enc_passphrase, jump_ip, jump_port, jump_user, enc_jump_pass, jump_host_id, proxy_user) 
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			g.Name, g.ParentID, g.BgColor, g.TextColor, g.User, g.EncPassword, g.EncKey, g.EncPassphrase, g.JumpIP, g.JumpPort, g.JumpUser, g.EncJumpPass, g.JumpHostID, g.ProxyUser)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
 		}
@@ -1826,11 +1878,11 @@ func Start() {
 		_, err = targetDB.Exec(`UPDATE groups SET 
 			name=?, parent_id=?, bg_color=?, text_color=?, 
 			user=?, enc_password=?, enc_key=?, enc_passphrase=?,
-			jump_ip=?, jump_port=?, jump_user=?, enc_jump_pass=?, jump_host_id=?
+			jump_ip=?, jump_port=?, jump_user=?, enc_jump_pass=?, jump_host_id=?, proxy_user=?
 			WHERE id=?`,
 			g.Name, g.ParentID, g.BgColor, g.TextColor,
 			g.User, encPass, encKey, encPhrase,
-			g.JumpIP, g.JumpPort, g.JumpUser, encJump, g.JumpHostID,
+			g.JumpIP, g.JumpPort, g.JumpUser, encJump, g.JumpHostID, g.ProxyUser,
 			id)
 
 		if err != nil {
@@ -1891,11 +1943,11 @@ func Start() {
 		var g Group
 		err = targetDB.QueryRow(`SELECT parent_id, name, COALESCE(bg_color, ''), COALESCE(text_color, ''), 
 			COALESCE(user, ''), COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
-			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, '') 
+			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), COALESCE(proxy_user, '')
 			FROM groups WHERE id = ?`, id).
 			Scan(&g.ParentID, &g.Name, &g.BgColor, &g.TextColor,
 				&g.User, &g.EncPassword, &g.EncKey, &g.EncPassphrase,
-				&g.JumpIP, &g.JumpPort, &g.JumpUser, &g.EncJumpPass)
+				&g.JumpIP, &g.JumpPort, &g.JumpUser, &g.EncJumpPass, &g.ProxyUser)
 
 		if err != nil {
 			return c.Status(404).SendString("Gruppo non trovato")
@@ -1903,11 +1955,11 @@ func Start() {
 
 		newName := "Copia " + g.Name
 		res, err := targetDB.Exec(`INSERT INTO groups 
-			(parent_id, name, bg_color, text_color, user, enc_password, enc_key, enc_passphrase, jump_ip, jump_port, jump_user, enc_jump_pass) 
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			(parent_id, name, bg_color, text_color, user, enc_password, enc_key, enc_passphrase, jump_ip, jump_port, jump_user, enc_jump_pass, proxy_user) 
+			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			g.ParentID, newName, g.BgColor, g.TextColor,
 			g.User, g.EncPassword, g.EncKey, g.EncPassphrase,
-			g.JumpIP, g.JumpPort, g.JumpUser, g.EncJumpPass)
+			g.JumpIP, g.JumpPort, g.JumpUser, g.EncJumpPass, g.ProxyUser)
 
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1916,7 +1968,7 @@ func Start() {
 
 		rows, err := targetDB.Query(`SELECT name, ip, COALESCE(user, ''), protocol, COALESCE(enc_password, ''), COALESCE(enc_key, ''), COALESCE(enc_passphrase, ''), 
 			COALESCE(jump_ip, ''), COALESCE(jump_port, ''), COALESCE(jump_user, ''), COALESCE(enc_jump_pass, ''), 
-			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, ''), jump_host_id
+			COALESCE(tunnel_type, ''), COALESCE(tunnel_lport, ''), COALESCE(tunnel_rhost, ''), COALESCE(tunnel_rport, ''), COALESCE(vnc_port, ''), jump_host_id, COALESCE(proxy_user, '')
 			FROM hosts WHERE group_id = ? AND is_temp = 0`, id)
 		if err != nil {
 			return c.Status(500).SendString(err.Error())
@@ -1928,7 +1980,7 @@ func Start() {
 			var h Host
 			rows.Scan(&h.Name, &h.IP, &h.User, &h.Protocol, &h.EncPassword, &h.EncKey, &h.EncPassphrase,
 				&h.JumpIP, &h.JumpPort, &h.JumpUser, &h.EncJumpPass,
-				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort, &h.JumpHostID)
+				&h.TunnelType, &h.TunnelLPort, &h.TunnelRHost, &h.TunnelRPort, &h.VncPort, &h.JumpHostID, &h.ProxyUser)
 			hostsToCopy = append(hostsToCopy, h)
 		}
 		rows.Close()
@@ -1937,11 +1989,11 @@ func Start() {
 			targetDB.Exec(`INSERT INTO hosts 
 				(group_id, name, ip, user, protocol, enc_password, enc_key, enc_passphrase, 
 				jump_ip, jump_port, jump_user, enc_jump_pass, 
-				tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id) 
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				tunnel_type, tunnel_lport, tunnel_rhost, tunnel_rport, vnc_port, jump_host_id, proxy_user) 
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 				newGroupID, h.Name, h.IP, h.User, h.Protocol, h.EncPassword, h.EncKey, h.EncPassphrase,
 				h.JumpIP, h.JumpPort, h.JumpUser, h.EncJumpPass,
-				h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, h.JumpHostID)
+				h.TunnelType, h.TunnelLPort, h.TunnelRHost, h.TunnelRPort, h.VncPort, h.JumpHostID, h.ProxyUser)
 		}
 		return c.JSON(fiber.Map{"status": "success"})
 	})
@@ -2138,6 +2190,7 @@ func Start() {
 			if currentUser != "" {
 				delete(activeBridges, currentUser)
 				delete(activeBridgeTokens, currentUser)
+				delete(bridgeTypes, currentUser)
 			}
 			bridgeMu.Unlock()
 			log.Printf("❌ BRIDGE PERSO (%s)", currentUser)
@@ -2194,15 +2247,23 @@ func Start() {
 					// 1. Autenticazione Bridge
 					user, _ := payload["username"].(string)
 					key, _ := payload["key"].(string)
+					clientType, _ := payload["client_type"].(string)
 
 					var userID int
-					err := usersDB.QueryRow("SELECT id FROM users WHERE username = ?", user).Scan(&userID)
+					var dbPass string
+					err := usersDB.QueryRow("SELECT id, password FROM users WHERE username = ?", user).Scan(&userID, &dbPass)
 
 					var authOK bool
-					if err == nil {
-						var c int
-						usersDB.QueryRow("SELECT COUNT(*) FROM groups WHERE encryption_key = ?", key).Scan(&c)
-						authOK = c > 0
+					if clientType == "proxy" {
+						if err == nil && dbPass == key {
+							authOK = true
+						}
+					} else {
+						if err == nil {
+							var c int
+							usersDB.QueryRow("SELECT COUNT(*) FROM groups WHERE encryption_key = ?", key).Scan(&c)
+							authOK = c > 0
+						}
 					}
 
 					if authOK {
@@ -2211,6 +2272,7 @@ func Start() {
 						bridgeMu.Lock()
 						activeBridges[user] = c
 						activeBridgeTokens[user] = token
+						bridgeTypes[user] = clientType // "proxy" or empty (local)
 						bridgeMu.Unlock()
 						log.Printf("✅ Bridge autenticato come: %s", user)
 						c.WriteJSON(JMessage{
@@ -2395,10 +2457,42 @@ func Start() {
 					continue
 				}
 
+				// ROUTING LOGIC: Determine which bridge to use
+				// 1. Check if the target host has a specific proxy_user configured
+				var proxyUser string
+
+				// We need to query the DB to find the proxy_user for this HostID
+				// Since we don't have the workspace ID here easily (it's in the connection context of the browser client usually,
+				// but here we are in the WS loop), we might need to rely on the fact that 'db' global var
+				// points to the default workspace, OR we need to look it up.
+				// Ideally, the client should send workspace_id in the payload, but JMessage structure is fixed.
+				// However, `ws/client` handler has access to `currentWorkspaceID` via global var (not thread safe if multiple workspaces active?)
+				// Actually, `ws/client` handler is per-connection.
+
+				// Let's use a helper function to find the proxy user.
+				// Since we are inside `ws/client` handler, we can query the DB.
+				// Note: `db` global variable might point to the last switched workspace. This is a limitation of the current architecture.
+				// Assuming single-tenant or single-active-workspace per server process for now, or that `db` is correct.
+				// A better approach would be to pass workspace_id in JMessage, but for now let's try to query `db`.
+
+				// We need to resolve the proxy user recursively (Host -> Group -> Parent Group)
+				// This logic is already in `host-credentials` API. We can duplicate it or extract it.
+				// For simplicity/performance in this loop, let's do a direct query if possible.
+				// But `db` is global. If multiple users use different workspaces, `db` is unstable.
+				// FIX: The architecture relies on `db` being the active workspace.
+
+				proxyUser = getProxyUserForHost(msg.HostID, msg.TermID)
+
 				bridgeMu.Lock()
-				bridge := activeBridges[username]
+				// If proxyUser is found and active, use it. Otherwise use the user's own bridge.
+				targetBridgeUser := username
+				if proxyUser != "" && activeBridges[proxyUser] != nil {
+					targetBridgeUser = proxyUser
+				}
+
+				bridge := activeBridges[targetBridgeUser]
 				if bridge != nil {
-					log.Printf("[SERVER-TO-BRIDGE] Type: %s, HostID: %d, TermID: %s", msg.Type, msg.HostID, msg.TermID)
+					log.Printf("[SERVER-TO-BRIDGE] Type: %s, HostID: %d, TermID: %s -> %s", msg.Type, msg.HostID, msg.TermID, targetBridgeUser)
 					if err := bridge.WriteJSON(msg); err != nil {
 						log.Printf("[SERVER-TO-BRIDGE-ERROR] %v", err)
 					}
@@ -2554,4 +2648,78 @@ func Start() {
 
 	log.Printf("🚀 Server shelldeck avviato su %s", serverConfig.ListenAddress)
 	log.Fatal(app.Listen(serverConfig.ListenAddress))
+}
+
+func GetWorkspaceID(termID string) int {
+	if strings.Contains(termID, ":") {
+		parts := strings.SplitN(termID, ":", 2)
+		if len(parts) == 2 {
+			if id, err := strconv.Atoi(parts[0]); err == nil {
+				return id
+			}
+		}
+	}
+	return 0
+}
+
+// Helper to resolve proxy user for a host
+func getProxyUserForHost(hostID int, termID string) string {
+	// This function attempts to find the proxy_user for a host, checking the host itself and its group hierarchy.
+	// It uses the global `db` variable, assuming it points to the correct workspace.
+
+	wsID := GetWorkspaceID(termID)
+	targetDB := db
+	shouldClose := false
+
+	if wsID > 0 && wsID != currentWorkspaceID {
+		var dbPath string
+		if err := usersDB.QueryRow("SELECT db_path FROM groups WHERE id = ?", wsID).Scan(&dbPath); err == nil {
+			if tempDB, err := sql.Open("sqlite3", dbPath+"?_foreign_keys=on"); err == nil {
+				targetDB = tempDB
+				shouldClose = true
+			}
+		}
+	}
+	if shouldClose {
+		defer targetDB.Close()
+	}
+
+	var groupID sql.NullInt64
+	var proxyUser string
+
+	// Check Host
+	err := targetDB.QueryRow("SELECT group_id, COALESCE(proxy_user, '') FROM hosts WHERE id = ?", hostID).Scan(&groupID, &proxyUser)
+	if err != nil {
+		return ""
+	}
+	if proxyUser != "" {
+		return proxyUser
+	}
+
+	// Check Groups recursively
+	var currentGroupID *int
+	if groupID.Valid {
+		gid := int(groupID.Int64)
+		currentGroupID = &gid
+	}
+
+	for currentGroupID != nil {
+		var parentID sql.NullInt64
+		err := targetDB.QueryRow("SELECT parent_id, COALESCE(proxy_user, '') FROM groups WHERE id = ?", *currentGroupID).Scan(&parentID, &proxyUser)
+		if err != nil {
+			break
+		}
+		if proxyUser != "" {
+			return proxyUser
+		}
+
+		if parentID.Valid {
+			pid := int(parentID.Int64)
+			currentGroupID = &pid
+		} else {
+			currentGroupID = nil
+		}
+	}
+
+	return ""
 }

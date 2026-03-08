@@ -1,3 +1,5 @@
+//go:build !headless
+
 package bridge
 
 import (
@@ -37,6 +39,8 @@ var (
 	backgroundProcsMu sync.Mutex
 	trayLock          sync.Mutex
 )
+
+const Headless = false
 
 func openDashboard(token string) {
 	activeServerMu.Lock()
@@ -79,17 +83,6 @@ func openDashboard(token string) {
 }
 
 func initUI() {
-	// HIJACK: Controlla se siamo in modalità "worker" (background bridge)
-	if len(os.Args) > 2 && os.Args[1] == "-connect" {
-		id, _ := strconv.Atoi(os.Args[2])
-		if id > 0 {
-			SetWelcomeCallback(openDashboard)
-			StartBridge(id)
-			select {} // Blocca per sempre, il bridge gira in background
-		}
-		return // Non avviare la UI
-	}
-
 	fyneApp = app.NewWithID("com.shelldeck.bridge")
 	var ok bool
 	desk, ok = fyneApp.(desktop.App)
@@ -329,10 +322,13 @@ func showServerForm(existing *ServerConfig) {
 	passEntry.SetPlaceHolder("admin")
 	passEntry.Text = "admin"
 
+	proxyCheck := widget.NewCheck("Proxy Mode (Headless/Remote)", nil)
+
 	if existing != nil {
 		nameEntry.Text = existing.Name
 		urlEntry.Text = existing.URL
 		userEntry.Text = existing.Username
+		proxyCheck.Checked = existing.IsProxy
 	}
 
 	form := &widget.Form{
@@ -341,6 +337,7 @@ func showServerForm(existing *ServerConfig) {
 			{Text: "Server URL", Widget: urlEntry},
 			{Text: "Username", Widget: userEntry},
 			{Text: "Password", Widget: passEntry},
+			{Text: "Options", Widget: proxyCheck},
 		},
 		OnSubmit: func() {
 			url := strings.TrimSpace(urlEntry.Text)
@@ -388,7 +385,7 @@ func showServerForm(existing *ServerConfig) {
 
 			if existing == nil {
 				// Add
-				if err := addServer(nameEntry.Text, url, userEntry.Text, key); err != nil {
+				if err := addServer(nameEntry.Text, url, userEntry.Text, key, proxyCheck.Checked); err != nil {
 					dialog.ShowError(err, w)
 					return
 				}
@@ -401,7 +398,7 @@ func showServerForm(existing *ServerConfig) {
 				}
 			} else {
 				// Edit
-				if err := updateServer(existing.ID, nameEntry.Text, url, userEntry.Text, key); err != nil {
+				if err := updateServer(existing.ID, nameEntry.Text, url, userEntry.Text, key, proxyCheck.Checked); err != nil {
 					dialog.ShowError(err, w)
 					return
 				}

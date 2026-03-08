@@ -214,6 +214,7 @@
             <button class="btn-proto" style="--proto-color: #238636;" onclick="window.setProtoFilter('web', this)"><i class="fas fa-globe c-web"></i> WEB</button>
             <button class="btn-proto" style="--proto-color: #e3b341;" onclick="window.setProtoFilter('sftp', this)"><i class="fas fa-exchange-alt c-ftp"></i> SFTP</button>
             <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
+            <button class="btn-proto" style="--proto-color: #8957e5;" onclick="window.setProtoFilter('proxy', this)"><i class="fas fa-network-wired c-tunnel"></i> PROXIES</button>
             <button class="btn-proto" style="--proto-color: #238636;" onclick="window.setProtoFilter('jumphost', this)"><i class="fas fa-route c-jump"></i> JUMPS</button>
             <button class="btn-proto" style="--proto-color: #8957e5;" onclick="window.setProtoFilter('tunnel', this)"><i class="fas fa-project-diagram c-tunnel"></i> TUNNELS</button>
             <div style="width:1px; height:15px; background:#30363d; margin:0 5px;"></div>
@@ -333,8 +334,23 @@
     // --- FILTRI PROTOCOLLO ---
     window.setProtoFilter = function(proto, el) {
         window.AppState.currentProtocol = proto;
+        
+        if (proto === 'proxy') {
+            window.renderProxiesView();
+        }
+        
         document.querySelectorAll('.btn-proto').forEach(b => b.classList.remove('active'));
         el.classList.add('active');
+        
+        // Sync Sidebar Tabs
+        const sbTabs = document.querySelectorAll('.proto-tab');
+        sbTabs.forEach(t => {
+            if (t.getAttribute('onclick').includes(`'${proto}'`)) t.classList.add('active');
+            else t.classList.remove('active');
+        });
+        
+        if(window.renderSidebar) window.renderSidebar();
+        
         window.renderActiveView();
     }
 
@@ -384,6 +400,56 @@
             'tunnel': 'rgba(137, 87, 229, 0.15)'
         };
         return colors[proto] || 'transparent';
+    }
+
+    // --- RENDER PROXIES ---
+    window.renderProxiesView = async function() {
+        const container = document.querySelector('.main-view-content');
+        if(!container) return;
+        container.innerHTML = '<div style="padding:20px; text-align:center; color:#666"><i class="fas fa-circle-notch fa-spin"></i> Loading Proxies...</div>';
+        
+        try {
+            const res = await fetch('/api/proxies');
+            if(!res.ok) throw new Error("API Error");
+            const proxies = await res.json();
+            
+            if(proxies.length === 0) {
+                container.innerHTML = '<div style="padding:40px; text-align:center; color:#444"><i>No active Remote Proxy Bridges found.</i></div>';
+                return;
+            }
+            
+            let html = `<div class="section-header"><div class="section-title" style="color:#8957e5"><i class="fas fa-network-wired"></i> Active Remote Proxies</div></div><div class="host-grid">`;
+            proxies.forEach(p => {
+                const isAssigned = p.workspace_id > 0;
+                const assignBtn = isAssigned ? 
+                    `<button class="btn-card" onclick="window.assignProxy('${p.user}', 0)" title="Unassign"><i class="fas fa-unlink"></i> Unassign</button>` : 
+                    `<button class="btn-card" onclick="window.assignProxy('${p.user}', ${window.AppState.currentWorkspaceId})" title="Assign to this Workspace"><i class="fas fa-link"></i> Assign Here</button>`;
+                
+                html += `<div class="host-card">
+                    <div class="card-header-row">
+                        <div class="host-icon-box icon-tunnel"><i class="fas fa-network-wired"></i></div>
+                        <div class="host-title-box"><h4>${p.user}</h4><span>${isAssigned ? 'Assigned' : 'Unassigned'}</span></div>
+                        <div class="host-status-dot" style="display:block"></div>
+                    </div>
+                    <div class="card-actions">${assignBtn}</div>
+                </div>`;
+            });
+            html += `</div>`;
+            container.innerHTML = html;
+        } catch(e) {
+            container.innerHTML = `<div style="color:#da3633; padding:20px;">Error loading proxies: ${e.message}</div>`;
+        }
+    }
+
+    window.assignProxy = async function(user, wsId) {
+        try {
+            await fetch('/api/proxies/assign', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ user: user, workspace_id: wsId })
+            });
+            window.renderProxiesView();
+        } catch(e) { alert("Error assigning proxy: " + e.message); }
     }
 
     // --- AZIONI CARTELLA ---
@@ -881,6 +947,8 @@
     // --- RENDER MAIN ---
     window.renderActiveView = function() {
         const activeContainer = document.querySelector('.host-view-instance.active') || document.getElementById('home-view');
+        // If proxy filter is active, don't render standard tree
+        if (window.AppState.currentProtocol === 'proxy') return;
         if(activeContainer) window.renderMainView(activeContainer, window.AppState.currentViewGroupId);
     }
 

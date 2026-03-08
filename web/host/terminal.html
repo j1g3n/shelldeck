@@ -561,11 +561,24 @@
                             break;
                         case 'copy':
                             const sel = terminals[activeTermId]?.term.getSelection();
-                            if(sel) navigator.clipboard.writeText(sel);
+                                                        if(sel) {
+                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                    navigator.clipboard.writeText(sel).catch(e => alert("Copy failed: " + e));
+                                } else {
+                                    // Fallback per contesti non sicuri (HTTP)
+                                    document.execCommand('copy'); 
+                                }
+                            }
                             break;
                         case 'paste':
-                            const text = await navigator.clipboard.readText();
-                            if(text) sendInputToActive(text);
+                            if (navigator.clipboard && navigator.clipboard.readText) {
+                                try {
+                                    const text = await navigator.clipboard.readText();
+                                    if(text) sendInputToActive(text);
+                                } catch(e) { alert("Paste failed: " + e); }
+                            } else {
+                                alert("Incolla non supportato su connessioni non sicure (HTTP). Usa Ctrl+V o Shift+Insert.");
+                            }
                             break;
                     }
                 } else if (rawCmd) {
