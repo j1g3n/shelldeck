@@ -48,7 +48,7 @@ Shelldeck is an advanced client, agentless Remote Monitoring and Management (RMM
 
 ---
 
-## 🛠️ How It Works (simple version)
+## 🛠️ Quick Overview
 
 Shelldeck has a **three-tier security architecture**:
 
@@ -107,7 +107,7 @@ Shelldeck uses a **WebSocket Message Broker Architecture** to bypass these limit
 
 ## ✨ Key Features
 
-### 🌉 Distributed Edge Bridges (Zero-Trust Network Access) NEW!!!!! ADDED 
+### 🌉 Distributed Edge Bridges (Zero-Trust Network Access) 
 The ultimate feature to redefine remote management.
 * **Proxy-Mode Bridges:** Install headless Shelldeck Bridges on remote, isolated networks (Edge).
 * **Reverse-Tunnel Architecture:** These remote Bridges will connect back to your Central Shelldeck Server via secure WebSockets.
@@ -148,7 +148,7 @@ The ultimate feature to redefine remote management.
 * **Apache & Nginx:** Visual toggle for `sites-available` to `sites-enabled`.
 * **Smart Editors:** Edit `.conf` files with syntax highlighting. Shelldeck automatically runs `nginx -t` or `apache2ctl configtest` before applying and reloading the daemon to prevent crashes.
 
-### 📜 Centralized Script Manager (Zero-Config) NEWW ADDED!!!
+### 📜 Centralized Script Manager (Zero-Config) 
 A powerful tool to manage your custom automation directly from the UI without rebuilding the server.
 * **Dynamic Discovery:** The server will automatically read a structured `scripts/` directory on your file system (e.g., `scripts/bash/`, `scripts/python/`). Any new file added to these folders will instantly appear in the Shelldeck UI.
 * **Multi-Mode Execution:** Launch your scripts across connected Bridges with three distinct modes:
