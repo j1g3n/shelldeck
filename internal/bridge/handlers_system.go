@@ -664,16 +664,35 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 	case "cron_logs":
 		cmdStr, _ := payload["cmd"].(string)
 		asRoot, _ := payload["as_root"].(bool)
-		safeCmd := strings.ReplaceAll(cmdStr, "'", "'\\''")
 
-		baseCmd := fmt.Sprintf("journalctl -u cron --no-pager | grep '%s' | tail -n 50", safeCmd)
+		// Extract the script name from the command string for better searching.
+		// e.g., from "/path/to/script.sh > /dev/null" get "script"
+		parts := strings.Fields(cmdStr)
+		scriptName := ""
+		if len(parts) > 0 {
+			scriptPath := parts[0]
+			scriptName = filepath.Base(scriptPath)
+			scriptName = strings.TrimSuffix(scriptName, filepath.Ext(scriptName))
+		}
+
+		// If we couldn't extract a name, fallback to grep on the full command string
+		if scriptName == "" {
+			scriptName = cmdStr
+		}
+		safeGrepPattern := strings.ReplaceAll(scriptName, "'", "'\\''")
+
+		// Search for logs related to the script, filter for execution lines ("CMD"), and take the last 10.
+		// We use a large -n value to ensure we find recent executions even on a busy system.
+		// FIX: Rimosso filtro unità (-u) che perdeva log su alcuni sistemi. Usiamo grep 'CRON' per sicurezza.
+		baseCmd := fmt.Sprintf("journalctl --no-pager -n 5000 -g '%s' | grep 'CRON' | grep 'CMD' | tail -n 10", safeGrepPattern)
+
 		if asRoot {
 			baseCmd = fmt.Sprintf("%s%s", cmdPrefix, baseCmd)
 		}
 
 		out, _ := runSingleCommand(client, baseCmd)
 		if strings.TrimSpace(out) == "" {
-			out = "Nessun log trovato."
+			out = "Nessun log di esecuzione trovato per questo job."
 		}
 		sendToHQ("cron_logs_out", hostID, termID, out)
 
@@ -688,9 +707,10 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		}
 
 		// Fetch recent cron logs (reverse order to get latest first)
-		// Usiamo 5000 righe per coprire un periodo ragionevole (es. 24h con job al minuto)
+		// Usiamo 50000 righe per coprire un periodo ragionevole anche su server molto attivi
 		// 1. Journalctl (Newest -> Oldest)
-		baseCmd := fmt.Sprintf("%sjournalctl -u cron -u crond -n 5000 --no-pager --output=short-iso -r -q", cmdPrefix)
+		// FIX: Usa Syslog Identifier (-t) invece di Unit (-u) per maggiore affidabilità
+		baseCmd := fmt.Sprintf("%sLC_ALL=C journalctl -t CRON -t crond -n 50000 --no-pager --output=short-iso -r -q", cmdPrefix)
 		out, err := runSingleCommand(client, baseCmd)
 
 		isReverse := true // Journalctl -r gives newest first
@@ -698,7 +718,8 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		// 2. Fallback: Log files (Oldest -> Newest)
 		if err != nil || strings.Contains(strings.ToLower(out), "password") || len(strings.TrimSpace(out)) < 10 {
 			// Use grep -a (text), -h (no filename). Read common log files.
-			cmd := fmt.Sprintf("%sgrep -a -h 'CRON' /var/log/syslog /var/log/cron /var/log/messages 2>/dev/null | tail -n 5000", cmdPrefix)
+			// FIX: Leggi anche syslog.1 per coprire la rotazione dei log e aumenta il tail
+			cmd := fmt.Sprintf("%sLC_ALL=C grep -a -h 'CRON' /var/log/syslog /var/log/syslog.1 /var/log/cron /var/log/messages 2>/dev/null | tail -n 50000", cmdPrefix)
 			out, _ = runSingleCommand(client, cmd)
 			isReverse = false // Tail gives oldest first
 		}
@@ -706,21 +727,18 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 		stats := make(map[string]string)
 		lines := strings.Split(out, "\n")
 
-		processLine := func(line string) {
+		processLine := func(line string) bool { // Return true if a stat was set
 			line = strings.TrimSpace(line)
 			if line == "" {
-				return
+				return false
 			}
-			// Filtra per utente: ... CRON[pid]: (user) CMD ...
-			if !strings.Contains(line, "("+targetUser+")") {
-				return
+			if !strings.Contains(line, "CRON") || !strings.Contains(line, "CMD") || !strings.Contains(line, "("+targetUser+")") {
+				return false
 			}
-			// Cerca il comando: ... CMD (command...)
 			idx := strings.Index(line, " CMD (")
 			if idx != -1 {
 				parts := strings.Fields(line)
-				if len(parts) > 0 {
-					timestamp := parts[0]
+				if len(parts) > 3 { // Need at least date + time + host
 					cmdContent := line[idx+6:]
 					if strings.HasSuffix(cmdContent, ")") {
 						cmdContent = cmdContent[:len(cmdContent)-1]
@@ -728,27 +746,48 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 					normalizedCmd := strings.Join(strings.Fields(cmdContent), " ")
 
 					if _, exists := stats[normalizedCmd]; !exists {
-						// Parse Date
-						if t, err := time.Parse("2006-01-02T15:04:05-0700", timestamp); err == nil {
-							stats[normalizedCmd] = t.Format("2006-01-02 15:04")
-						} else {
-							// Syslog format: Oct 27 10:00:00
-							if len(parts) >= 3 {
-								stats[normalizedCmd] = fmt.Sprintf("%s %s %s", parts[0], parts[1], parts[2])
-							} else {
-								stats[normalizedCmd] = timestamp
+						var parsedTime time.Time
+						var parseErr error
+
+						// Try ISO format first (from journalctl -o short-iso)
+						isoTimestamp := parts[0]
+						parsedTime, parseErr = time.Parse("2006-01-02T15:04:05-0700", isoTimestamp)
+
+						// If ISO fails, try syslog format (from grep)
+						if parseErr != nil {
+							syslogTimestamp := fmt.Sprintf("%s %s %s", parts[0], parts[1], parts[2])
+							parsedTime, parseErr = time.Parse("Jan _2 15:04:05", syslogTimestamp)
+							if parseErr == nil {
+								now := time.Now()
+								// Re-create the time with the current year
+								finalTime := time.Date(now.Year(), parsedTime.Month(), parsedTime.Day(), parsedTime.Hour(), parsedTime.Minute(), parsedTime.Second(), 0, now.Location())
+								// If the resulting date is in the future (e.g., parsing a Dec log in Jan), assume it's from the previous year
+								if finalTime.After(now) {
+									finalTime = finalTime.AddDate(-1, 0, 0)
+								}
+								parsedTime = finalTime
 							}
 						}
+
+						if parseErr == nil {
+							stats[normalizedCmd] = parsedTime.Format("2006-01-02 15:04")
+						} else {
+							// Fallback to just grabbing the first few fields as a raw string if all parsing fails
+							stats[normalizedCmd] = fmt.Sprintf("%s %s %s", parts[0], parts[1], parts[2])
+						}
+						return true
 					}
 				}
 			}
+			return false
 		}
 
-		if isReverse {
+		// Always iterate from newest to oldest to find the first (and thus most recent) log entry.
+		if isReverse { // journalctl -r output is already newest first
 			for _, line := range lines {
 				processLine(line)
 			}
-		} else {
+		} else { // grep/tail output is oldest first, so we iterate backwards
 			for i := len(lines) - 1; i >= 0; i-- {
 				processLine(lines[i])
 			}
@@ -838,7 +877,13 @@ func handleLogCommand(hostID int, termID string, payload map[string]interface{})
 			cmd += " -p " + prio
 		}
 		if unit != "" {
-			cmd += " -u " + unit
+			// FIX: Se si filtra per 'cron', è più affidabile usare il Syslog Identifier (-t)
+			// invece dell'unità (-u), perché journald non sempre associa i log di cron alla sua unit.
+			if unit == "cron" || unit == "crond" {
+				cmd += " -t CRON -t crond"
+			} else {
+				cmd += " -u " + unit
+			}
 		}
 		if boot != "" && boot != "0" {
 			cmd += " -b " + boot
