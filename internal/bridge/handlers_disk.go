@@ -25,17 +25,27 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 		// 1. LSBLK (JSON) - Info dettagliate su dischi e partizioni
 		// Aggiunte START (per calcoli resize), FSUSED/FSUSE% (usage), PARTFLAGS (flags)
 		// TENTATIVO 1: Colonne estese (util-linux recente)
-		lsblkCmd := fmt.Sprintf("%slsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL,START,FSUSED,FSUSE%%,PARTFLAGS", cmdPrefix)
+		lsblkCmd := fmt.Sprintf("%sLC_ALL=C lsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL,START,FSUSED,FSUSE%%,PARTFLAGS", cmdPrefix)
 		lsblkOut, err := runSingleCommand(client, lsblkCmd)
 		// TENTATIVO 2: Fallback colonne base (util-linux vecchio) se il primo fallisce o non ritorna JSON
 		if err != nil || !strings.Contains(lsblkOut, "blockdevices") {
-			lsblkCmd = fmt.Sprintf("%slsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL", cmdPrefix)
+			lsblkCmd = fmt.Sprintf("%sLC_ALL=C lsblk -J -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL", cmdPrefix)
 			lsblkOut, err = runSingleCommand(client, lsblkCmd)
 		}
 		// TENTATIVO 3: Fallback assoluto (default columns) - Utile per sistemi custom/vecchi o ZFS che falliscono con colonne specifiche
 		if err != nil || !strings.Contains(lsblkOut, "blockdevices") {
-			lsblkCmd = fmt.Sprintf("%slsblk -J -b", cmdPrefix)
+			// TENTATIVO 4: Fallback a formato Pairs (-P) se JSON non è supportato (vecchi lsblk)
+			lsblkCmd = fmt.Sprintf("%sLC_ALL=C lsblk -P -b -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT,LABEL,UUID,PTTYPE,MODEL,SERIAL", cmdPrefix)
 			lsblkOut, err = runSingleCommand(client, lsblkCmd)
+
+			// Se questo ha successo (contiene NAME=), convertiamo noi in JSON per il frontend
+			if err == nil && strings.Contains(lsblkOut, "NAME=") {
+				lsblkOut = parseLsblkPairsToJSON(lsblkOut)
+			} else {
+				// Ultimo tentativo JSON standard
+				lsblkCmd = fmt.Sprintf("%sLC_ALL=C lsblk -J -b", cmdPrefix)
+				lsblkOut, err = runSingleCommand(client, lsblkCmd)
+			}
 		}
 
 		// Pulizia output JSON (rimuove eventuali warning sudo prima del JSON)
@@ -227,13 +237,22 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 		subAction, _ := payload["sub"].(string)
 		dev, _ := payload["device"].(string)
 
-		// Check available tools
+		// Check available tools FIRST
 		hasPartedStr, _ := runSingleCommand(client, "command -v parted")
 		hasParted := strings.TrimSpace(hasPartedStr) != ""
 		hasSfdiskStr, _ := runSingleCommand(client, "command -v sfdisk")
 		hasSfdisk := strings.TrimSpace(hasSfdiskStr) != ""
 		hasGrowpartStr, _ := runSingleCommand(client, "command -v growpart")
 		hasGrowpart := strings.TrimSpace(hasGrowpartStr) != ""
+
+		// Determine re-read command (fallback if parted/partprobe is missing)
+		rereadCmd := fmt.Sprintf("%spartprobe %s", cmdPrefix, dev)
+		if !hasParted {
+			rereadCmd = fmt.Sprintf("%spartx -u %s || %sblockdev --rereadpt %s", cmdPrefix, dev, cmdPrefix, dev)
+		}
+
+		// Force kernel to re-read partition table before any operation to avoid inconsistencies
+		runSingleCommand(client, rereadCmd)
 
 		var cmd string
 		switch subAction {
@@ -247,14 +266,14 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 				if lbl == "msdos" {
 					lbl = "dos"
 				}
-				cmd = fmt.Sprintf("echo 'label: %s' | %ssfdisk %s", lbl, cmdPrefix, dev)
+				cmd = fmt.Sprintf("%s sh -c 'echo \"label: %s\" | sfdisk %s'", cmdPrefix, lbl, dev)
 			} else {
 				// fdisk fallback
 				char := "o" // dos
 				if tableType == "gpt" {
 					char = "g"
 				}
-				cmd = fmt.Sprintf("printf '%s\\nw\\n' | %sfdisk %s", char, cmdPrefix, dev)
+				cmd = fmt.Sprintf("%s sh -c \"printf '%s\\\\nw\\\\n' | fdisk %s\"", cmdPrefix, char, dev)
 			}
 		case "create_part":
 			start, _ := payload["start"].(string)
@@ -269,20 +288,28 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 			} else if hasSfdisk {
 				// Frontend sends end as size (e.g. "1024MB"). sfdisk append: echo ",1024M" | sfdisk --append /dev/sdX
 				size := strings.TrimSuffix(end, "B") // Remove B if present
-				cmd = fmt.Sprintf("echo ',%s' | %ssfdisk --append %s", size, cmdPrefix, dev)
+				cmd = fmt.Sprintf("%s sh -c 'echo \",%s\" | sfdisk --append %s'", cmdPrefix, size, dev)
 			} else {
 				sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "parted or sfdisk required for partition creation"})
 				return
 			}
 		case "delete_part":
 			num, _ := payload["number"].(string)
+
+			// Try to turn off swap if active on this partition to avoid "busy" errors
+			partPath := dev + num
+			if len(dev) > 0 && dev[len(dev)-1] >= '0' && dev[len(dev)-1] <= '9' {
+				partPath = dev + "p" + num
+			}
+			runSingleCommand(client, fmt.Sprintf("%sswapoff %s", cmdPrefix, partPath))
+
 			if hasParted {
 				cmd = fmt.Sprintf("%sparted -s %s rm %s", cmdPrefix, dev, num)
 			} else if hasSfdisk {
 				cmd = fmt.Sprintf("%ssfdisk --delete %s %s", cmdPrefix, dev, num)
 			} else {
 				// fdisk fallback: d -> num -> w
-				cmd = fmt.Sprintf("printf 'd\\n%s\\nw\\n' | %sfdisk %s", num, cmdPrefix, dev)
+				cmd = fmt.Sprintf("%s sh -c \"printf 'd\\n%s\\nw\\n' | fdisk %s\"", cmdPrefix, num, dev)
 			}
 		case "resize_part":
 			num, _ := payload["number"].(string)
@@ -292,7 +319,6 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 			partPath, _ := payload["partition"].(string)
 			fs, _ := payload["fs"].(string)
 			mount, _ := payload["mount"].(string)
-			force, _ := payload["force"].(bool)
 
 			if hasParted {
 				// 0. Fix GPT Table (sposta il backup header alla fine del disco se necessario)
@@ -346,11 +372,8 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 					}
 				} else {
 					// EXTEND: 1. Resize Part -> 2. Resize FS (Online)
-					partedCmd := fmt.Sprintf("%sparted -s %s resizepart %s %s", cmdPrefix, dev, num, newEndCmd)
-					if force {
-						// Se force è true, usiamo il trick per rispondere "Yes" al prompt interattivo "Partition being used"
-						partedCmd = fmt.Sprintf("%ssh -c 'printf \"Yes\\n\" | parted ---pretend-input-tty %s resizepart %s %s'", cmdPrefix, dev, num, newEndCmd)
-					}
+					// Always use the 'force' trick for extend, as parted -s can fail silently on mounted partitions.
+					partedCmd := fmt.Sprintf("%ssh -c 'printf \"Yes\\n\" | parted ---pretend-input-tty %s resizepart %s %s'", cmdPrefix, dev, num, newEndCmd)
 					cmd = partedCmd
 
 					if strings.Contains(strings.ToLower(fs), "lvm") {
@@ -382,8 +405,28 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 					sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Resize to specific size requires parted. growpart only supports max."})
 					return
 				}
+			} else if hasSfdisk {
+				// Fallback to sfdisk (resize via -N)
+				// echo ", +" | sfdisk -N 1 /dev/sda  (Resize part 1 to max)
+				isMax := targetSize == "100%" || targetSize == "max"
+				sizeArg := "+" // Max
+				if !isMax {
+					sizeArg = targetSize
+				}
+
+				// sfdisk -N <num> accepts "start,size" format. ",size" keeps start.
+				cmd = fmt.Sprintf("%s sh -c 'echo \", %s\" | sfdisk -N %s %s --force'", cmdPrefix, sizeArg, num, dev)
+
+				// FS Resize
+				if strings.Contains(strings.ToLower(fs), "lvm") {
+					cmd += fmt.Sprintf(" && %spvresize %s", cmdPrefix, partPath)
+				} else if strings.HasPrefix(fs, "ext") {
+					cmd += fmt.Sprintf(" && %sresize2fs %s", cmdPrefix, partPath)
+				} else if fs == "xfs" && mount != "" {
+					cmd += fmt.Sprintf(" && %sxfs_growfs %s", cmdPrefix, mount)
+				}
 			} else {
-				sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "parted or growpart required for resize"})
+				sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": "parted, sfdisk or growpart required for resize"})
 				return
 			}
 		case "format":
@@ -412,6 +455,8 @@ func handleDiskCommand(hostID int, termID string, payload map[string]interface{}
 		if err != nil {
 			sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "error", "msg": out + " " + err.Error()})
 		} else {
+			// Force kernel to re-read partition table
+			runSingleCommand(client, rereadCmd)
 			sendToHQ("disk_op_res", hostID, termID, map[string]string{"status": "success", "msg": "Operazione completata"})
 		}
 
@@ -857,4 +902,40 @@ func parseMdstat(output string) []map[string]interface{} {
 		}
 	}
 	return arrays
+}
+
+// Helper per convertire output lsblk -P in struttura JSON compatibile
+func parseLsblkPairsToJSON(output string) string {
+	var devices []map[string]interface{}
+	lines := strings.Split(output, "\n")
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+
+		// Parse KEY="VAL"
+		item := make(map[string]interface{})
+		parts := strings.Split(line, " ")
+		for _, p := range parts {
+			kv := strings.SplitN(p, "=", 2)
+			if len(kv) == 2 {
+				key := strings.ToLower(kv[0])
+				val := strings.Trim(kv[1], "\"")
+				item[key] = val
+			}
+		}
+
+		// Aggiungi campi mancanti per compatibilità
+		if _, ok := item["children"]; !ok {
+			item["children"] = []interface{}{}
+		}
+		devices = append(devices, item)
+	}
+
+	// Nota: Questo parser è piatto (non ricostruisce l'albero children), ma è sufficiente
+	// per visualizzare i dischi se lsblk -J fallisce.
+	res, _ := json.Marshal(map[string]interface{}{"blockdevices": devices})
+	return string(res)
 }

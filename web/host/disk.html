@@ -773,17 +773,29 @@
 
                 if (parts.length === 0) {
                      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding: 20px;">Nessuna partizione trovata o disco non inizializzato</td></tr>`;
-                     bar.innerHTML = `<div class="part-segment free" style="width:100%">Spazio non allocato / Raw</div>`;
+                     const freeSeg = document.createElement('div');
+                     freeSeg.className = "part-segment free";
+                     freeSeg.style.width = "100%";
+                     freeSeg.innerText = "Spazio non allocato / Raw";
+                     freeSeg.onclick = () => selectPartition({ name: 'Unallocated', type: 'free', size: totalSize, start: 0 }, freeSeg);
+                     bar.appendChild(freeSeg);
                 }
             }
 
             function selectPartition(part, visualEl) {
-                selectedPart = { ...part, type: 'part' };
+                selectedPart = part;
+                // Se la partizione viene da lsblk, non avrà il nostro 'type' custom. Lo aggiungiamo.
+                // Se è spazio libero, il tipo 'free' viene preservato.
+                if (!selectedPart.type) {
+                    selectedPart.type = 'part';
+                }
+
                 container.querySelectorAll('.part-segment').forEach(e => e.classList.remove('selected'));
                 container.querySelectorAll('.data-table tr').forEach(e => e.classList.remove('selected'));
                 // Usa CSS.escape per gestire nomi con caratteri speciali (es. mapper/vg-lv)
                 const tr = container.querySelector(`tr[data-name="${CSS.escape(part.name)}"]`);
                 if(tr) tr.classList.add('selected');
+                if(visualEl) visualEl.classList.add('selected');
                 updatePartButtons();
             }
 
@@ -792,10 +804,11 @@
                 if (!btns) return;
                 btns.style.display = 'flex';
                 const isPart = selectedPart && selectedPart.type === 'part';
-                
-                const setDisabled = (sel, val) => { const el = container.querySelector(sel); if(el) el.disabled = val; };
+                const isFree = selectedPart && selectedPart.type === 'free';
 
-                setDisabled('.btn-create-part', false);
+                const setDisabled = (sel, val) => { const el = btns.querySelector(sel); if(el) el.disabled = val; };
+
+                setDisabled('.btn-create-part', !isFree);
                 setDisabled('.btn-delete-part', !isPart);
                 setDisabled('.btn-mount-part', !(isPart && !selectedPart.mountpoint));
                 setDisabled('.btn-unmount-part', !(isPart && selectedPart.mountpoint));

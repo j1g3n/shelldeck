@@ -841,7 +841,15 @@ func handleServiceCommand(hostID int, termID string, payload map[string]interfac
 	case "rc_save":
 		content, _ := payload["content"].(string)
 		b64 := base64.StdEncoding.EncodeToString([]byte(content))
-		runSingleCommand(client, fmt.Sprintf("echo '%s' | base64 -d | %stee /etc/rc.local", b64, cmdPrefix))
+
+		// Use a temporary file to safely write content, avoiding pipe issues with sudo.
+		tmpB64 := fmt.Sprintf("/tmp/rc_save_%d.b64", time.Now().UnixNano())
+		tmpFile := fmt.Sprintf("/tmp/rc_save_%d.sh", time.Now().UnixNano())
+		runSingleCommand(client, fmt.Sprintf("echo '%s' > %s", b64, tmpB64))
+		runSingleCommand(client, fmt.Sprintf("base64 -d -i %s > %s", tmpB64, tmpFile))
+		runSingleCommand(client, "rm -f "+tmpB64)
+		runSingleCommand(client, fmt.Sprintf("%smv -f %s /etc/rc.local", cmdPrefix, tmpFile))
+
 		runSingleCommand(client, cmdPrefix+"chmod +x /etc/rc.local")
 		sendToHQ("svc_op_res", hostID, termID, map[string]string{"status": "success"})
 
