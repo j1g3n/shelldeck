@@ -1,11 +1,79 @@
 # Shelldeck 🚀
+
+### The Universal Linux Client. Finally, PuTTY grew up.
+
+> A modern, web-based SSH client that runs on **your machine** — 
+> with the full power of a server dashboard, without touching your targets.
+
 **The Zero-Trust, Agentless & Air-Gapped Ready RMM & OS Configuration Suite.**
 
 ![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
 ![License](https://img.shields.io/badge/License-AGPLv3-blue.svg)
 ![Status](https://img.shields.io/badge/Status-Beta-orange)
+## What is Shelldeck?
 
-Shelldeck is an advanced, agentless Remote Monitoring and Management (RMM) platform built for Systems Architects, Platform Engineers, and SysAdmins. It abstracts the complexity of raw SSH access, providing a powerful Web GUI to manage Linux servers, containers, networks, and storage—without ever installing an agent on the target machines.
+Every SysAdmin knows the pain: PuTTY for terminals, WinSCP for files, 
+Cockpit installed on every server for monitoring, Portainer for Docker, 
+a separate tool for LVM, another for logs. 
+
+**Shelldeck replaces all of them.**
+
+It's a universal client for headless Linux servers. It runs on your 
+machine (Windows, Linux, macOS), connects to your servers via standard 
+SSH — no agents, no daemons, no configuration on the target — and gives 
+you a complete graphical interface for everything: terminals, files, 
+Docker, LVM, networking, logs, kernel, and more.
+
+Because it runs **client-side**, it natively uses whatever VPNs and 
+network routes are already active on your machine. No need to expose 
+your central server to your private networks.
+
+And because it's built in Go, a single binary (~35MB) runs anywhere — 
+Linux, Windows, macOS, BSD — on both the client and server side.
+
+Shelldeck is an advanced client, agentless Remote Monitoring and Management (RMM) platform built for Systems Architects, Platform Engineers, and SysAdmins. It abstracts the complexity of raw SSH access, providing a powerful Web GUI to manage Linux servers, containers, networks, and storage—without ever installing an agent on the target machines.
+
+---
+
+## Why Shelldeck is different
+
+| | Shelldeck | PuTTY/WinSCP | Cockpit/Webmin | Guacamole | Teleport |
+|---|---|---|---|---|---|
+| Runs client-side | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Agentless on targets | ✅ | ✅ | ❌ | ✅ | ❌ |
+| Full OS management GUI | ✅ | ❌ | ✅ | ❌ | ❌ |
+| Air-gapped network support | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Single binary, no deps | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Multi-tenant RBAC | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+---
+
+## 🛠️ How It Works (simple version)
+
+Shelldeck has a **three-tier security architecture**:
+
+**1. The Server (Gateway)**
+A lightweight Go server that stores encrypted credentials and routes 
+WebSocket packets. It never initiates SSH connections directly.
+
+**2. The Bridge (Your Machine)**
+Runs on the SysAdmin's local machine. Authenticates to the Server via 
+a unique dynamic token — without an active, authenticated Bridge, 
+the central panel is completely inaccessible, even with valid credentials. 
+The Bridge executes SSH connections using your machine's network stack, 
+natively leveraging any VPNs already active on your PC.
+
+**3. Remote Edge Bridges (Air-Gapped Networks)**
+Headless Bridge instances deployed on isolated networks. They connect 
+back to the central Server via reverse WebSocket tunnels — allowing you 
+to manage servers on networks your machine cannot reach, without 
+configuring VPNs or opening firewall ports.
+
+**The result:** You manage servers deep inside isolated private networks, 
+directly from your browser, without exposing SSH ports anywhere.
+
+---
+
 
 ## 🛠️ How It Works (Architecture & Paradigm)
 
@@ -25,7 +93,6 @@ Here is why Shelldeck's approach is radically different from the rest of the mar
 
 *   **Bulletproof Local Security:** The Bridge interface is secured locally using a unique, dynamically generated authentication token injected directly into the browser, preventing any unauthorized hijacking of the local execution node.
 
-*(🔜 Coming Soon: Support for deploying headless Remote Bridges (Proxies) to manage air-gapped networks directly from the dashboard, without requiring local VPNs).*
 
 ## 🤖 Disclaimer: SysAdmin Designed, AI Written
 > **I am a SysAdmin, not a developer.** > This entire codebase was written exclusively by Artificial Intelligence ("Vibecoding"). My role was strict System Design and Domain Knowledge mapping—identifying real-world infrastructure bottlenecks and providing the logical architecture, network pivoting strategies, and UI requirements. The AI acted as the execution engine to compile this vision into a working Go application. 
