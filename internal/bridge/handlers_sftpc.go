@@ -2,6 +2,7 @@ package bridge
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"path"
@@ -204,6 +205,80 @@ func handleSftpcClientCommand(hostID int, termID string, sess SftpcSession, acti
 				err = statErr
 			}
 		}
+	case "upload":
+		localPath, _ := payload["localPath"].(string)
+		remotePath, _ := payload["remotePath"].(string)
+
+		// Transfer Status Start
+		tID := fmt.Sprintf("sftpc-up-%d", time.Now().UnixNano())
+		fileName := path.Base(localPath)
+		sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "type": "upload", "filename": fileName, "progress": 0, "status": "running"})
+
+		// Host A (Local) Connection - Usiamo SFTP su Host A invece di os.Stat locale
+		hostASession, errSess := ensureSession(hostID, GetSessionIDWithPrefix(termID, "main"))
+		if errSess != nil {
+			sendToHQ("sftpc_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Host A session error: " + errSess.Error()})
+			return
+		}
+		clientA, errSftp := getSFTPClient(hostASession.Client)
+		if errSftp != nil {
+			sendToHQ("sftpc_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Host A SFTP error: " + errSftp.Error()})
+			return
+		}
+		defer clientA.Close()
+
+		// Progress Callback
+		onProgress := func(curr, total int64) {
+			perc := int(float64(curr) / float64(total) * 100)
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "progress": perc, "status": "running"})
+		}
+
+		// Copy from Client A (Local Host) to Client B (Remote Host)
+		err = copyRecursiveSFTP(clientA, client, localPath, remotePath, onProgress)
+
+		if err == nil {
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "status": "done", "progress": 100})
+		} else {
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "status": "error", "progress": 0})
+		}
+
+	case "download":
+		remotePath, _ := payload["remotePath"].(string)
+		localPath, _ := payload["localPath"].(string)
+
+		// Transfer Status Start
+		tID := fmt.Sprintf("sftpc-down-%d", time.Now().UnixNano())
+		fileName := path.Base(remotePath)
+		sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "type": "download", "filename": fileName, "progress": 0, "status": "running"})
+
+		// Host A (Local) Connection
+		hostASession, errSess := ensureSession(hostID, GetSessionIDWithPrefix(termID, "main"))
+		if errSess != nil {
+			sendToHQ("sftpc_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Host A session error: " + errSess.Error()})
+			return
+		}
+		clientA, errSftp := getSFTPClient(hostASession.Client)
+		if errSftp != nil {
+			sendToHQ("sftpc_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Host A SFTP error: " + errSftp.Error()})
+			return
+		}
+		defer clientA.Close()
+
+		// Progress Callback
+		onProgress := func(curr, total int64) {
+			perc := int(float64(curr) / float64(total) * 100)
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "progress": perc, "status": "running"})
+		}
+
+		// Copy from Client B (Remote Host) to Client A (Local Host)
+		err = copyRecursiveSFTP(client, clientA, remotePath, localPath, onProgress)
+
+		if err == nil {
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "status": "done", "progress": 100})
+		} else {
+			sendToHQ("transfer_update", hostID, termID, map[string]interface{}{"id": tID, "status": "error", "progress": 0})
+		}
+
 	default:
 		sendToHQ("sftpc_op_res", hostID, termID, map[string]string{"status": "error", "msg": "Unknown bridge command: " + action})
 		return
@@ -231,7 +306,7 @@ func handleSftpcClientCommand(hostID int, termID string, sess SftpcSession, acti
 		}
 	}
 
-	var items []map[string]interface{}
+	items := []map[string]interface{}{} // Initialize as empty slice to avoid null in JSON
 	for _, f := range files {
 		isLink := f.Mode()&os.ModeSymlink != 0
 		items = append(items, map[string]interface{}{
@@ -247,4 +322,66 @@ func handleSftpcClientCommand(hostID int, termID string, sess SftpcSession, acti
 		"path":  currentPath,
 		"items": items,
 	})
+}
+
+// Helper to copy files/directories between two SFTP clients
+func copyRecursiveSFTP(srcClient, dstClient *sftp.Client, srcPath, dstPath string, onProgress func(int64, int64)) error {
+	info, err := srcClient.Stat(srcPath)
+	if err != nil {
+		return err
+	}
+
+	if info.IsDir() {
+		if err := dstClient.MkdirAll(dstPath); err != nil {
+			return err
+		}
+		entries, err := srcClient.ReadDir(srcPath)
+		if err != nil {
+			return err
+		}
+		for _, entry := range entries {
+			s := path.Join(srcPath, entry.Name())
+			d := path.Join(dstPath, entry.Name())
+			if err := copyRecursiveSFTP(srcClient, dstClient, s, d, onProgress); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	// File copy
+	srcF, err := srcClient.Open(srcPath)
+	if err != nil {
+		return err
+	}
+	defer srcF.Close()
+	dstF, err := dstClient.Create(dstPath)
+	if err != nil {
+		return err
+	}
+	defer dstF.Close()
+
+	// Use ProgressWriter to report progress and keep connection alive
+	pw := &ProgressWriter{w: dstF, total: info.Size(), onProgress: onProgress, lastTime: time.Now()}
+	_, err = io.Copy(pw, srcF)
+	return err
+}
+
+type ProgressWriter struct {
+	w          io.Writer
+	current    int64
+	total      int64
+	onProgress func(int64, int64)
+	lastTime   time.Time
+}
+
+func (pw *ProgressWriter) Write(p []byte) (int, error) {
+	n, err := pw.w.Write(p)
+	pw.current += int64(n)
+	// Throttle updates to ~2 per second to avoid flooding WS
+	if pw.onProgress != nil && time.Since(pw.lastTime) > 500*time.Millisecond {
+		pw.onProgress(pw.current, pw.total)
+		pw.lastTime = time.Now()
+	}
+	return n, err
 }
