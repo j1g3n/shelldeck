@@ -22,7 +22,8 @@ chmod +x releases/linux/bridge/shelldeck-bridge-linux
 go run github.com/fyne-io/fyne-cross@latest linux -arch=amd64 -app-id=com.shelldeck.standalone -name=shelldeck-standalone-linux ./cmd/standalone
 tar -O -xf fyne-cross/dist/linux-amd64/shelldeck-standalone-linux.tar.xz usr/local/bin/standalone > releases/linux/standalone/shelldeck-standalone-linux
 chmod +x releases/linux/standalone/shelldeck-standalone-linux
-
+#proxy-bridge
+go build -tags headless -o releases/linux/bridge/shelldeck-bridge-headless ./cmd/bridge
 # ---------------------------------------------------------
 echo "🪟 Compilazione per Windows..."
 # Server
