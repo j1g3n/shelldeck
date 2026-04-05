@@ -66,9 +66,9 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 	case "list_long":
 		p, _ := payload["path"].(string)
 		// Tenta comando GNU (più preciso), fallback su standard (compatibile con Alpine/BSD/macOS)
-		cmd := fmt.Sprintf("%sLC_ALL=C ls -lAF --time-style=long-iso --group-directories-first \"%s\" 2>/dev/null || %sLC_ALL=C ls -lAF \"%s\"", cmdPrefix, p, cmdPrefix, p)
+		cmd := fmt.Sprintf("%sLC_ALL=C ls -lAF --time-style=long-iso --group-directories-first %q 2>/dev/null || %sLC_ALL=C ls -lAF %q", cmdPrefix, p, cmdPrefix, p)
 		out, _ := runSingleCommand(client, cmd)
-		sendToHQ("fs_list", hostID, termID, out)
+		sendToHQ("fs_list", hostID, termID, map[string]interface{}{"output": out, "path": p})
 
 	// --- LETTURA / SCRITTURA ---
 	case "read":
@@ -601,6 +601,14 @@ func handleFSCommand(hostID int, termID string, payload map[string]interface{}) 
 		} else {
 			sendToHQ("diff_result", hostID, termID, map[string]string{"content": out})
 		}
+
+	case "rsync_command":
+		// Eseguito in una goroutine perché può essere un processo lungo
+		go handleRsyncCommand(hostID, termID, payload)
+
+	case "scp_command":
+		// Eseguito in una goroutine perché può essere un processo lungo
+		go handleScpCommand(hostID, termID, payload)
 
 	case "smart_open":
 		p, _ := payload["path"].(string)

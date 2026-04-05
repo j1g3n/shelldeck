@@ -162,6 +162,8 @@
         .btn-cmd { background: #444; } .btn-cmd.active { background: var(--warning); color: #000; }
         .btn-sftp { background: #444; } .btn-sftp.active { background: #58a6ff; color: #fff; }
         .btn-trans { background: transparent; border: 1px solid var(--accent); color: var(--accent); }
+        .btn-rsync { background: #444; } .btn-rsync.active { background: #c586c0; color: #fff; }
+        .btn-scp { background: #444; } .btn-scp.active { background: #4ec9b0; color: #fff; }
         .btn-search { background: #444; } .btn-search.active { background: #58a6ff; color: #fff;}
         .btn-diff { background: #444; } .btn-diff.active { background: #d29922; color: #fff; }
 
@@ -570,6 +572,63 @@
             </div>
 				</div>
 
+        <div class="bottom-panel rsync-panel" style="flex-direction: column; display: none;" data-tool="rsync">
+            <div class="sftpc-connection-bar" style="display: flex; align-items: center; padding: 10px; background: #0d1117; border-bottom: 1px solid var(--border); gap: 10px; overflow-x: auto;">
+                <select class="rsync-mode" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; min-width: 150px;">
+                    <option value="local">Local (Bridge <-> Host)</option>
+                    <option value="direct">Direct (Host A -> Host B)</option>
+                    <option value="bridge">Bridged (Host A -> Bridge -> Host B)</option>
+                </select>
+                <div class="rsync-host-b-creds" style="display:none; gap: 10px; flex:1; align-items: center;">
+                    <input type="text" class="rsync-b-ip" placeholder="Host B IP" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; flex: 1; min-width: 120px;">
+                    <input type="text" class="rsync-b-user" placeholder="User B" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 100px;">
+                    <input type="password" class="rsync-b-pass" placeholder="Pass B" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 100px;">
+                </div>
+                <button class="btn btn-connect-rsync-b" style="display:none; background: var(--info); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;"><i class="fas fa-plug"></i> Connect</button>
+                <input type="text" class="rsync-options" placeholder="-avz --progress" value="-avz --progress" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 140px;">
+                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.8em;color:var(--text-dim);margin-left:5px; white-space: nowrap;" title="Esegui in background (detached screen)">
+                    <input type="checkbox" class="rsync-screen"> Screen
+                </label>
+            </div>
+            <div class="sftp-container" style="flex: 1;">
+                <div class="sftp-pane"><div class="sftp-pane-header"><span class="rsync-pane-a-label" style="font-weight:bold; color:var(--warning);">Pane A</span><button class="tool-btn half-btn rsync-a-up"><i class="fas fa-level-up-alt"></i></button><input type="text" class="rsync-a-path" readonly></div><div class="sftp-list rsync-a-list"></div></div>
+                <div class="sftp-controls">
+                    <button class="sftp-btn btn-transfer-rsync" data-direction="upload" title="Transfer A -> B" disabled><i class="fas fa-chevron-right"></i></button>
+                    <button class="sftp-btn btn-transfer-rsync" data-direction="download" title="Transfer B -> A" disabled><i class="fas fa-chevron-left"></i></button>
+                </div>
+                <div class="sftp-pane"><div class="sftp-pane-header"><span class="rsync-pane-b-label" style="font-weight:bold; color:var(--file-color);">Pane B</span><button class="tool-btn half-btn rsync-b-up"><i class="fas fa-level-up-alt"></i></button><input type="text" class="rsync-b-path" placeholder="/target/path" readonly></div><div class="sftp-list rsync-b-list"></div></div>
+            </div>
+        </div>
+
+        <div class="bottom-panel scp-panel" style="flex-direction: column; display: none;" data-tool="scp">
+            <div class="sftpc-connection-bar" style="display: flex; align-items: center; padding: 10px; background: #0d1117; border-bottom: 1px solid var(--border); gap: 10px; overflow-x: auto;">
+                <select class="scp-mode" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; min-width: 150px;">
+                    <option value="local">Local (Bridge <-> Host)</option>
+                    <option value="direct">Direct (Host A -> Host B)</option>
+                    <option value="bridge">Bridged (Host A -> Bridge -> Host B)</option>
+                </select>
+                <div class="scp-host-b-creds" style="display:none; gap: 10px; flex:1; align-items: center;">
+                    <input type="text" class="scp-b-ip" placeholder="Host B IP" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; flex: 1; min-width: 120px;">
+                    <input type="text" class="scp-b-user" placeholder="User B" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 100px;">
+                    <input type="password" class="scp-b-pass" placeholder="Pass B" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 100px;">
+                </div>
+                <button class="btn btn-connect-scp-b" style="display:none; background: var(--info); color: white; border: none; padding: 8px 15px; border-radius: 4px; cursor: pointer; font-weight: bold;"><i class="fas fa-plug"></i> Connect</button>
+                <input type="text" class="scp-options" placeholder="-r" value="-r" style="background: #161b22; border: 1px solid var(--border); color: #c9d1d9; padding: 8px; border-radius: 4px; font-family: inherit; width: 140px;">
+                <label style="display:flex;align-items:center;gap:5px;cursor:pointer;font-size:0.8em;color:var(--text-dim);margin-left:5px; white-space: nowrap;" title="Esegui in background (detached screen)">
+                    <input type="checkbox" class="scp-screen"> Screen
+                </label>
+            </div>
+            <div class="sftp-container" style="flex: 1;">
+                <div class="sftp-pane"><div class="sftp-pane-header"><span class="scp-pane-a-label" style="font-weight:bold; color:var(--warning);">Pane A</span><button class="tool-btn half-btn scp-a-up"><i class="fas fa-level-up-alt"></i></button><input type="text" class="scp-a-path" readonly></div><div class="sftp-list scp-a-list"></div></div>
+                <div class="sftp-controls">
+                    <button class="sftp-btn btn-transfer-scp" data-direction="upload" title="Transfer A -> B" disabled><i class="fas fa-chevron-right"></i></button>
+                    <button class="sftp-btn btn-transfer-scp" data-direction="download" title="Transfer B -> A" disabled><i class="fas fa-chevron-left"></i></button>
+                </div>
+                <div class="sftp-pane"><div class="sftp-pane-header"><span class="scp-pane-b-label" style="font-weight:bold; color:var(--file-color);">Pane B</span><button class="tool-btn half-btn scp-b-up"><i class="fas fa-level-up-alt"></i></button><input type="text" class="scp-b-path" placeholder="/target/path" readonly></div><div class="sftp-list scp-b-list"></div></div>
+            </div>
+        </div>
+
+
                     <div class="bottom-panel search-panel">
                         <div class="search-panel-container">
                         <div class="search-panel-header">
@@ -619,6 +678,12 @@
                 <button class="btn btn-sftp btn-toggle-sftpc">
                     <i class="fas fa-network-wired"></i> SFTPC
                 </button>
+                <button class="btn btn-rsync btn-toggle-rsync">
+                    <i class="fas fa-sync-alt"></i> RSYNC
+                </button>
+                <button class="btn btn-scp btn-toggle-scp">
+                    <i class="fas fa-copy"></i> SCP
+                </button>
                 <button class="btn btn-search btn-toggle-search">
                     <i class="fas fa-search"></i> SEARCH
                 </button>
@@ -663,6 +728,16 @@
             let sftpcRemotePath = "/";
             let sftpcLocalSelection = [];
             let sftpcRemoteSelection = [];
+            let rsyncAPath = "/";
+            let scpAPath = "/";
+            let rsyncBPath = "/";
+            let scpBPath = "/";
+            let rsyncASelection = [];
+            let rsyncBSelection = [];
+            let scpASelection = [];
+            let scpBSelection = [];
+            let rsyncHostBConnected = false;
+            let scpHostBConnected = false;
             let selectedSftpcRemoteItem = null;
             let sftpcPrivateKey = "";
 
@@ -825,6 +900,31 @@
             safeBind('.btn-toggle-sftp', toggleSftpPanel);
             safeBind('.btn-toggle-sftpc', toggleSftpCPanel);
             safeBind('.btn-toggle-search', toggleSearchPanel);
+            safeBind('.btn-toggle-scp', toggleScpPanel);
+            safeBind('.btn-toggle-rsync', toggleRsyncPanel);
+            safeBind('.btn-connect-rsync-b', () => connectHostB('rsync'));
+            safeBind('.btn-connect-scp-b', () => connectHostB('scp'));
+
+            // Reset "Connect" button state when typing in Host B fields
+            ['rsync', 'scp'].forEach(tool => {
+                const selectors = [`.${tool}-b-ip`, `.${tool}-b-user`, `.${tool}-b-pass`];
+                selectors.forEach(sel => {
+                    const el = container.querySelector(sel);
+                    if(el) {
+                        el.addEventListener('input', () => {
+                            const btn = container.querySelector(`.btn-connect-${tool}-b`);
+                            if(btn) { 
+                                btn.innerHTML = '<i class="fas fa-plug"></i> Connect'; 
+                                btn.disabled = false; 
+                                btn.style.background = 'var(--info)';
+                            }
+                        });
+                    }
+                });
+            });
+
+            safeBindAll('.btn-transfer-rsync', (e) => runTransfer('rsync', e.currentTarget.dataset.direction));
+            safeBindAll('.btn-transfer-scp', (e) => runTransfer('scp', e.currentTarget.dataset.direction));
             safeBind('.btn-toggle-diff', toggleDiffPanel);
             safeBind('.btn-run-diff', runDiff);
             safeBind('.btn-swap-diff', () => {
@@ -839,6 +939,19 @@
                 const s = getSelectedPaths();
                 if(s.length > 0) container.querySelector('.diff-path-b').value = s[0];
             });
+            
+            // Mode Change Handlers
+            safeBind('.rsync-mode', (e) => {
+                container.querySelector('.rsync-host-b-creds').style.display = e.target.value === 'local' ? 'none' : 'flex';
+                container.querySelector('.btn-connect-rsync-b').style.display = e.target.value === 'local' ? 'none' : 'inline-flex';
+                updateRsyncScpLabels('rsync', e.target.value);
+            }, 'change');
+            safeBind('.scp-mode', (e) => {
+                container.querySelector('.scp-host-b-creds').style.display = e.target.value === 'local' ? 'none' : 'flex';
+                container.querySelector('.btn-connect-scp-b').style.display = e.target.value === 'local' ? 'none' : 'inline-flex';
+                updateRsyncScpLabels('scp', e.target.value);
+            }, 'change');
+
             safeBind('.btn-save', saveFile);
             safeBindAll('.editor-tool-btn', (e) => { const cmd = e.currentTarget.getAttribute('data-command'); if(editor && cmd) editor.execCommand(cmd); });
             safeBind('#sftpc-connect-main', connectSftpc);
@@ -847,6 +960,8 @@
             
             safeBind('.sftpc-upload', sftpcUpload);
             safeBind('.sftpc-download', sftpcDownload);
+            safeBind('.rsync-a-up', () => navigateRsyncScpPane('rsyncA', '..'));
+            safeBind('.scp-a-up', () => navigateRsyncScpPane('scpA', '..'));
             safeBind('#btn-sftpc-quick', openQuickHostModal);
             container.querySelector('.quick-host-search').addEventListener('input', (e) => renderQuickHosts(e.target.value));
 
@@ -883,6 +998,10 @@
             safeBind('.sftp-local-up', () => loadLocalBridgeDir('..'));
             safeBind('.sftp-remote-up', () => { let parts = getCurrentPath().split('/').filter(p => p && p !== "."); parts.pop(); loadDir(parts.length === 0 ? "/" : "/" + parts.join("/")); });
             safeBind('.sftp-upload', sftpUpload);
+            safeBind('.rsync-a-up', () => navigateRsyncScpPane('rsyncA', '..'));
+            safeBind('.rsync-b-up', () => navigateRsyncScpPane('rsyncB', '..'));
+            safeBind('.scp-a-up', () => navigateRsyncScpPane('scpA', '..'));
+            safeBind('.scp-b-up', () => navigateRsyncScpPane('scpB', '..'));
             safeBind('.sftp-download', sftpDownload);
             safeBind('.btn-add-tab', () => createTab());
             
@@ -969,16 +1088,17 @@
                     const targetTab = tabs.find(t => t.termId === msg.term_id);
                     if (targetTab) {
                         if (msg.type === "fs_list") {
-                            targetTab.cachedList = msg.payload;
-                            renderList(msg.payload, null, false, 'main', "", targetTab);
+                            const output = (typeof msg.payload === 'object' && msg.payload.output) ? msg.payload.output : msg.payload;
+                            targetTab.cachedList = output;
+                            renderList(output, null, false, 'main', "", targetTab);
                             
                             // Update SFTP panels if visible (Sync with active tab)
                             if(container.querySelector('.sftp-panel').style.display === 'flex') { 
-                                renderList(msg.payload, '#sftp-remote-list', true, 'remote', "", targetTab); 
+                                renderList(output, '#sftp-remote-list', true, 'remote', "", targetTab); 
                                 container.querySelector('#sftp-remote-path').value = targetTab.path; 
                             }
                             if(container.querySelector('.sftpc-panel').style.display === 'flex') { 
-                                renderSftpcLocalList(msg.payload); 
+                                renderSftpcLocalList(output); 
                             }
                         }
                         if (msg.type === "pwd_result") {
@@ -1002,10 +1122,44 @@
                             }
                             break;
                         case "fs_list":
-                            if(getActiveTab()) getActiveTab().cachedList = msg.payload;
-                            if(!searchActive) renderList(msg.payload, '.file-list');
-                            if(container.querySelector('.sftp-panel').style.display === 'flex') { renderList(msg.payload, '#sftp-remote-list', true, 'remote'); container.querySelector('#sftp-remote-path').value = getActiveTab().path; }
-                            if(container.querySelector('.sftpc-panel').style.display === 'flex') { renderSftpcLocalList(msg.payload); }
+                            const output = (msg.payload && typeof msg.payload === 'object' && msg.payload.output !== undefined) ? msg.payload.output : (msg.payload || "");
+                            if(getActiveTab()) getActiveTab().cachedList = output;
+                            if(!searchActive) renderList(output, '.file-list');
+                            if(container.querySelector('.sftp-panel').style.display === 'flex') { renderList(output, '#sftp-remote-list', true, 'remote'); container.querySelector('#sftp-remote-path').value = getActiveTab().path; }
+                            if(container.querySelector('.sftpc-panel').style.display === 'flex') { renderSftpcLocalList(output); }
+                            if(container.querySelector('.rsync-panel').style.display === 'flex') {
+                                const mode = container.querySelector('.rsync-mode').value;
+                                // Se il payload.path corrisponde a rsyncAPath o rsyncBPath (o tab.path se siamo in sync)
+                                if (mode === 'local') {
+                                    // In local mode, Host A is Pane B
+                                    // Usa il path ricevuto dal server se disponibile, altrimenti tab path
+                                    // FIX: Se il messaggio arriva dal refresh dell'explorer principale, msg.payload.path è corretto.
+                                    // Aggiorniamo sempre Pane B se è Host A.
+                                    const listPath = (typeof msg.payload === 'object' && msg.payload.path) ? msg.payload.path : getActiveTab().path;
+                                    renderRemoteList(output, listPath, '.rsync-b-list', '.rsync-b-path', 'rsyncB');
+                                } else {
+                                    // In direct/bridge mode, Host A is Pane A
+                                    // Usa il path del messaggio per essere sicuri che sia per questo pannello
+                                    const path = (typeof msg.payload === 'object' && msg.payload.path) ? msg.payload.path : rsyncAPath;
+                                    renderRemoteList(output, path, '.rsync-a-list', '.rsync-a-path', 'rsyncA');
+                                    rsyncAPath = path; // Aggiorna stato locale
+                                }
+                            }
+                            if(container.querySelector('.scp-panel').style.display === 'flex') {
+                                const mode = container.querySelector('.scp-mode').value;
+                                const path = (typeof msg.payload === 'object' && msg.payload.path) ? msg.payload.path : (mode === 'local' ? getActiveTab().path : scpAPath);
+                                if (mode === 'local') {
+                                    renderRemoteList(output, path, '.scp-b-list', '.scp-b-path', 'scpB');
+                                } else {
+                                    renderRemoteList(output, path, '.scp-a-list', '.scp-a-path', 'scpA');
+                                    scpAPath = path;
+                                }
+                            }
+                            break;
+                        case "sftpc_list": 
+                            renderSftpcRemoteList(msg.payload);
+                            // Also update Rsync/SCP Pane B if in direct/bridge mode
+                            updateRsyncScpHostB(msg.payload);
                             break;
                         case "file_download_res":
                             const byteCharacters = atob(msg.payload.content);
@@ -1039,20 +1193,52 @@
                             break;
                         case "fs_op_res":
                         case "sftpc_op_res":
+                            if (msg.type === "sftpc_op_res" && msg.payload.action === "connect") updateRsyncScpHostB({path: "/"}); // Init Host B path
                             if(msg.payload.status === "success" || msg.payload.status === "success_local") { 
                                 const justSaved = activeFile && openFiles.has(activeFile) && openFiles.get(activeFile).dirty;
                                 if (justSaved) { const file = openFiles.get(activeFile); file.dirty = false; updateTab(activeFile); } 
                                 
-                                if (msg.type !== "sftpc_op_res" || msg.payload.action !== "connect") {
+                                const rsyncPanel = container.querySelector('.rsync-panel');
+                                const scpPanel = container.querySelector('.scp-panel');
+
+                                if (rsyncPanel.style.display === 'flex') {
+                                    const mode = rsyncPanel.querySelector('.rsync-mode').value;
+                                    if (mode === 'local') { loadLocalBridgeDir(sftpLocalPath); loadDir(getActiveTab().path); } 
+                                    else { requestHostList(rsyncAPath); if (rsyncHostBConnected) requestSftpcList(rsyncBPath); }
+                                } else if (scpPanel.style.display === 'flex') {
+                                    const mode = scpPanel.querySelector('.scp-mode').value;
+                                    if (mode === 'local') { loadLocalBridgeDir(sftpLocalPath); loadDir(getActiveTab().path); } 
+                                    else { requestHostList(scpAPath); if (scpHostBConnected) requestSftpcList(scpBPath); }
+                                } else if (container.querySelector('.sftp-panel').style.display === 'flex') {
+                                    loadLocalBridgeDir(sftpLocalPath);
+                                    loadDir(getCurrentPath());
+                                } else if (container.querySelector('.sftpc-panel').style.display === 'flex') {
+                                    loadDir(sftpcLocalPath, 'sftpcLocal');
+                                } else if (msg.type !== "sftpc_op_res" || msg.payload.action !== "connect") {
+                                    // Default explorer refresh
                                     loadDir(getCurrentPath());
                                 }
 
-                                if(container.querySelector('.sftp-panel').style.display === 'flex') { loadLocalBridgeDir(sftpLocalPath); }
-                                if(container.querySelector('.sftpc-panel').style.display === 'flex') { loadDir(sftpcLocalPath, 'sftpcLocal'); }
                                 closeAllModals(); 
+                                
+                                if ((msg.payload.status === "success" || msg.payload.status === "success_local") && 
+                                    (rsyncPanel.style.display === 'flex' || scpPanel.style.display === 'flex')) {
+                                    alert("Trasferimento completato con successo!");
+                                }
                             } else { 
                                 if (msg.payload.status && msg.payload.status.includes('error')) {
                                     alert("Errore: " + (msg.payload.msg || "Sconosciuto")); 
+                                    
+                                    // Reset connect buttons if error occurred during connection
+                                    if (msg.type === "sftpc_op_res") {
+                                        ['rsync', 'scp'].forEach(tool => {
+                                            const btn = container.querySelector(`.btn-connect-${tool}-b`);
+                                            if(btn && btn.innerHTML.includes('fa-spin')) {
+                                                btn.innerHTML = '<i class="fas fa-plug"></i> Connect';
+                                                btn.disabled = false;
+                                            }
+                                        });
+                                    }
                                 }
                             }
                             break;
@@ -1303,6 +1489,86 @@
                 if(callback) { setTimeout(callback, 500); }
             }
             
+            // Nuova funzione per richiedere lista file Host A senza cambiare tab principale
+            function requestHostList(path) {
+                const p = path || "/";
+                if(ws && ws.readyState === WebSocket.OPEN) { 
+                    ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "list_long", path: p, root: getIsRoot() } })); 
+                }
+            }
+
+            function renderRemoteList(rawOutput, path, listSelector, pathSelector, sftpType) {
+                const list = container.querySelector(listSelector);
+                const pathInput = container.querySelector(pathSelector);
+                if (!list || !pathInput) return;
+
+                list.innerHTML = "";
+                const safePath = path || "/";
+                pathInput.value = safePath;
+                
+                // Clear selection for this pane
+                const selMap = { 'rsyncA': rsyncASelection, 'rsyncB': rsyncBSelection, 'scpA': scpASelection, 'scpB': scpBSelection };
+                if (selMap[sftpType]) selMap[sftpType].length = 0;
+
+                if (safePath !== '/' && safePath !== '.') {
+                    const up = document.createElement('div');
+                    up.className = "sftp-item parent";
+                    up.innerHTML = `<i class="fas fa-level-up-alt"></i> <span>..</span>`;
+                    up.onclick = () => navigateRsyncScpPane(sftpType, '..');
+                    list.appendChild(up);
+                }
+
+                const lines = (rawOutput || "").split('\n');
+                lines.forEach(line => {
+                    const cleanLine = line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
+                    if(!cleanLine.trim() || cleanLine.trim().startsWith('total')) return;
+                    
+                    const parts = cleanLine.split(/\s+/);
+                    if (parts.length < 8) return;
+
+                    let nameIndex = 8;
+                    if (parts[5].match(/^\d{4}-\d{2}-\d{2}$/)) nameIndex = 7;
+
+                    if (parts.length <= nameIndex) return;
+                    let name = parts.slice(nameIndex).join(' ');
+                    
+                    if(name === "." || name === "..") return;
+                    if (name.endsWith('@')) name = name.slice(0, -1);
+                    if (name.endsWith('/')) name = name.slice(0, -1);
+                    if (name.endsWith('*')) name = name.slice(0, -1);
+
+                    const isDir = parts[0].startsWith('d');
+                    const fullPath = (safePath.endsWith('/') ? safePath : safePath + '/') + name;
+
+                    const item = document.createElement('div');
+                    item.className = "sftp-item " + (isDir ? "dir" : "file");
+                    let icon = isDir ? 'fa-folder' : 'fa-file-alt';
+                    
+                    item.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${fullPath}"><i class="fas ${icon}"></i> <span>${name}</span>`;
+                    
+                    const chk = item.querySelector('.sftp-checkbox');
+                    
+                    // Usa addEventListener per evitare conflitti e garantire il bubbling corretto
+                    item.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (e.target.tagName !== 'INPUT') {
+                            if (isDir) navigateRsyncScpPane(sftpType, fullPath);
+                            else { 
+                                chk.checked = !chk.checked; 
+                                updateSftpSelection(chk, fullPath, sftpType); 
+                            }
+                        }
+                    });
+                    
+                    chk.addEventListener('click', (e) => { 
+                        e.stopPropagation(); 
+                        updateSftpSelection(chk, fullPath, sftpType); 
+                    });
+                    
+                    list.appendChild(item);
+                });
+            }
+
             function renderList(rawOutput, targetSelector, isSftpMode, sftpType, filterQuery = "", targetTab = null) {
                 // If targetTab is provided, use it. Otherwise use activeTab
                 const tab = targetTab || getActiveTab();
@@ -1318,10 +1584,10 @@
                 if (!list) return;
                 list.innerHTML = "";
                 let currentRenderPath = (sftpType === 'sftpcLocal') ? sftpcLocalPath : tab.path;
-
+                
                 const parsedItems = [];
 
-                const lines = rawOutput.split('\n');
+                const lines = (rawOutput || "").split('\n');
                 lines.forEach(line => {
                     try {
                         // Strip ANSI colors
@@ -1404,7 +1670,15 @@
                             let icon = isDir ? 'fa-folder' : (isLink ? 'fa-link' : 'fa-file-alt');
                             item.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${fullPath}" data-name="${name}"><i class="fas ${icon}"></i> <span>${name}</span>`;
                             const chk = item.querySelector('.sftp-checkbox');
-                            item.addEventListener('click', (e) => { e.stopPropagation(); if (e.target.tagName !== 'INPUT') { if(isDir || isLink) { if (sftpType === 'remote') loadDir(fullPath); else if (sftpType === 'sftpcLocal') loadDir(fullPath, 'sftpcLocal'); } else { chk.checked = !chk.checked; updateSftpSelection(chk, fullPath, sftpType); } } });
+                            item.addEventListener('click', (e) => { 
+                                e.stopPropagation(); 
+                                if (e.target.tagName !== 'INPUT') { 
+                                    if(isDir || isLink) { 
+                                        if (sftpType === 'remote' || sftpType === 'rsyncA' || sftpType === 'scpA' || sftpType === 'rsyncB' || sftpType === 'scpB') navigateRsyncScpPane(sftpType, fullPath);
+                                        else if (sftpType === 'sftpcLocal') loadDir(fullPath, 'sftpcLocal'); 
+                                    } else { chk.checked = !chk.checked; updateSftpSelection(chk, fullPath, sftpType); } 
+                                } 
+                            });
                             chk.addEventListener('click', (e) => { e.stopPropagation(); updateSftpSelection(chk, fullPath, sftpType); });
                             list.appendChild(item);
                         } else { // Main Explorer
@@ -1629,8 +1903,8 @@
             }
 
             function togglePanel(panelClass, btn) {
-                const panels = ['.terminal-panel', '.sftp-panel', '.sftpc-panel', '.search-panel', '.diff-panel'];
-                const buttons = ['.btn-toggle-term', '.btn-toggle-sftp', '.btn-toggle-sftpc', '.btn-toggle-search', '.btn-toggle-diff'];
+                const panels = ['.terminal-panel', '.sftp-panel', '.sftpc-panel', '.search-panel', '.diff-panel', '.rsync-panel', '.scp-panel'];
+                const buttons = ['.btn-toggle-term', '.btn-toggle-sftp', '.btn-toggle-sftpc', '.btn-toggle-search', '.btn-toggle-diff', '.btn-toggle-rsync', '.btn-toggle-scp'];
                 const targetPanel = container.querySelector(panelClass);
                 const isActive = targetPanel.style.display === 'flex' || targetPanel.style.display === 'block';
 
@@ -1655,6 +1929,11 @@
                 if (container.querySelector('.terminal-panel').style.display === "flex") { 
                     if (term) term.focus(); 
                     setTimeout(() => {
+                        // Initialize SSH session for terminal if not already done
+                        if (ws && sshTermId && !terminals[sshTermId]) {
+                            ws.send(JSON.stringify({ type: "subscribe", host_id: parseInt(currentId), term_id: sshTermId }));
+                            terminals[sshTermId] = true; // Mark as initialized
+                        }
                         if (fitAddon) try { fitAddon.fit(); } catch(e){} 
                         if(ws && sshTermId) ws.send(JSON.stringify({ type: "ssh_resize", host_id: parseInt(currentId), term_id: sshTermId, payload: { cols: term.cols, rows: term.rows } }));
                         if(ws && sshTermId) ws.send(JSON.stringify({ type: "ssh_input", host_id: parseInt(currentId), term_id: sshTermId, payload: `cd ${getActiveTab().path}\n` })); 
@@ -1664,7 +1943,227 @@
             function toggleSftpPanel() { togglePanel('.sftp-panel', container.querySelector('.btn-toggle-sftp')); if (container.querySelector('.sftp-panel').style.display === "flex") { loadLocalBridgeDir("."); loadDir(getActiveTab().path); } }
             function toggleSftpCPanel() { togglePanel('.sftpc-panel', container.querySelector('.btn-toggle-sftpc')); if (container.querySelector('.sftpc-panel').style.display === "flex") { sftpcLocalPath = getActiveTab().path; renderSftpcLocalList(getActiveTab().cachedList); container.querySelector('#sftpc-local-path-main').value = sftpcLocalPath; } }
             function toggleSearchPanel() { togglePanel('.search-panel', container.querySelector('.btn-toggle-search')); if (container.querySelector('.search-panel').style.display === 'flex') { container.querySelector('.search-content-path-input').value = getActiveTab().path; } }
+            function toggleRsyncPanel() { 
+                togglePanel('.rsync-panel', container.querySelector('.btn-toggle-rsync'));
+                if (container.querySelector('.rsync-panel').style.display === "flex") {
+                    container.querySelector('.rsync-mode').dispatchEvent(new Event('change'));
+                }
+            }
+            function toggleScpPanel() { 
+                togglePanel('.scp-panel', container.querySelector('.btn-toggle-scp'));
+                if (container.querySelector('.scp-panel').style.display === "flex") {
+                    container.querySelector('.scp-mode').dispatchEvent(new Event('change'));
+                }
+            }
             
+            function updateRsyncScpLabels(tool, mode) {
+                const pA = container.querySelector(`.${tool}-pane-a-label`);
+                const pB = container.querySelector(`.${tool}-pane-b-label`);
+                const transferBtns = container.querySelectorAll(`.btn-transfer-${tool}`);
+                const pathBInput = container.querySelector(`.${tool}-b-path`);
+                
+                // Clear lists immediately to avoid stale data confusion
+                container.querySelector(`.${tool}-a-list`).innerHTML = "";
+                container.querySelector(`.${tool}-b-list`).innerHTML = "";
+
+                // Reset Host B connection state when switching modes
+                if (tool === 'rsync') rsyncHostBConnected = false; else scpHostBConnected = false;
+                const btnB = container.querySelector(`.btn-connect-${tool}-b`);
+                if(btnB) {
+                    btnB.innerHTML = '<i class="fas fa-plug"></i> Connect';
+                    btnB.style.background = 'var(--info)';
+                    btnB.disabled = false;
+                }
+                container.querySelector(`.${tool}-b-path`).value = "";
+                transferBtns.forEach(b => b.disabled = true);
+
+                if (mode === 'local') {
+                    pA.innerText = "Bridge (Local)"; pA.style.color = "var(--warning)";
+                    pB.innerText = "Host A (Remote)"; pB.style.color = "var(--file-color)";
+                    // Force refresh of Pane A (Bridge) and Pane B (Host A)
+                    loadLocalBridgeDir(sftpLocalPath); // Will be handled by bridge_fs_list
+                    loadDir(getActiveTab().path);      // Will be handled by fs_list
+                    
+                    // Try to render cached list immediately for Host A (Pane B)
+                    if (getActiveTab().cachedList) {
+                        renderList(getActiveTab().cachedList, `.${tool}-b-list`, true, `${tool}B`);
+                        container.querySelector(`.${tool}-b-path`).value = getActiveTab().path;
+                    }
+                    
+                    pathBInput.readOnly = false;
+                    transferBtns.forEach(b => b.disabled = false);
+                } else {
+                    pA.innerText = "Host A (Source)"; pA.style.color = "var(--file-color)";
+                    pB.innerText = "Host B (Dest)"; pB.style.color = "#d2a8ff";
+                    // Force refresh of Pane A (Host A)
+                    
+                    // Initial Path: Use current explorer path if unset
+                    let currentPath = (tool === 'rsync' ? rsyncAPath : scpAPath);
+                    if(!currentPath || currentPath === "/") {
+                        currentPath = getActiveTab().path || "/";
+                        if (tool === 'rsync') rsyncAPath = currentPath; else scpAPath = currentPath;
+                    }
+                    
+                    // Clear input immediately to avoid confusion with bridge path
+                    container.querySelector(`.${tool}-a-path`).value = "Loading...";
+                    
+                    requestHostList(currentPath); 
+                    
+                    // Clear Pane B and disable transfers until connected
+                    pathBInput.readOnly = false;
+                    transferBtns.forEach(b => b.disabled = true);
+                }
+            }
+
+            function navigateRsyncScpPane(sftpType, path) {
+                const tool = sftpType.includes('rsync') ? 'rsync' : 'scp';
+                const pane = sftpType.endsWith('A') ? 'A' : 'B';
+                const mode = container.querySelector(`.${tool}-mode`).value;
+
+                if (pane === 'A') {
+                    if (mode === 'local') {
+                        loadLocalBridgeDir(path); // Pane A is Bridge
+                    } else {
+                        // Pane A is Host A (Direct/Bridge mode)
+                        // Calcola path assoluto se ".."
+                        let target = path;
+                        if (path === '..') {
+                            let current = (tool === 'rsync') ? rsyncAPath : scpAPath;
+                            let parts = current.split('/').filter(p => p && p !== ".");
+                            parts.pop();
+                            target = parts.length === 0 ? "/" : "/" + parts.join("/");
+                        }
+                        requestHostList(target);
+                    }
+                } else { // Pane B is either Host A (local) or Host B (remote)
+                    if (mode === 'local') {
+                        // Pane B is Host A (Local mode)
+                        let target = path;
+                        if (path === '..') {
+                            // Qui usiamo il path del tab principale come riferimento base se necessario, 
+                            // ma meglio usare il valore corrente dell'input
+                            let currentInput = container.querySelector(`.${tool}-b-path`).value;
+                            let parts = currentInput.split('/').filter(p => p && p !== ".");
+                            parts.pop();
+                            target = parts.length === 0 ? "/" : "/" + parts.join("/");
+                        }
+                        requestHostList(target);
+                    }
+                    else navigateHostB(tool, path); // Pane B is Host B
+                }
+            }
+
+            // Navigation Logic for Pane A in Rsync/SCP
+            function navigateRsyncScpPaneA(tool, path) {
+                navigateRsyncScpPane(tool + 'A', path);
+            }
+
+            // Navigation Logic for Pane B (Host B) in Direct/Bridge Mode
+            function navigateHostB(tool, path) {
+                const mode = container.querySelector(`.${tool}-mode`).value;
+                if (mode === 'local') return; // Should not happen for this function
+                if (!rsyncHostBConnected && !scpHostBConnected) return;
+                let current = (tool === 'rsync') ? rsyncBPath : scpBPath;
+                let target = path;
+                if (path === '..') {
+                    let parts = current.split('/').filter(p => p && p !== ".");
+                    parts.pop();
+                    target = parts.length === 0 ? "/" : "/" + parts.join("/");
+                }
+                requestSftpcList(target);
+            }
+
+            function connectHostB(tool) {
+                const isConnected = (tool === 'rsync') ? rsyncHostBConnected : scpHostBConnected;
+                if (isConnected) {
+                    if (tool === 'rsync') { rsyncHostBConnected = false; rsyncBPath = "/"; }
+                    else { scpHostBConnected = false; scpBPath = "/"; }
+                    
+                    container.querySelector(`.${tool}-b-list`).innerHTML = "";
+                    container.querySelector(`.${tool}-b-path`).value = "";
+                    
+                    const btn = container.querySelector(`.btn-connect-${tool}-b`);
+                    if(btn) {
+                        btn.innerHTML = '<i class="fas fa-plug"></i> Connect';
+                        btn.style.background = 'var(--info)';
+                        btn.disabled = false;
+                    }
+                    
+                    // Disable transfer buttons
+                    container.querySelectorAll(`.btn-transfer-${tool}`).forEach(b => b.disabled = true);
+                    return;
+                }
+
+                const ip = container.querySelector(`.${tool}-b-ip`).value;
+                const user = container.querySelector(`.${tool}-b-user`).value;
+                const pass = container.querySelector(`.${tool}-b-pass`).value;
+                const mode = container.querySelector(`.${tool}-mode`).value; // direct or bridge
+                
+                if(!ip || !user) return alert("IP e Username sono richiesti per Host B");
+                
+                // Reusing sftpc_connect logic. This sets up the backend session.
+                const payload = { ip, user, pass, connection_type: mode };
+                ws.send(JSON.stringify({ type: "sftpc_connect", host_id: parseInt(currentId), term_id: explorerTermId, payload: payload }));
+                const btn = container.querySelector(`.btn-connect-${tool}-b`);
+                if(btn) { btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i>'; btn.disabled = true; }
+            }
+            
+            function updateRsyncScpHostB(data) {
+                // data is sftpc list payload {path, items}
+                const rPanel = container.querySelector('.rsync-panel');
+                const sPanel = container.querySelector('.scp-panel');
+                
+                const render = (listSel, pathInputSel, tool) => {
+                    const list = container.querySelector(listSel);
+                    list.innerHTML = "";
+                    if(data.path) container.querySelector(pathInputSel).value = data.path;
+                    
+                    if(tool === 'rsync') { rsyncBPath = data.path || "/"; rsyncHostBConnected = true; }
+                    else { scpBPath = data.path || "/"; scpHostBConnected = true; }
+
+                    const btn = container.querySelector(`.btn-connect-${tool}-b`);
+                    if(btn) { btn.innerHTML = '<i class="fas fa-times"></i> Disconnect'; btn.disabled = false; btn.style.background = 'var(--danger)'; }
+
+
+                    // Enable transfer buttons
+                    container.querySelectorAll(`.btn-transfer-${tool}`).forEach(b => b.disabled = false);
+
+                    if (data.path && data.path !== "/") {
+                        const up = document.createElement('div');
+                        up.className = "sftp-item parent";
+                        up.innerHTML = `<i class="fas fa-level-up-alt"></i> <span>..</span>`;
+                        up.onclick = () => navigateHostB(tool, '..');
+                        list.appendChild(up);
+                    }
+
+                    if (data.items) {
+                        data.items.forEach(item => {
+                            const div = document.createElement('div');
+                            div.className = "sftp-item " + (item.isDir ? "dir" : "file");
+                            let icon = item.isDir ? 'fa-folder' : (item.isLink ? 'fa-link' : 'fa-file');
+                            div.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${item.path}"><i class="fas ${icon}"></i> <span>${item.name}</span>`;
+                            const chk = div.querySelector('.sftp-checkbox');
+                            div.onclick = (e) => {
+                                e.stopPropagation();
+                                if(e.target.tagName !== 'INPUT') {
+                                    if(item.isDir) navigateHostB(tool, item.path);
+                                    else { chk.checked = !chk.checked; updateSftpSelection(chk, item.path, tool+'B'); }
+                                }
+                            };
+                            chk.onclick = (e) => { e.stopPropagation(); updateSftpSelection(chk, item.path, tool+'B'); };
+                            list.appendChild(div);
+                        });
+                    }
+                };
+
+                if (rPanel.style.display === 'flex' && rPanel.querySelector('.rsync-mode').value !== 'local') {
+                    render('.rsync-b-list', '.rsync-b-path', 'rsync');
+                }
+                if (sPanel.style.display === 'flex' && sPanel.querySelector('.scp-mode').value !== 'local') {
+                    render('.scp-b-list', '.scp-b-path', 'scp');
+                }
+            }
+
             function toggleDiffPanel() {
                 togglePanel('.diff-panel', container.querySelector('.btn-toggle-diff'));
                 if (container.querySelector('.diff-panel').style.display === 'flex') {
@@ -1721,13 +2220,13 @@
                 const list = container.querySelector("#sftpc-local-list-main");
                 list.innerHTML = "";
                 const lines = rawOutput.split('\n');
-                lines.forEach(line => {
+                (lines || []).forEach(line => {
                     const cleanLine = line.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, "");
                     if(!cleanLine.trim() || cleanLine.trim().startsWith('total')) return;
                     
                     const parts = cleanLine.split(/\s+/);
                     if (parts.length < 8) return;
-
+                    
                     let nameIndex = 8;
                     if (parts[5].match(/^\d{4}-\d{2}-\d{2}$/)) {
                         nameIndex = 7;
@@ -1736,7 +2235,7 @@
                     if (parts.length <= nameIndex) return;
                     let name = parts.slice(nameIndex).join(' ');
                     
-                    if(name === "." || name === "..") return;
+                    if(name === "." || name === ".." || name === "") return;
 
                     // Clean name (remove trailing characters from ls -F)
                     if (name.endsWith('@')) name = name.slice(0, -1);
@@ -1746,7 +2245,7 @@
                     if (name.endsWith('|')) name = name.slice(0, -1);
 
                     const isDir = parts[0].startsWith('d');
-                    const fullPath = sftpcLocalPath.endsWith('/') ? sftpcLocalPath + name : sftpcLocalPath + '/' + name;
+                    const fullPath = (sftpcLocalPath.endsWith('/') ? sftpcLocalPath : sftpcLocalPath + '/') + name;
                     
                     const item = document.createElement('div');
                     item.className = "sftp-item " + (isDir ? "dir" : "file");
@@ -1772,15 +2271,16 @@
                 container.querySelector('#sftpc-remote-path-main').value = sftpcRemotePath; 
                 const list = container.querySelector('#sftpc-remote-list-main'); 
                 list.innerHTML = ""; 
-                const parentPath = sftpcRemotePath.split('/').filter(p => p).slice(0, -1).join('/') || '/'; 
+                
                 if(sftpcRemotePath !== "/") { 
+                    const parentPath = sftpcRemotePath.substring(0, sftpcRemotePath.lastIndexOf('/')) || '/';
                     const parent = document.createElement('div'); 
                     parent.className = "sftp-item parent"; 
-                    parent.innerHTML = `<i class="fas fa-arrow-left"></i> <div class="item-info"><span class="item-name">..</span></div>`; 
+                    parent.innerHTML = `<i class="fas fa-level-up-alt"></i> <div class="item-info"><span class="item-name">..</span></div>`; 
                     parent.onclick = () => requestSftpcList(parentPath); 
                     list.appendChild(parent); 
                 } 
-                if (data.items) {
+                if (data && data.items) {
                     data.items.forEach(item => { 
                         const div = document.createElement('div'); 
                         div.className = "sftp-item " + (item.isDir ? "dir" : "file"); 
@@ -1805,11 +2305,55 @@
                 }
             }
             function requestSftpcList(path) { if(ws) ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "list", path: path } })); }
-
             function loadLocalBridgeDir(path) { if(ws) ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "bridge_list", path: path, current: sftpLocalPath } })); }
-            function renderBridgeList(data) { sftpLocalPath = data.path; container.querySelector('#sftp-local-path').value = sftpLocalPath; const list = container.querySelector('#sftp-local-list'); list.innerHTML = ""; if(data.items) { data.items.forEach(item => { const div = document.createElement('div'); div.className = "sftp-item " + (item.isDir ? "dir" : "file"); div.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${item.path}"><i class="fas ${item.isDir?'fa-folder':'fa-file'}"></i> <span>${item.name}</span>`; const chk = div.querySelector('.sftp-checkbox'); div.addEventListener('click', (e) => { e.stopPropagation(); if (e.target.tagName !== 'INPUT') { if(item.isDir) loadLocalBridgeDir(item.path); else { chk.checked = !chk.checked; updateSftpSelection(chk, item.path, 'local'); } } }); chk.addEventListener('click', (e) => { e.stopPropagation(); updateSftpSelection(chk, item.path, 'local'); }); list.appendChild(div); }); } }
-            function updateSftpSelection(checkbox, path, type) { const map = { 'local': sftpLocalSelection, 'remote': sftpRemoteSelection, 'sftpcLocal': sftpcLocalSelection, 'sftpcRemote': sftpcRemoteSelection }; let arr = map[type]; if (!arr) return; const i = arr.indexOf(path); if (checkbox.checked) { if (i === -1) arr.push(path); } else { if (i > -1) arr.splice(i, 1); } checkbox.parentElement.classList.toggle('selected', checkbox.checked); }
-            function clearSftpSelections(type) { if (type === 'local' || type === 'all') { sftpLocalSelection = []; container.querySelectorAll('#sftp-local-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } if (type === 'remote' || type === 'all') { sftpRemoteSelection = []; container.querySelectorAll('#sftp-remote-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } }
+            function renderBridgeList(data) { 
+                sftpLocalPath = data.path; 
+                
+                const render = (listSel, pathSel, sftpType) => {
+                    const list = container.querySelector(listSel); 
+                    if(!list) return;
+                    if(pathSel) container.querySelector(pathSel).value = sftpLocalPath;
+                    
+                    // Clear selection for this pane to sync with UI wipe
+                    const selMap = { 'local': sftpLocalSelection, 'rsyncA': rsyncASelection, 'scpA': scpASelection };
+                    if (selMap[sftpType]) selMap[sftpType].length = 0;
+
+                    list.innerHTML = ""; 
+                    if(data.items) { 
+                        (data.items || []).forEach(item => { 
+                            const div = document.createElement('div'); 
+                            div.className = "sftp-item " + (item.isDir ? "dir" : "file"); 
+                            div.innerHTML = `<input type="checkbox" class="sftp-checkbox" data-path="${item.path}"><i class="fas ${item.isDir?'fa-folder':'fa-file'}"></i> <span>${item.name}</span>`; 
+                            const chk = div.querySelector('.sftp-checkbox'); 
+                            div.addEventListener('click', (e) => { 
+                                e.stopPropagation(); 
+                                if (e.target.tagName !== 'INPUT') { 
+                                    if(item.isDir) loadLocalBridgeDir(item.path); 
+                                    else { chk.checked = !chk.checked; updateSftpSelection(chk, item.path, sftpType); } 
+                                } 
+                            }); 
+                            chk.addEventListener('click', (e) => { e.stopPropagation(); updateSftpSelection(chk, item.path, sftpType); }); 
+                            list.appendChild(div); 
+                        }); 
+                    } 
+                };
+
+                // Render to SFTP Panel
+                if(container.querySelector('.sftp-panel').style.display === 'flex') render('#sftp-local-list', '#sftp-local-path', 'local');
+                
+                // Render to Rsync Pane A (if Local mode)
+                if(container.querySelector('.rsync-panel').style.display === 'flex' && container.querySelector('.rsync-mode').value === 'local') {
+                    render('.rsync-a-list', '.rsync-a-path', 'rsyncA');
+                }
+                
+                // Render to SCP Pane A (if Local mode)
+                if(container.querySelector('.scp-panel').style.display === 'flex' && container.querySelector('.scp-mode').value === 'local') {
+                    render('.scp-a-list', '.scp-a-path', 'scpA');
+                }
+            }
+
+            function updateSftpSelection(checkbox, path, type) { const map = { 'local': sftpLocalSelection, 'remote': sftpRemoteSelection, 'sftpcLocal': sftpcLocalSelection, 'sftpcRemote': sftpcRemoteSelection, 'rsyncA': rsyncASelection, 'scpA': scpASelection, 'rsyncB': rsyncBSelection, 'scpB': scpBSelection }; let arr = map[type]; if (!arr) return; const i = arr.indexOf(path); if (checkbox.checked) { if (i === -1) arr.push(path); } else { if (i > -1) arr.splice(i, 1); } checkbox.parentElement.classList.toggle('selected', checkbox.checked); }
+            function clearSftpSelections(type) { if (type === 'local' || type === 'all') { sftpLocalSelection = []; container.querySelectorAll('#sftp-local-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } if (type === 'remote' || type === 'all') { sftpRemoteSelection = []; container.querySelectorAll('#sftp-remote-list .sftp-checkbox').forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); }); } if (type === 'rsyncA') rsyncASelection = []; if (type === 'scpA') scpASelection = []; }
             function sftpUpload() { if(sftpLocalSelection.length === 0) return alert("Seleziona file locali (Bridge) da caricare."); container.querySelector('.transfer-queue').style.display = 'flex'; sftpLocalSelection.forEach(p => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "upload_native", localPath: p, remotePath: getActiveTab().path, root: getActiveTab().isRoot } }))); clearSftpSelections('local'); }
             function sftpDownload() { if(sftpRemoteSelection.length === 0) return alert("Seleziona file remoti (Host) da scaricare."); container.querySelector('.transfer-queue').style.display = 'flex'; sftpRemoteSelection.forEach(f => ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "download_native", remoteFile: f, localDestDir: sftpLocalPath, root: getActiveTab().isRoot } }))); clearSftpSelections('remote'); }
             function updateTransferUI(data) { const list = container.querySelector('#transfer-queue-list'); let el = list.querySelector(`[data-tid="${data.id}"]`); if (!el) { el = document.createElement('div'); el.className = 'q-item'; el.dataset.tid = data.id; el.innerHTML = `<div style="display:flex; justify-content:space-between"><span><i class="fas ${data.type==='upload'?'fa-arrow-right':'fa-arrow-left'}"></i> ${data.filename}</span><span class="q-perc">0%</span></div><div class="q-bar-bg"><div class="q-bar-fill"></div></div>`; list.prepend(el); } el.querySelector('.q-perc').innerText = `${data.progress}%`; el.querySelector('.q-bar-fill').style.width = `${data.progress}%`; if(data.status === 'done') { el.querySelector('.q-bar-fill').style.background = 'var(--accent)'; setTimeout(() => el.remove(), 5000); } }
@@ -1817,7 +2361,7 @@
             function sftpcUpload() {
                 if(sftpcLocalSelection.length === 0) return alert("Seleziona file locali da caricare.");
                 container.querySelector('.transfer-queue').style.display = 'flex';
-                sftpcLocalSelection.forEach(p => {
+                (sftpcLocalSelection || []).forEach(p => {
                     const name = p.split('/').pop();
                     const remote = sftpcRemotePath.endsWith('/') ? sftpcRemotePath + name : sftpcRemotePath + '/' + name;
                     ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "upload", localPath: p, remotePath: remote, path: sftpcRemotePath } }));
@@ -1829,13 +2373,59 @@
             function sftpcDownload() {
                 if(sftpcRemoteSelection.length === 0) return alert("Seleziona file remoti da scaricare.");
                 container.querySelector('.transfer-queue').style.display = 'flex';
-                sftpcRemoteSelection.forEach(p => {
+                (sftpcRemoteSelection || []).forEach(p => {
                     const name = p.split('/').pop();
                     const local = sftpcLocalPath.endsWith('/') ? sftpcLocalPath + name : sftpcLocalPath + '/' + name;
                     ws.send(JSON.stringify({ type: "sftpc_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { action: "download", remotePath: p, localPath: local, path: sftpcRemotePath } }));
                 });
                 sftpcRemoteSelection = [];
                 setTimeout(() => requestSftpcList(sftpcRemotePath), 500);
+            }
+            
+            function runTransfer(tool, direction) {
+                const mode = container.querySelector(`.${tool}-mode`).value;
+                
+                const selectionA = tool === 'rsync' ? rsyncASelection : scpASelection;
+                const selectionB = tool === 'rsync' ? rsyncBSelection : scpBSelection;
+
+                const sourceSelection = direction === 'upload' ? selectionA : selectionB;
+                const destPath = direction === 'upload' 
+                    ? (mode === 'local' ? container.querySelector(`.${tool}-b-path`).value : (tool === 'rsync' ? rsyncBPath : scpBPath))
+                    : (mode === 'local' ? sftpLocalPath : (tool === 'rsync' ? rsyncAPath : scpAPath));
+
+                if (sourceSelection.length === 0) return alert("Select items to transfer.");
+                // if (destPath === "NOT_SUPPORTED") return alert("Downloading from Host B to Host A is not supported in Direct/Bridge mode.");
+
+                const opts = container.querySelector(`.${tool}-options`) ? container.querySelector(`.${tool}-options`).value : "";
+                const useScreen = container.querySelector(`.${tool}-screen`) ? container.querySelector(`.${tool}-screen`).checked : false;
+                const hostB = {
+                    ip: container.querySelector(`.${tool}-b-ip`).value,
+                    user: container.querySelector(`.${tool}-b-user`).value,
+                    pass: container.querySelector(`.${tool}-b-pass`).value
+                };
+
+                if (mode !== 'local' && (!hostB.ip || !hostB.user)) return alert("Host B IP and User are required.");
+
+                // Mostra la coda trasferimenti per feedback visivo immediato (barra progressi)
+                container.querySelector('.transfer-queue').style.display = 'flex';
+
+                (sourceSelection || []).forEach(src => {
+                    ws.send(JSON.stringify({ type: "fs_command", host_id: parseInt(currentId), term_id: explorerTermId, payload: { 
+                        action: `${tool}_command`, 
+                        mode: mode, 
+                        direction: direction,
+                        source: src, 
+                        destination: destPath, 
+                        options: opts,
+                        use_screen: useScreen, 
+                        host_b: hostB 
+                    }}));
+                });
+
+                // Clear selection from the source pane
+                const clearType = direction === 'upload' ? `${tool}A` : `${tool}B`;
+                if(clearType === 'rsyncA') rsyncASelection = []; else if(clearType === 'scpA') scpASelection = []; else if(clearType === 'rsyncB') rsyncBSelection = []; else if(clearType === 'scpB') scpBSelection = [];
+                container.querySelectorAll(`.${tool}-${direction === 'upload' ? 'a' : 'b'}-list .sftp-checkbox`).forEach(c => { c.checked = false; c.parentElement.classList.remove('selected'); });
             }
 
             function handleFileContent({ filename, content }) { if (openFiles.has(filename)) { switchTab(filename); return; } const clean = content.includes("password for") ? content.split('\n').filter(l => !l.includes("password for")).join('\n') : (content || ""); const session = ace.createEditSession(clean); setEditorMode(filename, session); session.on('change', () => { const f = openFiles.get(filename); if (f && !f.dirty) { f.dirty = true; updateTab(filename); } }); openFiles.set(filename, { session: session, dirty: false }); addTab(filename); switchTab(filename); if (targetLineToGo) { editor.gotoLine(targetLineToGo, 0, true); targetLineToGo = null; } }
